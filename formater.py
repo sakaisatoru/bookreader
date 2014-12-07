@@ -82,14 +82,19 @@ class Aozora(ReaderSetting):
     reBouten2 = re.compile( ur'((?P<name>.*?)［＃傍点終わり］)' )
     reBousen = re.compile( ur'(［＃「(?P<name>.+?)」に傍線］)' )
     reNijuBousen = re.compile( ur'(［＃「(?P<name>.+?)」に二重傍線］)' )
+    reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は行右小書き］)' )
 
-    reOmit = re.compile( ur'(［＃「.+?」は行右小書き］)|(［＃ここからキャプション］)|' +
-                ur'(［＃ここでキャプション終わり］)|(［＃「.*?」はキャプション］)|' +
-                ur'(［＃ここから横組み］)|(［＃ここで横組み終わり］)|' +
+    reOmit = re.compile(
+                ur'(［＃ここからキャプション］)|' +
+                ur'(［＃ここでキャプション終わり］)|'+
+                ur'(［＃「.*?」はキャプション］)|' +
+                ur'(［＃ここから横組み］)|'+
+                ur'(［＃ここで横組み終わり］)|' +
                 ur'(［＃「.+?」は縦中横］)|' +
                 ur'(［＃.+?段階.+?な文字］)|' +
                 ur'(［＃.+?な文字終わり］)|' +
-                ur'(［＃行右小書き.*?］)|(［＃割り注.*?］)')
+                ur'(［＃行右小書き.*?］)|' +
+                ur'(［＃割り注.*?］)')
 
     reSokobon = re.compile( ur'(［＃「.+?」は底本では「.+?」］)' )
 
@@ -346,15 +351,6 @@ class Aozora(ReaderSetting):
                 #   ［＃　で始まるタグの処理
                 #
 
-                #
-                #   未実装タグは単純に削除する
-                #
-                while True:
-                    tmp = Aozora.reOmit.search(lnbuf)
-                    if tmp == None:
-                        break
-                    print u'削除されたタグ:', lnbuf[tmp.start():tmp.end()]
-                    lnbuf = Aozora.reOmit.sub( u'', lnbuf )
 
                 priortail = 0
                 retline = u''
@@ -423,10 +419,35 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
+                    tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
+                    if tmp2:
+                        #
+                        #   行右小書き
+                        #   ルビとして掃きだす
+                        #
+                        sNameTmp = tmp2.group(u'name')
+                        reTmp = re.compile( ur'%s$' % sNameTmp )
+                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
+                        l = int(round(len(sNameTmp) / 2 - 0.5))
+                        retline = u'%s｜%s《%s》' % (
+                                retline[:-l],retline[-l:len(retline)], sNameTmp)
+                        priortail = tmp.end()
+                        continue
+
                     if Aozora.reSokobon.match(tmp.group()):
                         #
                         #   底本標記に関する付記　とりあえず削除
                         #
+                        print u'削除されたタグ: ', tmp.group()
+                        retline += lnbuf[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        continue
+
+                    if Aozora.reOmit.match(tmp.group()):
+                        #
+                        #   未実装タグは単純に削除する
+                        #
+                        print u'削除されたタグ: ', tmp.group()
                         retline += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
                         continue

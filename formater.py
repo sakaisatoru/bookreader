@@ -65,7 +65,7 @@ class Aozora(ReaderSetting):
     """
     """
     reHeader = re.compile( ur'^-------------------------------------------------------' )
-    reFooter = re.compile( ur'^底本：' )
+    reFooter = re.compile( ur'(^底本：)|(［＃本文終わり］)' )
 #        reGaiji = re.compile( ur'(※.*?［＃.*?\d+?\-\d+?\-\d+\d*.*?］)' )
 #        reGaijiNumber = re.compile( ur'(※.*?［＃.*?(?P<number>\d+\-\d+\-\d+\d*))' )
 
@@ -85,6 +85,7 @@ class Aozora(ReaderSetting):
     reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は行右小書き］)' )
 
     reOmit = re.compile(
+                ur'(［＃本文終わり］)|' +
                 ur'(［＃ここからキャプション］)|' +
                 ur'(［＃ここでキャプション終わり］)|'+
                 ur'(［＃「.*?」はキャプション］)|' +
@@ -107,7 +108,7 @@ class Aozora(ReaderSetting):
     reJitsuki = re.compile( ur'［＃地付き］' )
     reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(?P<dougyou>.*?)(?P<midashisize>大|中|小)見出し］' )
     reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］' )
-    reFig = re.compile( ur'［＃.*?（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
+    reFig = re.compile( ur'［＃(?P<caption>.*?)（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
     reSayuuchuou = re.compile( ur'［＃ページの左右中央］' )
     reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
     reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
@@ -355,6 +356,15 @@ class Aozora(ReaderSetting):
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
+                    if Aozora.reOmit.match(tmp.group()):
+                        #
+                        #   未実装タグは単純に削除する
+                        #
+                        print u'削除されたタグ: ', tmp.group()
+                        retline += lnbuf[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        continue
+
                     tmp2 = Aozora.reBouten.match(tmp.group())
                     if tmp2:
                         #
@@ -443,14 +453,7 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
-                    if Aozora.reOmit.match(tmp.group()):
-                        #
-                        #   未実装タグは単純に削除する
-                        #
-                        print u'削除されたタグ: ', tmp.group()
-                        retline += lnbuf[priortail:tmp.start()]
-                        priortail = tmp.end()
-                        continue
+
 
                     #
                     #   上記以外のタグは後続処理に引き渡す
@@ -528,41 +531,76 @@ class Aozora(ReaderSetting):
                     for s in Aozora.reCTRL.split(self.lnbuf):
                         """ 挿図
                             キャンバスの大きさに合わせて画像を縮小する。
-                            ページからはみ出るようであれば改ページを挿入する。
+                            幅　　上限　キャンバスの半分迄
+                            高さ　上限　キャンバスの高さ迄
+
+                            ページからはみ出るようであれば挿図前に改ページする。
 
                             キャンバス　880px x 616px, 行29 の場合、1行あたり30px
                             tmpRatio : 縮小倍率
                             tmpWidth : 画像横幅
                             figspan  : 画像幅の行数換算値
+
+                            ［＃.*?（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］
                         """
                         matchFig = Aozora.reFig.search(s)
                         if matchFig != None:
-                            tmpH = float(self.get_value(u'scrnheight')) - float(self.get_value(u'bottommargin')) - float(self.get_value(u'topmargin'))
-                            tmpW = float(self.get_value(u'scrnwidth')) - float(self.get_value(u'rightmargin')) - float(self.get_value(u'leftmargin'))
+                            tmpH = float(self.get_value(u'scrnheight')) - \
+                                    float(self.get_value(u'bottommargin')) - \
+                                            float(self.get_value(u'topmargin'))
+                            tmpW = float(self.get_value(u'scrnwidth')) - \
+                                    float(self.get_value(u'rightmargin')) - \
+                                            float(self.get_value(u'leftmargin'))
+                            tmpW /= 2 # 許可される最大幅
+
+                            """ タグに図のピクセルサイズが正しく登録されていない
+                                場合があるので、画像ファイルを開いてチェックする
+                            """
                             try:
-                                tmpRasio = round(tmpH / float(matchFig.group('height')),2)
-                                tmpRasioW = round(tmpW / float(matchFig.group('width')),2)
+                                tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
+                                    os.path.join(self.get_value(u'aozoracurrent'),
+                                        matchFig.group('filename')))
+
+                                tmpRasio = round(tmpH / float(tmpPixBuff.get_height()),4)
+                                tmpRasioW = round(tmpW / float(tmpPixBuff.get_width()),4)
+
+                                del tmpPixBuff
+                            except GError:
+                                # ファイルI/Oエラー
+                                self.write2file( dfile, '\n' )
+                                continue
+
                             except ZeroDivisionError:
                                 # 挿図指定に大きさがない場合への対処、とりあえず原寸
                                 tmpRasio = 1.0
                                 tmpRasioW = 1.0
                                 tmpWidth = 100
-                            else:
-                                if tmpRasioW < tmpRasio:
-                                    tmpRasio = tmpRasioW
 
-                                if tmpRasio < 1:
-                                    tmpWidth = int(round(float(matchFig.group('width')) * tmpRasio,0))
-                                else:
-                                    tmpWidth = int(matchFig.group('width'))
+                            if tmpRasioW > 1.0:
+                                tmpRasioW = 1.0
+                            if tmpRasio > 1.0:
+                                tmpRasio = 1.0
+                            if tmpRasioW < tmpRasio:
+                                tmpRasio = tmpRasioW
+                            if tmpRasioW > tmpRasio:
+                                tmpRasioW = tmpRasio
+
+                            tmpWidth = int(round(float(matchFig.group('width')) * tmpRasioW,0))
+
+                            print u'挿図処理 ',matchFig.group('caption'), tmpWidth
 
                             figspan = int(round(float(tmpWidth)/float(self.get_value(u'linewidth'))+0.5,0))
                             if self.linecounter + figspan >= int(self.get_value(u'lines')):
                                 # 改ページ
                                 while self.write2file( dfile, '\n' ) != True:
                                     pass
-                            self.write2file( dfile, '%s,%s,%s,%d,%f\n' % (matchFig.group('filename'),
-                                tmpWidth, matchFig.group('height'), figspan, tmpRasio ) )
+                            self.write2file( dfile,
+                                                '%s,%s,%s,%d,%f\n' %
+                                                    (matchFig.group('filename'),
+                                                        tmpWidth,
+                                                        int(round(float(matchFig.group('height'))*tmpRasio,0)),
+                                                        figspan,
+                                                        tmpRasio ) )
                             figspan -= 1
                             while figspan > 0:
                                 self.write2file( dfile, '\n' )
@@ -942,10 +980,6 @@ class Aozora(ReaderSetting):
 
 class CairoCanvas(Aozora):
     """ cairo / pangocairo を使って文面を縦書きする
-
-        topmargin = 8
-        rightmargin = 12
-        linestep = 30 ( fontsize = u'小' )
     """
     def __init__(self):#, resolution = u'XGA'):
         Aozora.__init__(self)

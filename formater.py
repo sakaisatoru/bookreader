@@ -83,6 +83,9 @@ class Aozora(ReaderSetting):
     reBousen = re.compile( ur'(［＃「(?P<name>.+?)」に傍線］)' )
     reNijuBousen = re.compile( ur'(［＃「(?P<name>.+?)」に二重傍線］)' )
     reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は行右小書き］)' )
+    reMama = re.compile( ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)' )
+    reMama2 = re.compile( ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)' )
+    reKogakiKatakana = re.compile( ur'(［＃小書き片仮名(?P<name>.+?)、.+?］)' )
 
     reOmit = re.compile(
                 ur'(［＃本文終わり］)|' +
@@ -362,6 +365,31 @@ class Aozora(ReaderSetting):
                         #
                         print u'削除されたタグ: ', tmp.group()
                         retline += lnbuf[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        continue
+
+                    """tmp2 = Aozora.reKogakiKatakana.match(tmp.group())
+                    if tmp2:
+                        #
+                        #   小書き片仮名
+                        #   ヱの小文字など、JISにフォントが無い場合
+                        retline += lnbuf[priortail:tmp.start()].rstrip(u'※')
+                        retline += tmp2.group(u'name')
+                        priortail = tmp.end()
+                        continue
+                    """
+
+                    tmp2 = Aozora.reMama.match(tmp.group())
+                    if tmp2 == None:
+                        tmp2 = Aozora.reMama2.match(tmp.group())
+                    if tmp2:
+                        #
+                        #   ママ注記
+                        #
+                        sNameTmp = tmp2.group(u'name')
+                        reTmp = re.compile( ur'%s$' % sNameTmp )
+                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()])
+                        retline += u'｜%s《%s》' % ( sNameTmp, tmp2.group(u'mama') )
                         priortail = tmp.end()
                         continue
 
@@ -1031,7 +1059,10 @@ class CairoCanvas(Aozora):
                         # 単にscaleで画像を縮小すると座標系全てが影響を受ける
                         context.scale(float(matchFig.group('rasio')), float(matchFig.group('rasio')))
                         context.set_source_surface(img,
-                                round((xpos - ((int(matchFig.group('lines')) * self.canvas_linewidth))) / float(matchFig.group('rasio'))+0.5,0),
+                                round((xpos + int(matchFig.group('lines'))/2 - \
+                                   ((int(matchFig.group('lines')) * \
+                                   self.canvas_linewidth))) /   \
+                                   float(matchFig.group('rasio'))+0.5,0),
                                         self.canvas_topmargin)
                         context.paint()
                     else:

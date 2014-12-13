@@ -86,21 +86,25 @@ class Aozora(ReaderSetting):
     reMama = re.compile( ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)' )
     reMama2 = re.compile( ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)' )
     reKogakiKatakana = re.compile( ur'(［＃小書き片仮名(?P<name>.+?)、.+?］)' )
+    reShitatsukiKomoji = re.compile( ur'(［＃「(?P<name>.+?)」は下付き小文字］)' )
 
     reOmit = re.compile(
                 ur'(［＃本文終わり］)|' +
                 ur'(［＃ここからキャプション］)|' +
                 ur'(［＃ここでキャプション終わり］)|'+
                 ur'(［＃「.*?」はキャプション］)|' +
-                ur'(［＃ここから横組み］)|'+
-                ur'(［＃ここで横組み終わり］)|' +
+                ur'(［＃(ここから)??横組み］)|'+
+                ur'(［＃(ここで)??横組み終わり］)|' +
                 ur'(［＃「.+?」は縦中横］)|' +
                 ur'(［＃.+?段階.+?な文字］)|' +
                 ur'(［＃.+?な文字終わり］)|' +
                 ur'(［＃行右小書き.*?］)|' +
-                ur'(［＃割り注.*?］)')
+                ur'(［＃割り注.*?］)|' +
+                ur'(［＃「.+?」は底本では「.+?」］)|' +
+                ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
 
-    reSokobon = re.compile( ur'(［＃「.+?」は底本では「.+?」］)' )
+    #reSokobon = re.compile( ur'(［＃「.+?」は底本では「.+?」］)' )
+    #reRubiSokobon = re.compile( ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
 
     reRubi = re.compile( ur'《.*?》' )
     reRubiclr = re.compile( ur'＃' )
@@ -115,6 +119,17 @@ class Aozora(ReaderSetting):
     reSayuuchuou = re.compile( ur'［＃ページの左右中央］' )
     reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
     reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
+
+    reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
+    reKaeriten = re.compile(
+                    ur'(［＃(?P<name>[レ一二三四五六七八九'+
+                            ur'上中下' +
+                            ur'甲乙丙丁戊己庚辛壬癸' +
+                            ur'天地人' +
+                            ur'元亨利貞' +
+                            ur'春夏秋冬'+
+                            ur'木火土金水'+
+                            ur']??)］)' )
 
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«'
@@ -350,12 +365,9 @@ class Aozora(ReaderSetting):
                     ln += s
                 lnbuf = ln
 
-
                 #
                 #   ［＃　で始まるタグの処理
                 #
-
-
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
@@ -363,7 +375,7 @@ class Aozora(ReaderSetting):
                         #
                         #   未実装タグは単純に削除する
                         #
-                        print u'削除されたタグ: ', tmp.group()
+                        #print u'削除されたタグ: ', tmp.group()
                         retline += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
                         continue
@@ -457,22 +469,53 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
+
                     tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
                     if tmp2:
-                        #
                         #   行右小書き
-                        #   ルビとして掃きだす
-                        #
+                        #   pango のタグに逃げる
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
-                        l = int(round(len(sNameTmp) / 2 - 0.5))
-                        retline = u'%s｜%s《%s》' % (
-                                retline[:-l],retline[-l:len(retline)], sNameTmp)
+                        retline += u'<sup>%s</sup>' % tmp2.group(u'name')
+                        priortail = tmp.end()
+                        print u"行右小書き  %dページ %s %s" % (self.pagecounter+1,
+                                        tmp2.group(u'name'),
+                                        tmp.group())
+                        continue
+
+                    tmp2 = Aozora.reShitatsukiKomoji.match(tmp.group())
+                    if tmp2:
+                        #   下付き小文字 -> 行左小書き
+                        #   pango のタグに逃げる
+                        sNameTmp = tmp2.group(u'name')
+                        reTmp = re.compile( ur'%s$' % sNameTmp )
+                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
+                        retline += u'<sub>%s</sub>' % tmp2.group(u'name')
                         priortail = tmp.end()
                         continue
 
-                    if Aozora.reSokobon.match(tmp.group()):
+                    tmp2 = Aozora.reKuntenOkuri.match(tmp.group())
+                    if tmp2:
+                        #   訓点送り仮名
+                        #   pango のタグに逃げる
+                        retline += u'%s<sup>%s</sup>' % (
+                            lnbuf[priortail:tmp.start()], tmp2.group(u'name'))
+                        priortail = tmp.end()
+                        continue
+
+                    tmp2 = Aozora.reKaeriten.match(tmp.group())
+                    if tmp2:
+                        #   返り点
+                        #   pango のタグに逃げる
+                        retline += u'%s<sub>%s</sub>' % (
+                            lnbuf[priortail:tmp.start()], tmp2.group(u'name'))
+                        priortail = tmp.end()
+                        print u"返り点　%dページ %s\n" % (self.pagecounter+1, tmp.group())
+                        continue
+
+                    """
+                    if Aozora.reSokobon.match(tmp.group()) or Aozora.reRubiSokobon.match(tmp.group()):
                         #
                         #   底本標記に関する付記　とりあえず削除
                         #
@@ -480,8 +523,7 @@ class Aozora(ReaderSetting):
                         retline += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
                         continue
-
-
+                    """
 
                     #
                     #   上記以外のタグは後続処理に引き渡す
@@ -760,70 +802,80 @@ class Aozora(ReaderSetting):
                     tp = 0
                     rubispan = 0
                     isAnchor = False
+                    inTag = False
                     for s in self.lnbuf:
-                        if s == u'《':
-                            isAnchor = False
-                            inRubi = True
-                            # 直前のルビ打ち込み位置までバック
-                            r2 = rubiline.rstrip( u'　' )
-                            r2 = r2.rstrip( u'＃' )
-                            rubispan = len(rubiline) - len(r2)
-                            rubiline = r2
-                            continue
-                        elif s == u'》':
-                            inRubi = False
-                            while rubispan > 0:
-                                rubiline += u'　' #u'／'
-                                rubispan -= 1
-                            continue
-                        elif s == u'｜':
-                            rubiline += u'＃'
-                            isAnchor = True
-                            rubispan -= 1
-                            continue
-                        if inRubi == True:
-                            # ルビ文字をサイドラインバッファへ
-                            rubiline += s
-                            rubispan -= 1
-                            continue
-
-                        # 文字種類の違いを検出してルビ開始位置に
-                        # '＃' を打ち込む
-                        # 但し 前方に'｜'があればルビが出現するまでスキップする
-                        sPad = u'　' # 全角スペース
-                        if isAnchor == False:
-                            tplast = tp
-                            try:
-                                tp = unicodedata.name(s).split()[0]
-                                # 非漢字でも漢字扱いとする文字
-                                # http://www.aozora.gr.jp/KOSAKU/MANUAL_2.html#ruby
-                                if tp != 'CJK':
-                                    if u'仝〆〇ヶ〻々'.find(s) != -1:
-                                        tp = 'CJK'
-
-                                if tplast != tp:
-                                    sPad = u'＃'
-                            except:
-                                tp = ''
-
-                        if rubispan < 0:
-                            # ルビが本文より長い場合の調整
-                            rubispan += 1
-                            sPad = u''
-                        rubiline += sPad
-                        #if unicodedata.east_asian_width(s) != 'Na':
-                        # 本文が全角文字であれば幅調整する
-                        if rubispan < 0:
-                            # ルビが本文より長い場合の調整
-                            rubispan += 1
+                        # タグは読み飛ばす
+                        if s == u'>':
+                            inTag = False
+                        elif s == u'<':
+                            inTag = True
+                        elif inTag:
+                            pass
                         else:
-                            rubiline += u'　' #u'／'
+                            if s == u'《':
+                                isAnchor = False
+                                inRubi = True
+                                # 直前のルビ打ち込み位置までバック
+                                r2 = rubiline.rstrip( u'　' )
+                                r2 = r2.rstrip( u'＃' )
+                                rubispan = len(rubiline) - len(r2)
+                                rubiline = r2
+                                continue
+                            elif s == u'》':
+                                inRubi = False
+                                while rubispan > 0:
+                                    rubiline += u'　' #u'／'
+                                    rubispan -= 1
+                                continue
+                            elif s == u'｜':
+                                rubiline += u'＃'
+                                isAnchor = True
+                                rubispan -= 1
+                                continue
+                            if inRubi == True:
+                                # ルビ文字をサイドラインバッファへ
+                                rubiline += s
+                                rubispan -= 1
+                                continue
+
+                            # 文字種類の違いを検出してルビ開始位置に
+                            # '＃' を打ち込む
+                            # 但し 前方に'｜'があればルビが出現するまでスキップする
+                            sPad = u'　' # 全角スペース
+                            if isAnchor == False:
+                                tplast = tp
+                                try:
+                                    tp = unicodedata.name(s).split()[0]
+                                    # 非漢字でも漢字扱いとする文字
+                                    # http://www.aozora.gr.jp/KOSAKU/MANUAL_2.html#ruby
+                                    if tp != 'CJK':
+                                        if u'仝〆〇ヶ〻々'.find(s) != -1:
+                                            tp = 'CJK'
+
+                                    if tplast != tp:
+                                        sPad = u'＃'
+                                except:
+                                    tp = ''
+
+                            if rubispan < 0:
+                                # ルビが本文より長い場合の調整
+                                rubispan += 1
+                                sPad = u''
+                            rubiline += sPad
+                            sPad = u'　'
+                            if unicodedata.east_asian_width(s) != 'Na':
+                                # 本文が全角文字であれば幅調整する
+                                if rubispan < 0:
+                                    # ルビが本文より長い場合の調整
+                                    rubispan += 1
+                                    sPad = u''
+                                rubiline += sPad
 
                         self.ln2 += s
 
                     rubiline = Aozora.reRubiclr.sub(u'　', rubiline)
                     self.lnbuf = self.ln2
-                    rubi2 = u''
+
                     #
                     #   行をバッファ(中間ファイル)へ吐き出す
                     #
@@ -841,33 +893,27 @@ class Aozora(ReaderSetting):
                         if self.onetime_indent == True:
                             self.sIndent = u''
 
-                        r, c, self.ls = self.sizeofline(self.lnbuf, self.charsmax)
                         #
                         #   画面上の1行で収まらなければ分割して次行を得る
                         #
-                        if c >= self.charsmax:
-                            self.lnbuf = self.lnbuf[r:]
-                            # ルビの長さをチェックして必要であれば分割する
-                            if len(rubiline) >= r * 2:
-                                rubi2 = rubiline[:r*2]
-                                rubiline = rubiline[r*2:]
-                        else:
-                            self.lnbuf = ''
-                            rubi2 = rubiline
-                            rubiline = u''
+                        self.ls, r, self.lnbuf, rubi2, rubiline = self.sizeofline(
+                                        self.lnbuf, rubiline, self.charsmax)
                         #
                         #   行末禁則処理
                         #   次行先頭へ追い出す
                         #   禁則文字が続く場合は全て追い出す
                         #
+                        r -= 1
                         while True:
-                            r = len(self.ls)
-                            if Aozora.kinsoku2.find(self.ls[r-1]) != -1:
-                                self.lnbuf = self.ls[r-1] + self.lnbuf
-                                self.ls = self.ls[:r-1] + u'　'
+                            if Aozora.kinsoku2.find(self.ls[r]) != -1:
+                                self.lnbuf = self.ls[r] + self.lnbuf
+                                self.ls = self.ls[:r] + u'　'
                                 # ルビも同様に処理
-                                rubiline = rubi2[r*2-2]+rubi2[r*2-1]+rubiline
-                                rubi2 = rubi2[:r*2-2] + u'　　'#u'＊＊'
+                                try:
+                                    rubiline = rubi2[r*2]+rubi2[r*2+1]+rubiline
+                                    rubi2 = rubi2[:r*2] + u'　　'#u'＊＊'
+                                except:
+                                    pass
                             else:
                                 break
 
@@ -915,31 +961,48 @@ class Aozora(ReaderSetting):
                                         pass
                         self.write2file( dfile, "%s%s\n" % (self.ls,self.last), "%s\n" % rubi2)
 
-    def sizeofline(self, sline, smax=0 ):
+    def sizeofline(self, sline, rline, smax=0 ):
         """ 文字列の長さを返す。
-            但し半角文字は0.5文字として数え、合計時に切り捨てる。
-            smax に達しても抜ける。
-            戻りは実際の文字数と換算文字数を返す。
+            <tag></tag> はカウントしない。
+            半角文字は0.5文字として数え、合計時に切り捨てる。
+            カウント数が smax に達したらそこで文字列を分割して終了する。
+            sline : 本文
+            rline : ルビ
         """
-
-        rv2 = 0     # 実際の文字数
-        lcc = 0.0
-        honbun = u''
+        lcc = 0.0       # 全角１、半角0.5で長さを積算
+        honbun = u''    # 本文（カレント行）
+        honbun2 = u''   # 本文（分割時の次行）
+        rubi = rline    # ルビ（カレント行）
+        rubi2 = u''     # ルビ（分割時の次行）
+        inTag = False
+        inSplit = False
         for lsc in sline:
-            if smax > 0:
-                if int(round(lcc-0.5)) >= smax:
-                    break
+            if inSplit:
+                honbun2 += lsc
+                continue
 
-            rv2 += 1
+            if smax > 0:
+                if lcc >= smax:
+                    inSplit = True
+                    honbun2 += lsc
+                    # ルビを分割する
+                    rubi = rline[:int(lcc*2)]
+                    rubi2 = rline[int(lcc*2):]
+                    continue
+
             honbun += lsc
-            # 画面上における全長を計算
-            if unicodedata.east_asian_width(lsc) == 'Na':
-                # いわゆる半角文字
-                lcc += 0.5
+            if lsc == u'>':
+                inTag = False
+            elif lsc == u'<':
+                inTag = True
+            elif inTag:
+                pass
             else:
-                # いわゆる全角文字
-                lcc += 1
-        return ( rv2, int(round(lcc-0.5)), honbun )
+                # 画面上における全長を計算
+                lcc += 0.5 if unicodedata.east_asian_width(lsc) == 'Na' else 1
+
+        return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
+
 
     def write2file(self, fd, s, rubiline=u'\n' ):
         """ formater 下請け
@@ -1173,7 +1236,8 @@ class CairoCanvas(Aozora):
             layout.set_font_description(self.font)
             s = mtmp.group('text')
 
-        layout.set_text( s )
+        #layout.set_text( s )
+        layout.set_markup( s )
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
 

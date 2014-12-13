@@ -889,7 +889,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         dlg = gtk.AboutDialog()
         dlg.set_program_name( u'青空文庫リーダー' )
         dlg.set_version( u'unstable version' )
-        dlg.set_copyright( u'by sakai satoru 2014/July/13' )
+        dlg.set_copyright( u'by sakai satoru 2014 December' )
         dlg.run()
         dlg.destroy()
 
@@ -930,10 +930,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ キー入力のトラップ
         """
         key = event.keyval
-        if key == 65361 or key == 32:       # left arrow cursor or space
+        if key == 65361 or key == 0xff56 or key == 32:
+            # left arrow cursor or PgUp or space
             self.next_page()
-        elif key == 65363:                  # right arrow cursor
+        elif key == 65363 or key == 0xff55:
+            # right arrow cursor or PgDn
             self.prior_page()
+        elif key == 0xff50:
+            # Home
+            self.page_common( 0 )
+        elif key == 0xff57:
+            # End
+            self.page_common( self.cc.pagecounter )
+
         return False
 
     def button_press_event_cb( self, widget, event ):

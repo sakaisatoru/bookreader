@@ -207,6 +207,7 @@ class BookListDlg(gtk.Window, ReaderSetting):
         self.set_position(gtk.WIN_POS_CENTER)
 
         self.connect("delete_event", self.delete_event_cb)
+        self.connect( 'key-press-event', self.key_press_event_cb )
         self.get_booklist(self.enDirectry.get_text())
         self.selectfile = u''
         self.ack = gtk.RESPONSE_NONE
@@ -294,6 +295,18 @@ class BookListDlg(gtk.Window, ReaderSetting):
         self.exitall()
         self.ack = gtk.RESPONSE_CANCEL
         self.selectfile = ''
+
+    def key_press_event_cb( self, widget, event ):
+        """ キー入力のトラップ
+        """
+        key = event.keyval
+        if key == 0xff1b:
+            # ESC
+            self.exitall()
+            self.ack = gtk.RESPONSE_CANCEL
+            self.selectfile = ''
+        # デフォルトルーチンに繋ぐため False を返すこと
+        return False
 
     def exitall(self):
         self.hide_all()
@@ -409,7 +422,7 @@ class BookmarkUI(gtk.Window):
         self.set_position(gtk.WIN_POS_CENTER)
 
         self.connect("delete_event", self.delete_event_cb)
-
+        self.connect( 'key-press-event', self.key_press_event_cb )
         bi = BookMarkInfo()
         for s in bi.itre():
             sc = s.split(',')
@@ -468,6 +481,17 @@ class BookmarkUI(gtk.Window):
     def clicked_btnCancel_cb(self, widget):
         self.exitall()
         self.rv = None
+
+    def key_press_event_cb( self, widget, event ):
+        """ キー入力のトラップ
+        """
+        key = event.keyval
+        if key == 0xff1b:
+            # ESC
+            self.exitall()
+            self.rv = None
+        # デフォルトルーチンに繋ぐため False を返すこと
+        return False
 
     def exitall(self):
         """ UI上のしおりデータを保存して終了する。
@@ -796,8 +820,39 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.connect('realize', self.realize_event_cb)
         self.connect('expose-event', self.expose_event_cb)
         #self..connect( 'button-press-event', self.button_press_event_pass_cb )
-        self.connect( 'key-press-event', self.key_press_event_cb )
+        self.connect('key-press-event', self.key_press_event_cb)
         self.set_position(gtk.WIN_POS_CENTER)
+
+    def key_press_event_cb( self, widget, event ):
+        """ キー入力のトラップ
+        """
+        if event.state & gtk.gdk.CONTROL_MASK:
+            key = event.hardware_keycode #event.keyval
+            if key == 57:
+                # CTRL_N
+                self.whatsnew_cb( widget )
+            elif key == 41:
+                # CTRL_F
+                self.online_access_cb( widget )
+            elif key == 46:
+                # CTRL_L
+                self.shiori_list_cb( widget )
+        else:
+            key = event.keyval
+            if key == 65361 or key == 0xff56 or key == 32:
+                # left arrow cursor or PgUp or space
+                self.next_page()
+            elif key == 65363 or key == 0xff55:
+                # right arrow cursor or PgDn
+                self.prior_page()
+            elif key == 0xff50:
+                # Home
+                self.page_common( 0 )
+            elif key == 0xff57:
+                # End
+                self.page_common( self.cc.pagecounter )
+        # デフォルトルーチンに繋ぐため False を返すこと
+        return False
 
     def online_access_cb(self, widget):
         """ インターネット上の青空文庫にアクセス
@@ -926,25 +981,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     def button_release_event_cb( self, widget, event ):
         return False
 
-    def key_press_event_cb( self, widget, event ):
-        """ キー入力のトラップ
-        """
-        key = event.keyval
-        if key == 65361 or key == 0xff56 or key == 32:
-            # left arrow cursor or PgUp or space
-            self.next_page()
-        elif key == 65363 or key == 0xff55:
-            # right arrow cursor or PgDn
-            self.prior_page()
-        elif key == 0xff50:
-            # Home
-            self.page_common( 0 )
-        elif key == 0xff57:
-            # End
-            self.page_common( self.cc.pagecounter )
-
-        return False
-
     def button_press_event_cb( self, widget, event ):
         """ マウスクリック
             左ボタン    ページ送り・戻し
@@ -1011,7 +1047,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ エントリー
         """
         self.currentpage = 0
-        self.cc.write_a_line(u'<b>青空文庫リーダー')
+        self.cc.write_a_line(u'<b>青空文庫リーダー</b>')
         self.imagebuf.set_from_file('%s/.cache/aozora/thisistest.png' % self.get_homedir())
         self.set_title(u'青空文庫リーダー')
         self.show_all()

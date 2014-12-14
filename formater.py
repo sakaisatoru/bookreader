@@ -120,6 +120,7 @@ class Aozora(ReaderSetting):
     reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
     reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
 
+    reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
     reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
     reKaeriten = re.compile(
                     ur'(［＃(?P<name>[レ一二三四五六七八九'+
@@ -298,8 +299,8 @@ class Aozora(ReaderSetting):
 
                 #
                 #   単純置換処理各種
-                #
-
+                #1951（昭和26）年8月15日
+                """
                 if footerflag == True:
                     #
                     #   フッタにおける年月日を漢数字に置換
@@ -314,7 +315,7 @@ class Aozora(ReaderSetting):
                         else:
                             ln += s
                     lnbuf = ln
-
+                """
                 #
                 #   青空文庫の制御文字列である　［＃］を【＃】と表記する
                 #   テキストへの対応
@@ -364,6 +365,21 @@ class Aozora(ReaderSetting):
                             s = k
                     ln += s
                 lnbuf = ln
+
+                if footerflag == True:
+                    #
+                    #   フッタにおける年月日を漢数字に置換
+                    #
+                    ln = u''
+                    for s in lnbuf:
+                        if unicodedata.name(s).split()[0] == 'DIGIT':
+                            try:
+                                ln += u'〇一二三四五六七八九'[eval(s)]
+                            except:
+                                ln += s
+                        else:
+                            ln += s
+                    lnbuf = ln
 
                 #
                 #   ［＃　で始まるタグの処理
@@ -473,7 +489,7 @@ class Aozora(ReaderSetting):
                     tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
                     if tmp2:
                         #   行右小書き
-                        #   pango のタグに逃げる
+                        #   pango のタグを流用
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
@@ -487,7 +503,7 @@ class Aozora(ReaderSetting):
                     tmp2 = Aozora.reShitatsukiKomoji.match(tmp.group())
                     if tmp2:
                         #   下付き小文字 -> 行左小書き
-                        #   pango のタグに逃げる
+                        #   pango のタグを流用
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
@@ -495,10 +511,21 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
+                    tmp2 = Aozora.reFutoji.match(tmp.group())
+                    if tmp2:
+                        #   太字
+                        #   pango のタグを流用
+                        sNameTmp = tmp2.group(u'name')
+                        reTmp = re.compile( ur'%s$' % sNameTmp )
+                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
+                        retline += u'<b>%s</b>' % tmp2.group(u'name')
+                        priortail = tmp.end()
+                        continue
+
                     tmp2 = Aozora.reKuntenOkuri.match(tmp.group())
                     if tmp2:
                         #   訓点送り仮名
-                        #   pango のタグに逃げる
+                        #   pango のタグを流用
                         retline += u'%s<sup>%s</sup>' % (
                             lnbuf[priortail:tmp.start()], tmp2.group(u'name'))
                         priortail = tmp.end()
@@ -507,12 +534,13 @@ class Aozora(ReaderSetting):
                     tmp2 = Aozora.reKaeriten.match(tmp.group())
                     if tmp2:
                         #   返り点
-                        #   pango のタグに逃げる
+                        #   pango のタグを流用
                         retline += u'%s<sub>%s</sub>' % (
                             lnbuf[priortail:tmp.start()], tmp2.group(u'name'))
                         priortail = tmp.end()
-                        print u"返り点　%dページ %s\n" % (self.pagecounter+1, tmp.group())
                         continue
+
+
 
                     """
                     if Aozora.reSokobon.match(tmp.group()) or Aozora.reRubiSokobon.match(tmp.group()):
@@ -1222,19 +1250,6 @@ class CairoCanvas(Aozora):
         """
         ctx = layout.get_context()
         ctx.set_base_gravity( 'east' )
-        #
-        #   太字タグの処理
-        #
-        mtmp = self.reBold.search(s)
-        if mtmp != None:
-            self.font.set_weight(pango.WEIGHT_BOLD)
-            layout.set_font_description(self.font)
-            s = mtmp.group('text')
-        mtmp = self.reBoldoff.search(s)
-        if mtmp != None:
-            self.font.set_weight(pango.WEIGHT_NORMAL)
-            layout.set_font_description(self.font)
-            s = mtmp.group('text')
 
         #layout.set_text( s )
         layout.set_markup( s )

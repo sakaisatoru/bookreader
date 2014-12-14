@@ -278,6 +278,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         self.vbox.pack_end(self.sbStatus, expand=False)
         self.add(self.vbox)
         self.connect("delete_event", self.delete_event_cb)
+        self.connect("key-press-event", self.key_press_event_cb )
         self.set_position(gtk.WIN_POS_CENTER)
 
         # 戻り値初期化
@@ -456,6 +457,18 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         self.exitall()
         self.ack = gtk.RESPONSE_CANCEL
         self.selectfile = u''
+
+    def key_press_event_cb( self, widget, event ):
+        """ キー入力のトラップ
+        """
+        key = event.keyval
+        if key == 0xff1b:
+            # ESC
+            self.exitall()
+            self.ack = gtk.RESPONSE_CANCEL
+            self.selectfile = ''
+        # デフォルトルーチンに繋ぐため False を返すこと
+        return False
 
     def exitall(self):
         self.hide_all()

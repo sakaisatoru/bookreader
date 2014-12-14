@@ -191,6 +191,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         self.set_position(gtk.WIN_POS_CENTER)
 
         self.connect("delete_event", self.delete_event_cb)
+        self.connect("key-press-event", self.key_press_event_cb )
 
         a = ReadHTMLpage()
         a.setbaseurl( self.AOZORA_URL )
@@ -229,6 +230,17 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
     def clicked_btnCancel_cb(self, widget):
         self.exitall()
         self.ack = None
+
+    def key_press_event_cb( self, widget, event ):
+        """ キー入力のトラップ
+        """
+        key = event.keyval
+        if key == 0xff1b:
+            # ESC
+            self.exitall()
+            self.ack = None
+        # デフォルトルーチンに繋ぐため False を返すこと
+        return False
 
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()

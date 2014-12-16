@@ -98,7 +98,6 @@ class Aozora(ReaderSetting):
                 ur'(［＃「.+?」は縦中横］)|' +
                 ur'(［＃.+?段階.+?な文字］)|' +
                 ur'(［＃.+?な文字終わり］)|' +
-                ur'(［＃行右小書き.*?］)|' +
                 ur'(［＃割り注.*?］)|' +
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
                 ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
@@ -110,7 +109,7 @@ class Aozora(ReaderSetting):
     reRubiclr = re.compile( ur'＃' )
     reIndent = re.compile( ur'［＃(?P<number>[０-９]+?)字下げ］' )
     reIndentStart = re.compile( ur'［＃.+?(?P<number>[０-９]+?)字下げ］' )
-    reIndentEnd = re.compile( ur'［＃ここで字下げ終わり］|［＃字下げおわり］')
+    reIndentEnd = re.compile( ur'［＃(ここで)??字下げ終わり］|［＃字下げおわり］')
     reJiage = re.compile( ur'［＃地から(?P<number>[０-９]+?)字上げ］' )
     reJitsuki = re.compile( ur'［＃地付き］' )
     reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(?P<dougyou>.*?)(?P<midashisize>大|中|小)見出し］' )
@@ -120,6 +119,8 @@ class Aozora(ReaderSetting):
     reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
     reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
 
+    reJizume = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字詰め］' )
+    reJizumeowari = re.compile( ur'［＃ここで字詰め終わり］' )
     reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
     reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
     reKaeriten = re.compile(
@@ -136,6 +137,11 @@ class Aozora(ReaderSetting):
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«'
     kinsoku3 = u'〳〴〵' # —…‥
 
+    """ ソースに直書きしているタグ
+        u'［＃傍点］'
+        u'［＃行右小書き］'
+        u'［＃行右小書き終わり］'
+    """
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
@@ -387,11 +393,23 @@ class Aozora(ReaderSetting):
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
+                    if tmp.group() == u'［＃行右小書き］':
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'<sup>'
+                        priortail = tmp.end()
+                        continue
+
+                    if tmp.group() == u'［＃行右小書き終わり］':
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'</sup>'
+                        priortail = tmp.end()
+                        continue
+
                     if Aozora.reOmit.match(tmp.group()):
                         #
                         #   未実装タグは単純に削除する
                         #
-                        #print u'削除されたタグ: ', tmp.group()
+                        print u'削除されたタグ: ', tmp.group()
                         retline += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
                         continue
@@ -495,9 +513,6 @@ class Aozora(ReaderSetting):
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
                         retline += u'<sup>%s</sup>' % tmp2.group(u'name')
                         priortail = tmp.end()
-                        print u"行右小書き  %dページ %s %s" % (self.pagecounter+1,
-                                        tmp2.group(u'name'),
-                                        tmp.group())
                         continue
 
                     tmp2 = Aozora.reShitatsukiKomoji.match(tmp.group())
@@ -539,19 +554,6 @@ class Aozora(ReaderSetting):
                             lnbuf[priortail:tmp.start()], tmp2.group(u'name'))
                         priortail = tmp.end()
                         continue
-
-
-
-                    """
-                    if Aozora.reSokobon.match(tmp.group()) or Aozora.reRubiSokobon.match(tmp.group()):
-                        #
-                        #   底本標記に関する付記　とりあえず削除
-                        #
-                        print u'削除されたタグ: ', tmp.group()
-                        retline += lnbuf[priortail:tmp.start()]
-                        priortail = tmp.end()
-                        continue
-                    """
 
                     #
                     #   上記以外のタグは後続処理に引き渡す
@@ -608,6 +610,8 @@ class Aozora(ReaderSetting):
             self.sJiage = u''
             self.onetime_jiage = False
             self.midashi = False
+            self.Jizume = 0                             # 字詰桁数
+            #charmaxstack = []                           # 1行あたりの桁数のスタック
 
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
 
@@ -739,6 +743,18 @@ class Aozora(ReaderSetting):
                             self.sMidashiSize = matchMidashi.group('midashisize')
                             s = ''
                             self.midashi = True
+
+                        """ 字詰
+                        """
+                        mTmp = Aozora.reJizume.search(s)
+                        if mTmp != None:
+                            self.Jizume = self.zentoi(mTmp.group('number'))
+                            s = ''
+
+                        if Aozora.reJizumeowari.search(s) != None:
+                            self.Jizume = 0
+                            s = ''
+
 
                         """ ワンタイムインデント
                             sIndent に 桁数分の空白を得る
@@ -926,86 +942,32 @@ class Aozora(ReaderSetting):
                         #
                         self.ls, r, self.lnbuf, rubi2, rubiline = self.sizeofline(
                                         self.lnbuf, rubiline, self.charsmax)
-                        #
-                        #   行末禁則処理
-                        #   次行先頭へ追い出す
-                        #   禁則文字が続く場合は全て追い出す
-                        #
-                        r -= 1
-                        while True:
-                            if Aozora.kinsoku2.find(self.ls[r]) != -1:
-                                self.lnbuf = self.ls[r] + self.lnbuf
-                                self.ls = self.ls[:r] + u'　'
-                                # ルビも同様に処理
-                                try:
-                                    rubiline = rubi2[r*2]+rubi2[r*2+1]+rubiline
-                                    rubi2 = rubi2[:r*2] + u'　　'#u'＊＊'
-                                except:
-                                    pass
-                            else:
-                                break
 
-                        #
-                        #   行頭禁則処理
-                        #   前行末にぶら下げる。
-                        #   2重処理まで。それ以上はそのまま。
-                        #   例）。」　は2文字ともぶら下げる。
-                        #
-                        self.last = ''
-                        if len(self.lnbuf) > 0:
-                            if Aozora.kinsoku.find(self.lnbuf[0]) != -1:
-                                self.last = self.lnbuf[0]
-                                self.lnbuf = self.lnbuf[1:]
-                                # ルビも同様に処理
-                                try:
-                                    rubi2 = rubi2 + rubiline[:2]
-                                    rubiline = rubiline[2:]
-                                except:
-                                    pass
-                                if len(self.lnbuf) >= 1:
-                                    if Aozora.kinsoku.find(self.lnbuf[0]) != -1:
-                                        self.last += self.lnbuf[0]
-                                        self.lnbuf = self.lnbuf[1:]
-                                        # ルビも同様に処理
-                                        try:
-                                            rubi2 = rubi2 + rubiline[:2]
-                                            rubiline = rubiline[2:]
-                                        except:
-                                            pass
-                        #
-                        #   くの字記号の分離を阻止する
-                        #   行頭禁則と重なるととんでもないことに！
-                        #
-                        if len(self.lnbuf) > 0:
-                            if self.lnbuf[0] == u'〵':
-                                if u'〳〴'.find(self.ls[r-1]) != -1:
-                                    self.last +=  self.lnbuf[0]
-                                    self.lnbuf = self.lnbuf[1:]
-                                    # ルビも同様に処理
-                                    try:
-                                        rubi2 = rubi2 + rubiline[0] + rubiline[1]
-                                        rubiline = rubiline[2:]
-                                    except:
-                                        pass
-                        self.write2file( dfile, "%s%s\n" % (self.ls,self.last), "%s\n" % rubi2)
+
+                        self.write2file( dfile, "%s\n" % self.ls, "%s\n" % rubi2)
 
     def sizeofline(self, sline, rline, smax=0 ):
         """ 文字列の長さを返す。
             <tag></tag> はカウントしない。
-            半角文字は0.5文字として数え、合計時に切り捨てる。
+            半角文字は0.5文字として数え、合計時に切り上げる。
             カウント数が smax に達したらそこで文字列を分割して終了する。
             sline : 本文
             rline : ルビ
         """
-        lcc = 0.0       # 全角１、半角0.5で長さを積算
-        honbun = u''    # 本文（カレント行）
-        honbun2 = u''   # 本文（分割時の次行）
-        rubi = rline    # ルビ（カレント行）
-        rubi2 = u''     # ルビ（分割時の次行）
-        inTag = False
-        inSplit = False
+        tagstack = []       # <tag> のスタック
+        tagname = u''
+        lcc = 0.0           # 全角１、半角0.5で長さを積算
+        honbun = u''        # 本文（カレント行）
+        honbun2 = u''       # 本文（分割時の次行）
+        rubi = rline        # ルビ（カレント行）
+        rubi2 = u''         # ルビ（分割時の次行）
+        inTag = False       # <tag>処理のフラグ
+        inCloseTag = False  # </tag>処理のフラグ
+        inSplit = False     # 行分割処理のフラグ
+
         for lsc in sline:
             if inSplit:
+                # 本文の分割
                 honbun2 += lsc
                 continue
 
@@ -1013,24 +975,113 @@ class Aozora(ReaderSetting):
                 if lcc >= smax:
                     inSplit = True
                     honbun2 += lsc
-                    # ルビを分割する
+                    # ルビの処理
+                    # <tag></tag>による修飾を考慮しないので単純に分割して終わる
                     rubi = rline[:int(lcc*2)]
                     rubi2 = rline[int(lcc*2):]
                     continue
 
             honbun += lsc
             if lsc == u'>':
+                tagname += lsc
+                tagname += u' '
+                if inCloseTag:
+                    inCloseTag = False
+                    # </tag>の出現とみなしてスタックから取り除く
+                    # ペアマッチの処理は行わない
+                    try:
+                        tagstack.pop()
+                    except:
+                        pass
+                else:
+                    tagstack.append(tagname)
+                    tagname = u''
                 inTag = False
             elif lsc == u'<':
                 inTag = True
+                tagname = lsc
             elif inTag:
-                pass
+                if lsc == '/':
+                    inCloseTag = True
+                else:
+                    tagname += lsc
             else:
                 # 画面上における全長を計算
                 lcc += 0.5 if unicodedata.east_asian_width(lsc) == 'Na' else 1
 
-        return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
+        """self.ls, r, self.lnbuf, rubi2, rubiline = self.sizeofline(
+                                        self.lnbuf, rubiline, self.charsmax)
+            return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
+        """
 
+        #
+        #   行末禁則処理
+        #   次行先頭へ追い出す
+        #   禁則文字が続く場合は全て追い出す
+        #
+        r = len(honbun) -1
+        while Aozora.kinsoku2.find(honbun[r]) != -1:
+            honbun2 = honbun[r] + honbun2
+            honbun = honbun[:r] + u'　'
+            # ルビも同様に処理
+            try:
+                rubi2 = rubi[r*2]+rubi[r*2+1]+rubi2
+                rubi = rubi[:r*2] + u'　　'#u'＊＊'
+            except:
+                pass
+            r -= 1
+
+        #
+        #   行頭禁則処理
+        #   前行末にぶら下げる。
+        #   2重処理まで。それ以上はそのまま。
+        #   例）。」　は2文字ともぶら下げる。
+        #
+        if len(honbun2) > 0:
+            if Aozora.kinsoku.find(honbun2[0]) != -1:
+                honbun += honbun2[0]
+                honbun2 = honbun2[1:]
+                # ルビも同様に処理
+                try:
+                    rubi = rubi + rubi2[:2]
+                    rubi2 = rubi2[2:]
+                except:
+                    pass
+                if len(honbun2) > 0:
+                    if Aozora.kinsoku.find(honbun2[0]) != -1:
+                        honbun += honbun2[0]
+                        honbun2 = honbun2[1:]
+                        # ルビも同様に処理
+                        try:
+                            rubi = rubi + rubi2[:2]
+                            rubi2 = rubi2[2:]
+                        except:
+                            pass
+
+        #
+        #   くの字記号の分離を阻止する
+        #   行頭禁則と重なるととんでもないことに！
+        #
+        if len(honbun2) > 0:
+            if honbun2[0] == u'〵':
+                if u'〳〴'.find(honbun[r-1]) != -1:
+                    honbun +=  honbun2[0]
+                    honbun2 = honbun2[1:]
+                    # ルビも同様に処理
+                    try:
+                        rubi = rubi + rubi2[0] + rubi2[1]
+                        rubi2 = rubi2[2:]
+                    except:
+                        pass
+
+        while tagstack != []:
+            # <tag>が閉じられていなければ次行に引き継ぐ
+            # <tag>を閉じる
+            s = tagstack.pop().rstrip()
+            if honbun2 != u'':
+                honbun2 = s + honbun2
+            honbun += u'</%s' % s.lstrip( u'<' )
+        return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
 
     def write2file(self, fd, s, rubiline=u'\n' ):
         """ formater 下請け
@@ -1252,7 +1303,7 @@ class CairoCanvas(Aozora):
         ctx.set_base_gravity( 'east' )
 
         #layout.set_text( s )
-        layout.set_markup( s )
+        layout.set_markup(s)
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
 

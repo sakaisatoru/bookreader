@@ -82,11 +82,11 @@ class Aozora(ReaderSetting):
     reBouten2 = re.compile( ur'((?P<name>.*?)［＃傍点終わり］)' )
     reBousen = re.compile( ur'(［＃「(?P<name>.+?)」に傍線］)' )
     reNijuBousen = re.compile( ur'(［＃「(?P<name>.+?)」に二重傍線］)' )
-    reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は行右小書き］)' )
+    reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は((行右小書き)|(上付き小文字))］)' )
     reMama = re.compile( ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)' )
     reMama2 = re.compile( ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)' )
     reKogakiKatakana = re.compile( ur'(［＃小書き片仮名(?P<name>.+?)、.+?］)' )
-    reShitatsukiKomoji = re.compile( ur'(［＃「(?P<name>.+?)」は下付き小文字］)' )
+    reShitatsukiKomoji = re.compile( ur'(［＃「(?P<name>.+?)」は((行左小書き)|(下付き小文字))］)' )
 
     reOmit = re.compile(
                 ur'(［＃本文終わり］)|' +
@@ -102,8 +102,6 @@ class Aozora(ReaderSetting):
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
                 ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
 
-    #reSokobon = re.compile( ur'(［＃「.+?」は底本では「.+?」］)' )
-    #reRubiSokobon = re.compile( ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
 
     reRubi = re.compile( ur'《.*?》' )
     reRubiclr = re.compile( ur'＃' )
@@ -139,8 +137,10 @@ class Aozora(ReaderSetting):
 
     """ ソースに直書きしているタグ
         u'［＃傍点］'
-        u'［＃行右小書き］'
-        u'［＃行右小書き終わり］'
+        u'［＃行右小書き］'        u'［＃行右小書き終わり］'
+        u'［＃行左小書き］'        u'［＃行左小書き終わり］'
+        u'［＃上付き小文字］'      u'［＃上付き小文字終わり］'
+        u'［＃下付き小文字］'      u'［＃下付き小文字終わり］'
     """
 
     def __init__( self, chars=40, lines=25 ):
@@ -328,11 +328,11 @@ class Aozora(ReaderSetting):
                 #   ex. 絶対矛盾的自己同一　西田幾多郎
                 #
                 try:
-                    for mTmp in Aozora.reHansoku.finditer( lnbuf ):
+                    for tmp in Aozora.reHansoku.finditer( lnbuf ):
                         lnbuf ='%s［＃%s］%s' % (
-                             lnbuf[:mTmp.start()],
-                            mTmp.group('name'),
-                            lnbuf[mTmp.end():] )
+                             lnbuf[:tmp.start()],
+                            tmp.group('name'),
+                            lnbuf[tmp.end():] )
                 except:
                     pass
 
@@ -348,13 +348,13 @@ class Aozora(ReaderSetting):
                 #   何かが出現した場合に日本語とみなして置換する。
                 #
                 try:
-                    for mTmp in Aozora.reNonokagi.finditer( lnbuf ):
-                        for s in mTmp.group('name'):
+                    for tmp in Aozora.reNonokagi.finditer( lnbuf ):
+                        for s in tmp.group('name'):
                             if unicodedata.category(s) == 'Lo':
                                 lnbuf = '%s〝%s〟%s' % (
-                                     lnbuf[:mTmp.start()],
-                                    mTmp.group('name'),
-                                    lnbuf[mTmp.end():] )
+                                     lnbuf[:tmp.start()],
+                                    tmp.group('name'),
+                                    lnbuf[tmp.end():] )
                                 break
                 except:
                     pass
@@ -393,15 +393,31 @@ class Aozora(ReaderSetting):
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
-                    if tmp.group() == u'［＃行右小書き］':
+                    if tmp.group() == u'［＃行右小書き］' or \
+                            tmp.group() == u'［＃上付き小文字］':
                         retline += lnbuf[priortail:tmp.start()]
                         retline += u'<sup>'
                         priortail = tmp.end()
                         continue
 
-                    if tmp.group() == u'［＃行右小書き終わり］':
+                    if tmp.group() == u'［＃行右小書き終わり］' or \
+                            tmp.group() == u'［＃上付き小文字終わり］':
                         retline += lnbuf[priortail:tmp.start()]
                         retline += u'</sup>'
+                        priortail = tmp.end()
+                        continue
+
+                    if tmp.group() == u'［＃行左小書き］' or \
+                            tmp.group() == u'［＃下付き小文字］':
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'<sub>'
+                        priortail = tmp.end()
+                        continue
+
+                    if tmp.group() == u'［＃行左小書き終わり］' or \
+                            tmp.group() == u'［＃下付き小文字終わり］':
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'</sub>'
                         priortail = tmp.end()
                         continue
 
@@ -533,7 +549,7 @@ class Aozora(ReaderSetting):
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
-                        retline += u'<b>%s</b>' % tmp2.group(u'name')
+                        retline += u'<span font_desc="Sans bold">%s</span>' % tmp2.group(u'name')
                         priortail = tmp.end()
                         continue
 
@@ -746,9 +762,9 @@ class Aozora(ReaderSetting):
 
                         """ 字詰
                         """
-                        mTmp = Aozora.reJizume.search(s)
-                        if mTmp != None:
-                            self.Jizume = self.zentoi(mTmp.group('number'))
+                        tmp = Aozora.reJizume.search(s)
+                        if tmp != None:
+                            self.Jizume = self.zentoi(tmp.group('number'))
                             s = ''
 
                         if Aozora.reJizumeowari.search(s) != None:
@@ -823,13 +839,11 @@ class Aozora(ReaderSetting):
                             self.onetime_jiage = True
 
                         #
-                        #   未定義の ［＃］を捨てる
+                        #   未定義のタグ
                         #
-                        """
                         if Aozora.reCTRL.search(s) != None:
-                            print u'DROP :', s
-                            s = ''
-                        """
+                            print u'検出された未定義タグ :', s
+
                         self.ln2 += s
 
                     self.lnbuf = self.ln2
@@ -984,7 +998,6 @@ class Aozora(ReaderSetting):
             honbun += lsc
             if lsc == u'>':
                 tagname += lsc
-                tagname += u' '
                 if inCloseTag:
                     inCloseTag = False
                     # </tag>の出現とみなしてスタックから取り除く
@@ -1009,10 +1022,7 @@ class Aozora(ReaderSetting):
                 # 画面上における全長を計算
                 lcc += 0.5 if unicodedata.east_asian_width(lsc) == 'Na' else 1
 
-        """self.ls, r, self.lnbuf, rubi2, rubiline = self.sizeofline(
-                                        self.lnbuf, rubiline, self.charsmax)
-            return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
-        """
+
 
         #
         #   行末禁則処理
@@ -1030,7 +1040,7 @@ class Aozora(ReaderSetting):
             except:
                 pass
             r -= 1
-
+        """
         #
         #   行頭禁則処理
         #   前行末にぶら下げる。
@@ -1057,6 +1067,38 @@ class Aozora(ReaderSetting):
                             rubi2 = rubi2[2:]
                         except:
                             pass
+        """
+        #
+        #   行頭禁則処理 ver 2
+        #   前行末にぶら下げる。
+        #   但し2文字(以上)続く場合は前行の末尾をチェックし、非禁則文字なら
+        #   行頭へ追い込む。
+        #   例）シ　(改行) ャーロック・ホームズ ->
+        #      (改行)シャーロック・ホームズ
+        #
+        if len(honbun2) > 0:
+            if Aozora.kinsoku.find(honbun2[0]) != -1:
+                honbun += honbun2[0]
+                honbun2 = honbun2[1:]
+                # ルビも同様に処理
+                try:
+                    rubi = rubi + rubi2[:2]
+                    rubi2 = rubi2[2:]
+                except:
+                    pass
+                if len(honbun2) > 0:
+                    if Aozora.kinsoku.find(honbun2[0]) != -1:
+                        r = len(honbun)-2
+                        if Aozora.kinsoku.find(honbun[r]) == -1:
+                            honbun2 = honbun[r:r+2] + honbun2
+                            honbun = honbun[:r] + u'　　'
+                            # ルビも同様に処理
+                            try:
+                                r *= 2
+                                rubi2 = rubi[r:r+4]+rubi2
+                                rubi = rubi[:r] + u'　　　　'
+                            except:
+                                pass
 
         #
         #   くの字記号の分離を阻止する
@@ -1075,9 +1117,10 @@ class Aozora(ReaderSetting):
                         pass
 
         while tagstack != []:
-            # <tag>が閉じられていなければ次行に引き継ぐ
+            #print tagstack
             # <tag>を閉じる
-            s = tagstack.pop().rstrip()
+            # <tag>が閉じられていなければ次行に引き継ぐ
+            s = tagstack.pop()
             if honbun2 != u'':
                 honbun2 = s + honbun2
             honbun += u'</%s' % s.lstrip( u'<' )

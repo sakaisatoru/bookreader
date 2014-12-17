@@ -1047,7 +1047,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ エントリー
         """
         self.currentpage = 0
-        self.cc.write_a_line(u'<b>青空文庫リーダー</b>')
+        self.cc.write_a_line(u'<span font_desc="Sans bold">青空文庫リーダー</span>')
         self.imagebuf.set_from_file('%s/.cache/aozora/thisistest.png' % self.get_homedir())
         self.set_title(u'青空文庫リーダー')
         self.show_all()

@@ -66,11 +66,8 @@ class Aozora(ReaderSetting):
     """
     reHeader = re.compile( ur'^-------------------------------------------------------' )
     reFooter = re.compile( ur'(^底本：)|(［＃本文終わり］)' )
-#        reGaiji = re.compile( ur'(※.*?［＃.*?\d+?\-\d+?\-\d+\d*.*?］)' )
-#        reGaijiNumber = re.compile( ur'(※.*?［＃.*?(?P<number>\d+\-\d+\-\d+\d*))' )
 
-    reGaiji = re.compile( ur'(※.*?［＃.*?\d+?\-\d+?\-\d+\d*.*?］)' )
-    reGaijiNumber = re.compile( ur'(※.*?［＃.*?(?P<number>\d+\-\d+\-\d+\d*).*?］)' )
+    reGaiji = re.compile( ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)' )
 
     reKunoji = re.compile( ur'(／＼)' )
     reGunoji = re.compile( ur'(／″＼)' )
@@ -88,7 +85,15 @@ class Aozora(ReaderSetting):
     reKogakiKatakana = re.compile( ur'(［＃小書き片仮名(?P<name>.+?)、.+?］)' )
     reShitatsukiKomoji = re.compile( ur'(［＃「(?P<name>.+?)」は((行左小書き)|(下付き小文字))］)' )
 
+    reRubi = re.compile( ur'《.*?》' )
+    reRubiclr = re.compile( ur'＃' )
+    reRubimama = re.compile( ur'(［＃ルビの「(?P<name>.+?)」はママ］)' )
+
+    reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
+
+    # 未実装タグ
     reOmit = re.compile(
+                ur'(［＃ページの左右中央］)|' +
                 ur'(［＃本文終わり］)|' +
                 ur'(［＃ここからキャプション］)|' +
                 ur'(［＃ここでキャプション終わり］)|'+
@@ -102,24 +107,37 @@ class Aozora(ReaderSetting):
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
                 ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
 
-
-    reRubi = re.compile( ur'《.*?》' )
-    reRubiclr = re.compile( ur'＃' )
-    reIndent = re.compile( ur'［＃(?P<number>[０-９]+?)字下げ］' )
-    reIndentStart = re.compile( ur'［＃.+?(?P<number>[０-９]+?)字下げ］' )
+    # 字下げ、字詰、地付き、地寄せ（地上げ）
+    reIndent = re.compile( ur'［＃(天から)??(?P<number>[０-９]+?)字下げ］' )
+    reIndentStart = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ］' )
     reIndentEnd = re.compile( ur'［＃(ここで)??字下げ終わり］|［＃字下げおわり］')
+
     reJiage = re.compile( ur'［＃地から(?P<number>[０-９]+?)字上げ］' )
+    reKokokaraJiage = re.compile( ur'［＃ここから地から(?P<number>[０-９]+?)字上げ］')
+    reJiageowari = re.compile( ur'［＃ここで字上げ終わり］' )
+
     reJitsuki = re.compile( ur'［＃地付き］' )
-    reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(?P<dougyou>.*?)(?P<midashisize>大|中|小)見出し］' )
-    reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］' )
-    reFig = re.compile( ur'［＃(?P<caption>.*?)（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
-    reSayuuchuou = re.compile( ur'［＃ページの左右中央］' )
-    reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
-    reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
+    reKokokaraJitsuki = re.compile( ur'［＃ここから地付き］' )
+    reJitsukiowari = re.compile( ur'［＃ここで地付き終わり］' )
 
     reJizume = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字詰め］' )
     reJizumeowari = re.compile( ur'［＃ここで字詰め終わり］' )
-    reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
+    reKaigyoTentsulo = re.compile( ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］' )
+    reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
+
+    # 見出し
+    reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(?P<dougyou>.*?)(?P<midashisize>大|中|小)見出し］' )
+    reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
+    reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
+
+    # 改ページ・改丁
+    reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］' )
+    reFig = re.compile( ur'［＃(?P<caption>.*?)（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
+    # reSayuuchuou = re.compile( ur'［＃ページの左右中央］' )
+
+
+
+    # 訓点・返り点
     reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
     reKaeriten = re.compile(
                     ur'(［＃(?P<name>[レ一二三四五六七八九'+
@@ -131,9 +149,17 @@ class Aozora(ReaderSetting):
                             ur'木火土金水'+
                             ur']??)］)' )
 
+    # フッターにおける年月日刷を漢数字に変換
+    reNenGetsuNichi = re.compile( ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>\d+?)）)??年)|'+
+        ur'((?P<month>\d+?)月)|'+
+        ur'((?P<day>\d+?)日)|' +
+        ur'((?P<suri>\d+?)刷)' )
+
+    # 禁則
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«'
     kinsoku3 = u'〳〴〵' # —…‥
+    kinsoku4 = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»。、'
 
     """ ソースに直書きしているタグ
         u'［＃傍点］'
@@ -289,10 +315,7 @@ class Aozora(ReaderSetting):
                 #   とりあえずばっさりと削除する
                 #
                 if Aozora.reHeader.search(lnbuf) != None:
-                    if headerflag == False:
-                        headerflag = True
-                    else:
-                        headerflag = False
+                    headerflag = True if headerflag == False else False
                     continue
                 if headerflag == True:
                     continue
@@ -303,25 +326,6 @@ class Aozora(ReaderSetting):
                 if Aozora.reFooter.search(lnbuf) != None:
                     footerflag = True
 
-                #
-                #   単純置換処理各種
-                #1951（昭和26）年8月15日
-                """
-                if footerflag == True:
-                    #
-                    #   フッタにおける年月日を漢数字に置換
-                    #
-                    ln = u''
-                    for s in lnbuf:
-                        if unicodedata.name(s).split()[0] == 'DIGIT':
-                            try:
-                                ln += u'〇一二三四五六七八九'[eval(s)]
-                            except:
-                                ln += s
-                        else:
-                            ln += s
-                    lnbuf = ln
-                """
                 #
                 #   青空文庫の制御文字列である　［＃］を【＃】と表記する
                 #   テキストへの対応
@@ -336,11 +340,13 @@ class Aozora(ReaderSetting):
                 except:
                     pass
 
+
                 #
                 #   くの字の置換
                 #
                 lnbuf = Aozora.reKunoji.sub( u'〳〵', lnbuf )
                 lnbuf = Aozora.reGunoji.sub( u'〴〵', lnbuf )
+
 
                 #
                 #   ダブルクォーテーションの、ノノカギへの置換
@@ -362,30 +368,20 @@ class Aozora(ReaderSetting):
                 #
                 #   外字
                 #
-                ln = ''
-                for s in Aozora.reGaiji.split(lnbuf):
-                    gaijim = Aozora.reGaijiNumber.search(s)
-                    if gaijim != None:
-                        k = gaijitest.sconv(gaijim.group('number'))
-                        if k != None:
-                            s = k
-                    ln += s
-                lnbuf = ln
+                ln = u''
+                priortail = 0
+                for tmp in Aozora.reGaiji.finditer(lnbuf):
+                    ln += lnbuf[priortail:tmp.start()]
+                    k = gaijitest.sconv(tmp.group('number'))
+                    if k != None:
+                        ln += k
+                    else:
+                        ln += tmp.group()
+                        print u'未登録の外字を検出：%s' % tmp.group()
+                    priortail = tmp.end()
 
-                if footerflag == True:
-                    #
-                    #   フッタにおける年月日を漢数字に置換
-                    #
-                    ln = u''
-                    for s in lnbuf:
-                        if unicodedata.name(s).split()[0] == 'DIGIT':
-                            try:
-                                ln += u'〇一二三四五六七八九'[eval(s)]
-                            except:
-                                ln += s
-                        else:
-                            ln += s
-                    lnbuf = ln
+                ln += lnbuf[priortail:]
+                lnbuf = ln
 
                 #
                 #   ［＃　で始まるタグの処理
@@ -455,6 +451,17 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
+                    tmp2 = Aozora.reRubimama.match(tmp.group())
+                    if tmp2:
+                        #
+                        #   ルビのママ
+                        #
+                        #sNameTmp = tmp2.group(u'name')
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'《%s》' % u'(ルビママ)'
+                        priortail = tmp.end()
+                        continue
+
                     tmp2 = Aozora.reBouten.match(tmp.group())
                     if tmp2:
                         #
@@ -519,7 +526,6 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
-
                     tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
                     if tmp2:
                         #   行右小書き
@@ -579,6 +585,25 @@ class Aozora(ReaderSetting):
 
                 retline += lnbuf[priortail:]
 
+                if footerflag:
+                    #
+                    #   フッタにおける年月日を漢数字に置換
+                    #
+                    ln = u''
+                    priortail = 0
+                    for tmp in Aozora.reNenGetsuNichi.finditer(retline):
+                        ln += retline[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        for s in tmp.group():
+                            try:
+                                ln += u'〇一二三四五六七八九'[eval(s)]
+                            except:
+                                ln += s
+
+                    ln += retline[priortail:]
+                    retline = ln
+
+
                 #
                 #   処理の終わった行を返す
                 #
@@ -616,18 +641,22 @@ class Aozora(ReaderSetting):
         (self.BookTitle, self.BookAuthor) = self.get_booktitle_sub()
 
         with file( self.destfile, 'w' ) as dfile:
-            self.linecounter = 0                        # 出力した行数
-            self.pagecounter = 0                        # 出力したページ数
-            self.pageposition=[]                        # フォーマット済ファイルにおける各ページの絶対位置
-            self.pageposition.append(dfile.tell())      # 1頁目のファイル位置を保存
+            self.linecounter = 0                    # 出力した行数
+            self.pagecounter = 0                    # 出力したページ数
+            self.pageposition=[]                    # フォーマット済ファイルにおける各ページの絶対位置
+            self.pageposition.append(dfile.tell())  # 1頁目のファイル位置を保存
             self.iCurrentReadline = 0
             self.sIndent = u''
             self.onetime_indent = True
             self.sJiage = u''
             self.onetime_jiage = False
             self.midashi = False
-            self.Jizume = 0                             # 字詰桁数
-            #charmaxstack = []                           # 1行あたりの桁数のスタック
+
+            charmaxstack = []                       # 1行あたりの桁数のスタック
+            currchars = self.charsmax               # 1行の表示文字数
+            jizume = 0                              # 字詰指定
+            jisage = 0                              # 字下指定
+            jiage = 0                               # 字上指定
 
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
 
@@ -725,12 +754,6 @@ class Aozora(ReaderSetting):
                                 figspan -= 1
                             continue
 
-                        """ ページの左右中央
-                            後続の行数を知る術がないので割愛
-                        """
-                        if Aozora.reSayuuchuou.search(s) != None:
-                            self.write2file( dfile, '\n' )
-                            continue
 
                         """ 改ページ
                         """
@@ -764,13 +787,12 @@ class Aozora(ReaderSetting):
                         """
                         tmp = Aozora.reJizume.search(s)
                         if tmp != None:
-                            self.Jizume = self.zentoi(tmp.group('number'))
+                            #self.jizume = self.zentoi(tmp.group('number'))
                             s = ''
 
                         if Aozora.reJizumeowari.search(s) != None:
-                            self.Jizume = 0
+                            #self.jizume = 0
                             s = ''
-
 
                         """ ワンタイムインデント
                             sIndent に 桁数分の空白を得る
@@ -1040,38 +1062,12 @@ class Aozora(ReaderSetting):
             except:
                 pass
             r -= 1
-        """
-        #
-        #   行頭禁則処理
-        #   前行末にぶら下げる。
-        #   2重処理まで。それ以上はそのまま。
-        #   例）。」　は2文字ともぶら下げる。
-        #
-        if len(honbun2) > 0:
-            if Aozora.kinsoku.find(honbun2[0]) != -1:
-                honbun += honbun2[0]
-                honbun2 = honbun2[1:]
-                # ルビも同様に処理
-                try:
-                    rubi = rubi + rubi2[:2]
-                    rubi2 = rubi2[2:]
-                except:
-                    pass
-                if len(honbun2) > 0:
-                    if Aozora.kinsoku.find(honbun2[0]) != -1:
-                        honbun += honbun2[0]
-                        honbun2 = honbun2[1:]
-                        # ルビも同様に処理
-                        try:
-                            rubi = rubi + rubi2[:2]
-                            rubi2 = rubi2[2:]
-                        except:
-                            pass
-        """
+
         #
         #   行頭禁則処理 ver 2
         #   前行末にぶら下げる。
-        #   但し2文字(以上)続く場合は前行の末尾をチェックし、非禁則文字なら
+        #   但し2文字(以上)続く場合は括弧類ならさらにぶら下げ、
+        #   それ以外は前行の末尾をチェックし、非禁則文字なら
         #   行頭へ追い込む。
         #   例）シ　(改行) ャーロック・ホームズ ->
         #      (改行)シャーロック・ホームズ
@@ -1088,17 +1084,30 @@ class Aozora(ReaderSetting):
                     pass
                 if len(honbun2) > 0:
                     if Aozora.kinsoku.find(honbun2[0]) != -1:
-                        r = len(honbun)-2
-                        if Aozora.kinsoku.find(honbun[r]) == -1:
-                            honbun2 = honbun[r:r+2] + honbun2
-                            honbun = honbun[:r] + u'　　'
+                        if Aozora.kinsoku4.find(honbun2[0]) == -1:
+                            # もっぱら人名対策
+                            r = len(honbun)-2
+                            if Aozora.kinsoku.find(honbun[r]) == -1:
+                                honbun2 = honbun[r:r+2] + honbun2
+                                honbun = honbun[:r] + u'　　'
+                                # ルビも同様に処理
+                                try:
+                                    r *= 2
+                                    rubi2 = rubi[r:r+4]+rubi2
+                                    rubi = rubi[:r] + u'　　　　'
+                                except:
+                                    pass
+                        else:
+                            # ２文字目もぶら下げ
+                            honbun += honbun2[0]
+                            honbun2 = honbun2[1:]
                             # ルビも同様に処理
                             try:
-                                r *= 2
-                                rubi2 = rubi[r:r+4]+rubi2
-                                rubi = rubi[:r] + u'　　　　'
+                                rubi = rubi + rubi2[:2]
+                                rubi2 = rubi2[2:]
                             except:
                                 pass
+
 
         #
         #   くの字記号の分離を阻止する
@@ -1135,20 +1144,22 @@ class Aozora(ReaderSetting):
         if self.midashi == True:
             #
             #   見出し処理
-            #   とりあえず、書式固定
             #
-            #print s
             if self.sMidashiSize == u'大':
                 sMokujiForm = u'%-s  % 4d\n'
+                sMidashiForm = u'<span font_family="Sans" size="larger">'
             elif self.sMidashiSize == u'中':
                 sMokujiForm = u'  %-s  % 4d\n'
+                sMidashiForm = u'<span font_family="Sans">'
             elif self.sMidashiSize == u'小':
                 sMokujiForm = u'    %-s  % 4d\n'
+                sMidashiForm = u'<span font_family="Sans">'
             self.mokuji_f.write( sMokujiForm % (s.lstrip(u' 　').rstrip('\n'),
                                     self.pagecounter +1))
+            s = u'%s%s</span>\n' % (sMidashiForm, s.rstrip('\n'))
             self.midashi = False
 
-        fd.write(rubiline)  # ルビ等の修飾情報
+        fd.write(rubiline)  # 右ルビ行
         fd.write(s)         # 本文
         self.linecounter += 1
         if self.linecounter >= self.pagelines:

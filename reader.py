@@ -839,8 +839,14 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                 self.shiori_list_cb( widget )
         else:
             key = event.keyval
-            if key == 65361 or key == 0xff56 or key == 32:
-                # left arrow cursor or PgUp or space
+            if key == 32:
+                 # space
+                if event.state & gtk.gdk.SHIFT_MASK:
+                    self.prior_page()
+                else:
+                    self.next_page()
+            elif key == 65361 or key == 0xff56:
+                # left arrow cursor or PgUp
                 self.next_page()
             elif key == 65363 or key == 0xff55:
                 # right arrow cursor or PgDn

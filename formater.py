@@ -55,7 +55,7 @@ from jis3 import gaiji
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorList
 import sys, codecs, re, os.path, datetime, unicodedata
-from threading import Thread
+
 import gtk, cairo, pango, pangocairo, gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
@@ -91,18 +91,19 @@ class Aozora(ReaderSetting):
 
     reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
 
+    # キャプション
+    reCaption = re.compile( ur'(［＃「(?P<name>.*?)」はキャプション］)' )
+    # 文字サイズ
+    reMojisize = re.compile( ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
+    reMojisizeowari = re.compile( ur'(［＃(ここで)?((大き)|(小さ))+な文字終わり］)' )
+
     # 未実装タグ
     reOmit = re.compile(
                 ur'(［＃ページの左右中央］)|' +
                 ur'(［＃本文終わり］)|' +
-                ur'(［＃ここからキャプション］)|' +
-                ur'(［＃ここでキャプション終わり］)|'+
-                ur'(［＃「.*?」はキャプション］)|' +
                 ur'(［＃(ここから)??横組み］)|'+
                 ur'(［＃(ここで)??横組み終わり］)|' +
                 ur'(［＃「.+?」は縦中横］)|' +
-                ur'(［＃.+?段階.+?な文字］)|' +
-                ur'(［＃.+?な文字終わり］)|' +
                 ur'(［＃割り注.*?］)|' +
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
                 ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
@@ -132,7 +133,8 @@ class Aozora(ReaderSetting):
 
     # 改ページ・改丁
     reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］' )
-    reFig = re.compile( ur'［＃(?P<caption>.*?)（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
+    reFig = re.compile( ur'(［＃図（(?P<filename1>.+?)）入る］)|'+
+        ur'［＃(?P<caption>.*?)（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
     # reSayuuchuou = re.compile( ur'［＃ページの左右中央］' )
 
 
@@ -163,10 +165,12 @@ class Aozora(ReaderSetting):
 
     """ ソースに直書きしているタグ
         u'［＃傍点］'
-        u'［＃行右小書き］'        u'［＃行右小書き終わり］'
-        u'［＃行左小書き］'        u'［＃行左小書き終わり］'
-        u'［＃上付き小文字］'      u'［＃上付き小文字終わり］'
-        u'［＃下付き小文字］'      u'［＃下付き小文字終わり］'
+        u'［＃行右小書き］'                 u'［＃行右小書き終わり］'
+        u'［＃行左小書き］'                 u'［＃行左小書き終わり］'
+        u'［＃上付き小文字］'               u'［＃上付き小文字終わり］'
+        u'［＃下付き小文字］'               u'［＃下付き小文字終わり］'
+        u'［＃ここからキャプション］'        u'［＃ここでキャプション終わり］'
+        u'［＃ここから１段階小さな文字］'    u'［＃ここで小さな文字終わり］'
     """
 
     def __init__( self, chars=40, lines=25 ):
@@ -417,12 +421,37 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
+                    # キャプションの小文字表示は暫定処理
+                    if tmp.group() == u'［＃ここからキャプション］':
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'<span size="smaller">'
+                        priortail = tmp.end()
+                        continue
+
+                    if tmp.group() == u'［＃ここでキャプション終わり］':
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'</span>'
+                        priortail = tmp.end()
+                        continue
+
                     if Aozora.reOmit.match(tmp.group()):
                         #
                         #   未実装タグは単純に削除する
                         #
                         print u'削除されたタグ: ', tmp.group()
                         retline += lnbuf[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        continue
+
+                    tmp2 = Aozora.reCaption.match(tmp.group())
+                    if tmp2:
+                        #
+                        #   キャプション
+                        #   暫定処理：小文字で表示
+                        sNameTmp = tmp2.group(u'name')
+                        reTmp = re.compile( ur'%s$' % sNameTmp )
+                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()])
+                        retline += u'<span size="smaller">%s</span>' % sNameTmp
                         priortail = tmp.end()
                         continue
 
@@ -436,6 +465,32 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
                     """
+                    tmp2 = Aozora.reMojisize.match(tmp.group())
+                    if tmp2:
+                        #
+                        #   文字の大きさ
+                        #
+                        if tmp2.group(u'name') == u'小さ':
+                            if tmp2.group(u'size') == u'１':
+                                sSizeTmp = u'small'
+                            if tmp2.group(u'size') == u'２':
+                                sSizeTmp = u'x-small'
+                        elif tmp2.group( u'size' ) == u'１':
+                            sSizeTmp = u'large'
+                        elif tmp2.group( u'size' ) == u'２':
+                            sSizeTmp = u'x-large'
+
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'<span size="%s">' % sSizeTmp
+                        priortail = tmp.end()
+                        continue
+
+                    tmp2 = Aozora.reMojisizeowari.match(tmp.group())
+                    if tmp2:
+                        retline += lnbuf[priortail:tmp.start()]
+                        retline += u'</span>'
+                        priortail = tmp.end()
+                        continue
 
                     tmp2 = Aozora.reMama.match(tmp.group())
                     if tmp2 == None:
@@ -704,24 +759,21 @@ class Aozora(ReaderSetting):
                                 場合があるので、画像ファイルを開いてチェックする
                             """
                             try:
+                                fname = matchFig.group(u'filename1') if matchFig.group(u'filename1') != None else matchFig.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
                                     os.path.join(self.get_value(u'aozoracurrent'),
-                                        matchFig.group('filename')))
-
-                                tmpRasio = round(tmpH / float(tmpPixBuff.get_height()),4)
-                                tmpRasioW = round(tmpW / float(tmpPixBuff.get_width()),4)
+                                        fname))
+                                figheight = float(tmpPixBuff.get_height())
+                                figwidth = float(tmpPixBuff.get_width())
+                                tmpRasio = round(tmpH / figheight,4)
+                                tmpRasioW = round(tmpW / figwidth,4)
 
                                 del tmpPixBuff
-                            except GError:
+                            except gobject.GError:
                                 # ファイルI/Oエラー
+                                print u'画像ファイル %s の読み出しに失敗しました。' % fname
                                 self.write2file( dfile, '\n' )
                                 continue
-
-                            except ZeroDivisionError:
-                                # 挿図指定に大きさがない場合への対処、とりあえず原寸
-                                tmpRasio = 1.0
-                                tmpRasioW = 1.0
-                                tmpWidth = 100
 
                             if tmpRasioW > 1.0:
                                 tmpRasioW = 1.0
@@ -732,22 +784,22 @@ class Aozora(ReaderSetting):
                             if tmpRasioW > tmpRasio:
                                 tmpRasioW = tmpRasio
 
-                            tmpWidth = int(round(float(matchFig.group('width')) * tmpRasioW,0))
+                            tmpWidth = int(round(figwidth * tmpRasioW,0))
 
                             print u'挿図処理 ',matchFig.group('caption'), tmpWidth
 
                             figspan = int(round(float(tmpWidth)/float(self.get_value(u'linewidth'))+0.5,0))
                             if self.linecounter + figspan >= int(self.get_value(u'lines')):
-                                # 改ページ
+                                # 画像がはみ出すようなら改ページする
                                 while self.write2file( dfile, '\n' ) != True:
                                     pass
                             self.write2file( dfile,
-                                                '%s,%s,%s,%d,%f\n' %
-                                                    (matchFig.group('filename'),
-                                                        tmpWidth,
-                                                        int(round(float(matchFig.group('height'))*tmpRasio,0)),
-                                                        figspan,
-                                                        tmpRasio ) )
+                                    '%s,%s,%s,%d,%f\n' %
+                                        (fname,
+                                            tmpWidth,
+                                            int(round(figheight * tmpRasio,0)),
+                                            figspan,
+                                            tmpRasio ) )
                             figspan -= 1
                             while figspan > 0:
                                 self.write2file( dfile, '\n' )
@@ -1332,9 +1384,10 @@ class CairoCanvas(Aozora):
         pangocairo_context = pangocairo.CairoContext(context)
 
         """ 縦書き（上から下へ）に変更
-            PI/2(90度)右回転、すなわち右->左書きが上->下書きへ
+            PI/2(90度)右回転、すなわち左->右書きが上->下書きへ
         """
         pangocairo_context.rotate(3.1415/2)
+        #pangocairo_context.rotate(3.1415/2)
 
         """ レイアウトの作成
         """

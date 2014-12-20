@@ -54,7 +54,7 @@ from __future__ import with_statement
 from jis3 import gaiji
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorList
-import sys, codecs, re, os.path, datetime, unicodedata
+import sys, codecs, re, os.path, datetime, unicodedata, logging
 
 import gtk, cairo, pango, pangocairo, gobject
 
@@ -68,6 +68,8 @@ class Aozora(ReaderSetting):
     reFooter = re.compile( ur'(^底本：)|(［＃本文終わり］)' )
 
     reGaiji = re.compile( ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)' )
+    reGaiji2 = re.compile( ur'※［＃「.+?」、U\+(?P<number>[0-9A-F]+?)、(\d+?\-\d+?)］' )
+    # ※［＃「口＋世」、U+546D、ページ数-行数］
 
     reKunoji = re.compile( ur'(／＼)' )
     reGunoji = re.compile( ur'(／″＼)' )
@@ -370,7 +372,7 @@ class Aozora(ReaderSetting):
                     pass
 
                 #
-                #   外字
+                #   外字(JIS面句点コード指定)
                 #
                 ln = u''
                 priortail = 0
@@ -381,7 +383,25 @@ class Aozora(ReaderSetting):
                         ln += k
                     else:
                         ln += tmp.group()
-                        print u'未登録の外字を検出：%s' % tmp.group()
+                        logging.info( u'未登録の外字を検出：%s' % tmp.group())
+                    priortail = tmp.end()
+
+                ln += lnbuf[priortail:]
+                lnbuf = ln
+
+                #
+                #   外字２(Unicode指定、但し漢字のみ)
+                #
+                ln = u''
+                priortail = 0
+                for tmp in Aozora.reGaiji2.finditer(lnbuf):
+                    ln += lnbuf[priortail:tmp.start()]
+                    try:
+                        k = unicodedata.lookup(u'CJK UNIFIED IDEOGRAPH-' + tmp.group('number'))
+                    except KeyError:
+                        k = tmp.group()
+                        logging.info( u'未定義の外字を検出：%s' % k )
+                    ln += k
                     priortail = tmp.end()
 
                 ln += lnbuf[priortail:]
@@ -438,7 +458,7 @@ class Aozora(ReaderSetting):
                         #
                         #   未実装タグは単純に削除する
                         #
-                        print u'削除されたタグ: ', tmp.group()
+                        logging.info( u'削除されたタグ: %s' % tmp.group())
                         retline += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
                         continue
@@ -694,6 +714,7 @@ class Aozora(ReaderSetting):
             self.mokujifile = mokuji_file
 
         (self.BookTitle, self.BookAuthor) = self.get_booktitle_sub()
+        logging.info( u'****** %s ******' % self.sourcefile )
 
         with file( self.destfile, 'w' ) as dfile:
             self.linecounter = 0                    # 出力した行数
@@ -771,7 +792,8 @@ class Aozora(ReaderSetting):
                                 del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
-                                print u'画像ファイル %s の読み出しに失敗しました。' % fname
+                                logging.info(
+                                    u'画像ファイル %s の読み出しに失敗しました。' % fname )
                                 self.write2file( dfile, '\n' )
                                 continue
 
@@ -786,7 +808,9 @@ class Aozora(ReaderSetting):
 
                             tmpWidth = int(round(figwidth * tmpRasioW,0))
 
-                            print u'挿図処理 ',matchFig.group('caption'), tmpWidth
+                            logging.info(
+                                u'挿図処理 %s %d' % (matchFig.group('caption'),
+                                                        tmpWidth) )
 
                             figspan = int(round(float(tmpWidth)/float(self.get_value(u'linewidth'))+0.5,0))
                             if self.linecounter + figspan >= int(self.get_value(u'lines')):
@@ -873,7 +897,7 @@ class Aozora(ReaderSetting):
                             IndentJitsuki = False
                         maIndent = Aozora.reJitsuki.match(s)
                         if maIndent != None:
-                            print u'Indent:',s
+                            logging.info(u'Indent: %s' % s )
                             s = ''
                             IndentJitsuki = True
                             continue
@@ -916,7 +940,7 @@ class Aozora(ReaderSetting):
                         #   未定義のタグ
                         #
                         if Aozora.reCTRL.search(s) != None:
-                            print u'検出された未定義タグ :', s
+                            logging.info( u'検出された未定義タグ : %s' % s )
 
                         self.ln2 += s
 
@@ -995,8 +1019,9 @@ class Aozora(ReaderSetting):
                                 sPad = u''
                             rubiline += sPad
                             sPad = u'　'
-                            if unicodedata.east_asian_width(s) != 'Na':
-                                # 本文が全角文字であれば幅調整する
+                            if unicodedata.east_asian_width(s) != 'Na' or \
+                                unicodedata.category(s) == 'Lu':
+                                # 本文が全角文字かラテン大文字であれば幅調整する
                                 if rubispan < 0:
                                     # ルビが本文より長い場合の調整
                                     rubispan += 1
@@ -1094,7 +1119,17 @@ class Aozora(ReaderSetting):
                     tagname += lsc
             else:
                 # 画面上における全長を計算
-                lcc += 0.5 if unicodedata.east_asian_width(lsc) == 'Na' else 1
+                if unicodedata.category(lsc) == 'Lu':
+                    # ラテン大文字(A-Z等)
+                    lcc += 1
+                elif unicodedata.east_asian_width(lsc) == 'Na':
+                    # 非全角文字
+                    lcc += 0.5
+                else:
+                    # 全角文字
+                    lcc += 1
+
+                #lcc += 0.5 if unicodedata.east_asian_width(lsc) == 'Na' else 1
 
 
 
@@ -1178,7 +1213,6 @@ class Aozora(ReaderSetting):
                         pass
 
         while tagstack != []:
-            #print tagstack
             # <tag>を閉じる
             # <tag>が閉じられていなければ次行に引き継ぐ
             s = tagstack.pop()
@@ -1289,7 +1323,7 @@ class CairoCanvas(Aozora):
             try:
                 f0.seek(self.pageposition[pagenum])
             except:
-                print u'SeekError Page number %d\n' % (pagenum,)
+                logging.error( u'SeekError Page number %d' % pagenum )
             else:
                 for i in xrange(self.pagelines):
                     sRubiline = f0.readline()
@@ -1300,8 +1334,10 @@ class CairoCanvas(Aozora):
                         try:
                             img = cairo.ImageSurface.create_from_png(os.path.join(self.get_value(u'aozoracurrent'), matchFig.group('filename')))
                         except cairo.Error, m:
-                            print m
-                            print os.path.join(self.get_value(u'aozoracurrent'), matchFig.group('filename'))
+                            logging.error( u'挿図処理中 %s %s/%s' % (
+                                                m,
+                                                self.get_value(u'aozoracurrent'),
+                                                matchFig.group('filename')  ))
 
                         context = cairo.Context(self.sf)
                         # 単にscaleで画像を縮小すると座標系全てが影響を受ける

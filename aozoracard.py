@@ -289,7 +289,6 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         #self.get_authorlist(u'a')
 
     def clicked_anchor_cb(self, widget, text, anchor, button ):
-        print text, anchor, button
         webbrowser.open( anchor )
 
     def clicked_btnSet_cb(self, widget, v):

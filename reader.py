@@ -50,7 +50,8 @@ from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorList
 from formater import Aozora, CairoCanvas
 from whatsnew import WhatsNewUI
-import sys, codecs, re, os.path, datetime, unicodedata
+from logview import Logviewer
+import sys, codecs, re, os.path, datetime, unicodedata, logging
 from threading import Thread
 import gtk, cairo, pango, pangocairo, gobject
 
@@ -264,8 +265,6 @@ class BookListDlg(gtk.Window, ReaderSetting):
         if self.get_selected_item() == True:
             self.exitall()
             self.ack = gtk.RESPONSE_OK
-        else:
-            print 'error'
 
     def get_selected_item(self):
         """ 選択された青空文庫のファイル名を返す
@@ -288,8 +287,6 @@ class BookListDlg(gtk.Window, ReaderSetting):
         if self.get_selected_item() == True:
             self.exitall()
             self.ack = gtk.RESPONSE_OK
-        else:
-            print 'error'
 
     def clicked_btnCancel_cb(self, widget):
         self.exitall()
@@ -526,7 +523,8 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         # 1行目 -- 本文フォントセレクタ行 --
         self.fontlabel = gtk.Label( u'本文表示フォント' )
-        self.fontsel = gtk.FontButton( u'%s %s' % (self.get_value( u'fontname' ), self.get_value( u'fontsize' )))
+        self.fontsel = gtk.FontButton( u'%s %s' % (self.get_value( u'fontname' ),
+                                    self.get_value( u'fontsize' )))
         self.fontsel.set_use_font(True)
         self.fontsel.set_show_size(True)
         self.fontsel.connect( "font-set", self.fontsel_cb )
@@ -536,7 +534,8 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         # 2行目 -- ルビフォントセレクタ行 --
         self.rubifontlabel = gtk.Label( u'ルビ表示フォント' )
-        self.rubifontsel = gtk.FontButton( u'%s %s' % (self.get_value( u'fontname' ), self.get_value( u'rubifontsize' )))
+        self.rubifontsel = gtk.FontButton( u'%s %s' % (self.get_value( u'fontname' ),
+                                    self.get_value( u'rubifontsize' )))
         self.rubifontsel.set_use_font(True)
         self.rubifontsel.set_show_size(True)
         self.rubifontsel.connect( "font-set", self.rubifontsel_cb )
@@ -549,13 +548,17 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.btFontcolor.set_title(u'文字の色を選択してください')
         sC = self.get_value(u'fontcolor')
         nC = (len(sC)-1)/3
-        tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
+        tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,
+                                eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
+                                    eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
         self.btFontcolor.set_color(tmpC)
         self.btBackcolor = gtk.ColorButton()
         self.btBackcolor.set_title(u'背景色を選択してください')
         sC = self.get_value(u'backcolor')
         nC = (len(sC)-1)/3
-        tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
+        tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,
+                                eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
+                                    eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
         self.btBackcolor.set_color(tmpC)
         self.lbFontcolor = gtk.Label(u'文字色')
         self.lbBackcolor = gtk.Label(u'背景色')
@@ -586,14 +589,22 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         # マージン
         self.marginlabel = gtk.Label( u'マージン' )
         self.tbMargin   = gtk.Table( rows = 4, columns = 2 )
-        topadj      = gtk.Adjustment(value=int(self.get_value(u'topmargin')),   lower=0,upper=50,step_incr=1,page_incr=10)
-        bottomadj   = gtk.Adjustment(value=int(self.get_value(u'bottommargin')),lower=0,upper=50,step_incr=1,page_incr=10)
-        leftadj     = gtk.Adjustment(value=int(self.get_value(u'leftmargin')),  lower=0,upper=50,step_incr=1,page_incr=10)
-        rightadj    = gtk.Adjustment(value=int(self.get_value(u'rightmargin')), lower=0,upper=50,step_incr=1,page_incr=10)
-        self.topmargin      = gtk.SpinButton( adjustment = topadj,      climb_rate = 1, digits = 0)
-        self.bottommargin   = gtk.SpinButton( adjustment = bottomadj,   climb_rate = 1, digits = 0)
-        self.leftmargin     = gtk.SpinButton( adjustment = leftadj,     climb_rate = 1, digits = 0)
-        self.rightmargin    = gtk.SpinButton( adjustment = rightadj,    climb_rate = 1, digits = 0)
+        topadj      = gtk.Adjustment(value=int(self.get_value(u'topmargin')),
+                                    lower=0,upper=50,step_incr=1,page_incr=10)
+        bottomadj   = gtk.Adjustment(value=int(self.get_value(u'bottommargin')),
+                                    lower=0,upper=50,step_incr=1,page_incr=10)
+        leftadj     = gtk.Adjustment(value=int(self.get_value(u'leftmargin')),
+                                    lower=0,upper=50,step_incr=1,page_incr=10)
+        rightadj    = gtk.Adjustment(value=int(self.get_value(u'rightmargin')),
+                                    lower=0,upper=50,step_incr=1,page_incr=10)
+        self.topmargin      = gtk.SpinButton( adjustment = topadj,
+                                                    climb_rate = 1, digits = 0)
+        self.bottommargin   = gtk.SpinButton( adjustment = bottomadj,
+                                                    climb_rate = 1, digits = 0)
+        self.leftmargin     = gtk.SpinButton( adjustment = leftadj,
+                                                    climb_rate = 1, digits = 0)
+        self.rightmargin    = gtk.SpinButton( adjustment = rightadj,
+                                                    climb_rate = 1, digits = 0)
         self.tbMargin.attach( gtk.Label( u'上' ), 0, 1, 0, 1)
         self.tbMargin.attach( gtk.Label( u'下' ), 0, 1, 1, 2)
         self.tbMargin.attach( gtk.Label( u'左' ), 0, 1, 2, 3)
@@ -608,8 +619,11 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         # 行間
         self.linesteplabel = gtk.Label( u'行間' )
-        linestepadj = gtk.Adjustment(value=float(self.get_value(u'linestep')),lower=0,upper=2.5,step_incr=0.5,page_incr=0.5)
-        self.linestep = gtk.SpinButton(adjustment  = linestepadj,  climb_rate = 0.5, digits = 1)
+        linestepadj = gtk.Adjustment(
+                        value=float(self.get_value(u'linestep')),
+                            lower=0,upper=2.5,step_incr=0.5,page_incr=0.5)
+        self.linestep = gtk.SpinButton(adjustment  = linestepadj,
+                                        climb_rate = 0.5, digits = 1)
         self.hbox4 = gtk.HBox()
         self.hbox4.pack_start(self.linesteplabel)
         self.hbox4.pack_end(self.linestep)
@@ -710,9 +724,18 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         gtk.Window.__init__(self)
         ReaderSetting.__init__(self)
         AozoraDialog.__init__(self)
-        #
-        #   アクセラレータ
-        #
+
+        # logging 設定
+        logging.basicConfig(
+            filename=u'%s/aozora.log' % self.dicSetting[u'workingdir'],
+            filemode='w',
+            format = '%(levelname)s in %(filename)s : %(message)s',
+            level=logging.DEBUG )
+
+        self.logwindow = Logviewer()
+
+        """ アクセラレータ
+        """
         self.accelgroup = gtk.AccelGroup()
         self.add_accel_group(self.accelgroup)
 
@@ -769,9 +792,12 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ メインメニュー - ヘルプ
         """
         self.menuitem_help = gtk.MenuItem( u'ヘルプ(_H)', True )
+        self.menuitem_logwindow = gtk.ImageMenuItem(gtk.STOCK_INFO, self.accelgroup)
+        self.menuitem_logwindow.connect( 'activate', self.menu_logwindow_cb )
         self.menuitem_info = gtk.ImageMenuItem(gtk.STOCK_ABOUT, self.accelgroup)
         self.menuitem_info.connect( 'activate', self.menu_about_cb )
         self.menu_help = gtk.Menu()
+        self.menu_help.add(self.menuitem_logwindow)
         self.menu_help.add(self.menuitem_info)
         self.menuitem_help.set_submenu(self.menu_help)
 
@@ -902,7 +928,9 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             しおりを挟む
         """
         n = self.cc.get_booktitle()
-        s = u'%s,%s,%d,%s,%s\n' % (n[0], n[1], self.currentpage+1, datetime.date.today(), self.cc.get_source())
+        s = u'%s,%s,%d,%s,%s\n' % (n[0], n[1],
+                            self.currentpage+1,
+                            datetime.date.today(), self.cc.get_source() )
         bm = BookMarkInfo()
         bm.append(s)
 
@@ -930,19 +958,26 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ ページ指定ジャンプ
         """
         label = gtk.Label( u'ページ番号' )
-        adj = gtk.Adjustment(value=1,lower=1,upper=self.cc.pagecounter+1,step_incr=1,page_incr=10)
+        adj = gtk.Adjustment(value=1,lower=1,upper=self.cc.pagecounter+1,
+                                step_incr=1,page_incr=10)
         spin = gtk.SpinButton(adjustment=adj, climb_rate=1,digits=0)
         hb = gtk.HBox()
         hb.pack_start(label,True,False,0)
         hb.pack_start(spin,True,False,0)
         dlg = gtk.Dialog(title=u'ページジャンプ')
         dlg.vbox.pack_start(hb,True,True,0)
-        dlg.add_buttons(gtk.STOCK_OK, gtk.RESPONSE_OK, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
+        dlg.add_buttons(gtk.STOCK_OK, gtk.RESPONSE_OK,
+                            gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
         dlg.show_all()
         if dlg.run() == gtk.RESPONSE_OK:
             a = adj.get_value()
             self.page_common(int(a)-1)
         dlg.destroy()
+
+    def menu_logwindow_cb( self, widget ):
+        """ ログファイルの表示
+        """
+        self.logwindow.run()
 
     def menu_about_cb( self, widget ):
         """ プログラムバージョン
@@ -1004,7 +1039,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.prior_page()
         elif event.button == 3:             # 右ボタン
             if self.cc.sourcefile != u'':
-                self.popupmenu_bookmark.popup(None, None, None, event.button, event.time)
+                self.popupmenu_bookmark.popup(
+                                None, None, None, event.button, event.time)
         return False
 
     def prior_page(self):
@@ -1044,6 +1080,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         return False
 
     def exitall(self, widget, data=None ):
+        logging.shutdown()
         self.hide_all()
         gtk.main_quit()
         #self.destroy()
@@ -1054,7 +1091,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """
         self.currentpage = 0
         self.cc.write_a_line(u'<span font_desc="Sans bold">青空文庫リーダー</span>')
-        self.imagebuf.set_from_file('%s/.cache/aozora/thisistest.png' % self.get_homedir())
+        self.imagebuf.set_from_file(
+                        '%s/.cache/aozora/thisistest.png' % self.get_homedir())
         self.set_title(u'青空文庫リーダー')
         self.show_all()
         gtk.main()

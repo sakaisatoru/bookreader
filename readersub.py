@@ -23,6 +23,7 @@
         ソース分割
 """
 import sys, codecs, re, os.path, datetime, unicodedata, urllib, zipfile
+import logging
 import gtk, cairo, pango, pangocairo, gobject
 
 class Download():
@@ -200,6 +201,7 @@ class ReaderSetting():
             self.checkdir(self.dicSetting[u'workingdir'])
             self.set_aozorabunkodir(name)
             self.update()
+
 
     def get_linedata(self, fsize, linestep):
         """ フォントサイズから行幅(ピクセル)を得る

@@ -131,7 +131,10 @@ class Aozora(ReaderSetting):
     # 見出し
     reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(?P<dougyou>.*?)(?P<midashisize>大|中|小)見出し］' )
     reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
+    reMidashi2name = re.compile( ur'((<.+?)??(?P<name>.+?)[<［\n]+?)' )
     reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
+    reMidashi3 = re.compile( ur'(［＃(ここから)??(?P<midashisize>大|中|小)見出し］)' )
+    reMidashi3owari = re.compile( ur'(［＃(ここで)??(?P<midashisize>大|中|小)見出し終わり］)' )
 
     # 改ページ・改丁
     reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］' )
@@ -249,7 +252,8 @@ class Aozora(ReaderSetting):
                 #
                 #   空行に出くわすか、説明が始まったら終わる
                 #
-                if lnbuf == '-------------------------------------------------------' or len(lnbuf) == 0:
+                if lnbuf == '-------------------------------------------------------' or \
+                            len(lnbuf) == 0:
                     if sBookTranslator != u'':
                         sBookAuthor = u'%s / %s' % (sBookAuthor ,sBookTranslator)
                     break
@@ -309,34 +313,30 @@ class Aozora(ReaderSetting):
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
             for lnbuf in f0:
                 lnbuf = lnbuf.rstrip('\r\n')
-                #
-                #   空行の処理
-                #
+                """空行の処理
+                """
                 if len(lnbuf) == 0:
                     yield u'\n'
                     continue
 
-                #
-                #   ヘッダ【テキスト中に現れる記号について】の処理
-                #   とりあえずばっさりと削除する
-                #
+                """ ヘッダ【テキスト中に現れる記号について】の処理
+                    とりあえずばっさりと削除する
+                """
                 if Aozora.reHeader.search(lnbuf) != None:
                     headerflag = True if headerflag == False else False
                     continue
                 if headerflag == True:
                     continue
 
-                #
-                #   フッタ
-                #
+                """ フッタ
+                """
                 if Aozora.reFooter.search(lnbuf) != None:
                     footerflag = True
 
-                #
-                #   青空文庫の制御文字列である　［＃］を【＃】と表記する
-                #   テキストへの対応
-                #   ex. 絶対矛盾的自己同一　西田幾多郎
-                #
+                """ 青空文庫の制御文字列である　［＃］を【＃】と表記する
+                    テキストへの対応
+                    (絶対矛盾的自己同一　西田幾多郎)
+                """
                 try:
                     for tmp in Aozora.reHansoku.finditer( lnbuf ):
                         lnbuf ='%s［＃%s］%s' % (
@@ -346,19 +346,15 @@ class Aozora(ReaderSetting):
                 except:
                     pass
 
-
-                #
-                #   くの字の置換
-                #
+                """ くの字の置換
+                """
                 lnbuf = Aozora.reKunoji.sub( u'〳〵', lnbuf )
                 lnbuf = Aozora.reGunoji.sub( u'〴〵', lnbuf )
 
-
-                #
-                #   ダブルクォーテーションの、ノノカギへの置換
-                #   unicode のカテゴリを調べて、アルファベット以外及び記号以外の
-                #   何かが出現した場合に日本語とみなして置換する。
-                #
+                """ ダブルクォーテーションの、ノノカギへの置換
+                    unicode のカテゴリを調べて、アルファベット以外及び記号以外の
+                    何かが出現した場合に日本語とみなして置換する。
+                """
                 try:
                     for tmp in Aozora.reNonokagi.finditer( lnbuf ):
                         for s in tmp.group('name'):
@@ -371,9 +367,8 @@ class Aozora(ReaderSetting):
                 except:
                     pass
 
-                #
-                #   外字(JIS面句点コード指定)
-                #
+                """ 外字(JIS面句点コード指定)
+                """
                 ln = u''
                 priortail = 0
                 for tmp in Aozora.reGaiji.finditer(lnbuf):
@@ -389,15 +384,15 @@ class Aozora(ReaderSetting):
                 ln += lnbuf[priortail:]
                 lnbuf = ln
 
-                #
-                #   外字２(Unicode指定、但し漢字のみ)
-                #
+                """ 外字２(Unicode指定、但し漢字のみ)
+                """
                 ln = u''
                 priortail = 0
                 for tmp in Aozora.reGaiji2.finditer(lnbuf):
                     ln += lnbuf[priortail:tmp.start()]
                     try:
-                        k = unicodedata.lookup(u'CJK UNIFIED IDEOGRAPH-' + tmp.group('number'))
+                        k = unicodedata.lookup(
+                            u'CJK UNIFIED IDEOGRAPH-' + tmp.group('number'))
                     except KeyError:
                         k = tmp.group()
                         logging.info( u'未定義の外字を検出：%s' % k )
@@ -407,9 +402,8 @@ class Aozora(ReaderSetting):
                 ln += lnbuf[priortail:]
                 lnbuf = ln
 
-                #
-                #   ［＃　で始まるタグの処理
-                #
+                """ ［＃　で始まるタグの処理
+                """
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
@@ -455,9 +449,7 @@ class Aozora(ReaderSetting):
                         continue
 
                     if Aozora.reOmit.match(tmp.group()):
-                        #
                         #   未実装タグは単純に削除する
-                        #
                         logging.info( u'削除されたタグ: %s' % tmp.group())
                         retline += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
@@ -465,7 +457,6 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reCaption.match(tmp.group())
                     if tmp2:
-                        #
                         #   キャプション
                         #   暫定処理：小文字で表示
                         sNameTmp = tmp2.group(u'name')
@@ -487,9 +478,7 @@ class Aozora(ReaderSetting):
                     """
                     tmp2 = Aozora.reMojisize.match(tmp.group())
                     if tmp2:
-                        #
                         #   文字の大きさ
-                        #
                         if tmp2.group(u'name') == u'小さ':
                             if tmp2.group(u'size') == u'１':
                                 sSizeTmp = u'small'
@@ -516,9 +505,7 @@ class Aozora(ReaderSetting):
                     if tmp2 == None:
                         tmp2 = Aozora.reMama2.match(tmp.group())
                     if tmp2:
-                        #
                         #   ママ注記
-                        #
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()])
@@ -528,10 +515,7 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reRubimama.match(tmp.group())
                     if tmp2:
-                        #
                         #   ルビのママ
-                        #
-                        #sNameTmp = tmp2.group(u'name')
                         retline += lnbuf[priortail:tmp.start()]
                         retline += u'《%s》' % u'(ルビママ)'
                         priortail = tmp.end()
@@ -539,11 +523,9 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reBouten.match(tmp.group())
                     if tmp2:
-                        #
                         #   傍点
                         #   rstrip では必要以上に削除する場合があるので
                         #   reのsubで消す
-                        #
                         sNameTmp = tmp2.group('name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()])
@@ -556,9 +538,7 @@ class Aozora(ReaderSetting):
                         continue
 
                     if tmp.group() == u'［＃傍点］':
-                        #
                         #   傍点　形式２
-                        #
                         retline += lnbuf[priortail:tmp.start()]
                         tmp2 = Aozora.reBouten2.search(lnbuf[tmp.end():])
                         if tmp2:
@@ -575,9 +555,7 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reBousen.match(tmp.group())
                     if tmp2:
-                        #
                         #   傍線
-                        #
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
@@ -589,9 +567,7 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reNijuBousen.match(tmp.group())
                     if tmp2:
-                        #
                         #   二重傍線
-                        #
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
@@ -652,18 +628,15 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
-                    #
                     #   上記以外のタグは後続処理に引き渡す
-                    #
                     retline += lnbuf[priortail:tmp.end()]
                     priortail = tmp.end()
 
                 retline += lnbuf[priortail:]
 
                 if footerflag:
-                    #
-                    #   フッタにおける年月日を漢数字に置換
-                    #
+                    """ フッタにおける年月日を漢数字に置換
+                    """
                     ln = u''
                     priortail = 0
                     for tmp in Aozora.reNenGetsuNichi.finditer(retline):
@@ -678,10 +651,8 @@ class Aozora(ReaderSetting):
                     ln += retline[priortail:]
                     retline = ln
 
-
-                #
-                #   処理の終わった行を返す
-                #
+                """ 処理の終わった行を返す
+                """
                 yield u'%s\n' % retline
 
     def boutentype(self, t):
@@ -726,7 +697,8 @@ class Aozora(ReaderSetting):
             self.onetime_indent = True
             self.sJiage = u''
             self.onetime_jiage = False
-            self.midashi = False
+            self.midashi = u''
+            self.inMidashi = False
 
             charmaxstack = []                       # 1行あたりの桁数のスタック
             currchars = self.charsmax               # 1行の表示文字数
@@ -735,39 +707,36 @@ class Aozora(ReaderSetting):
             jiage = 0                               # 字上指定
 
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
-
-                for self.lnbuf in self.formater_pass1():
-                    self.rubibuf = u''
-                    self.lnbuf = self.lnbuf.rstrip('\n')
+                for lnbuf in self.formater_pass1():
+                    lnbuf = lnbuf.rstrip('\n')
                     self.iCurrentReadline += 1
                     """ 空行の処理
                     """
-                    if len(self.lnbuf) == 0:
+                    if len(lnbuf) == 0:
                         self.write2file( dfile, '\n' )
                         continue
 
                     """ 制御文字列の処理
                         読み込んだ行に含まれる［＃.*?］を全てチェックする。
                     """
-                    self.ln2 = ''
+                    retline = u''
+                    priortail = 0
                     IndentJitsuki = False
-                    for s in Aozora.reCTRL.split(self.lnbuf):
-                        """ 挿図
-                            キャンバスの大きさに合わせて画像を縮小する。
-                            幅　　上限　キャンバスの半分迄
-                            高さ　上限　キャンバスの高さ迄
-
-                            ページからはみ出るようであれば挿図前に改ページする。
-
-                            キャンバス　880px x 616px, 行29 の場合、1行あたり30px
-                            tmpRatio : 縮小倍率
-                            tmpWidth : 画像横幅
-                            figspan  : 画像幅の行数換算値
-
-                            ［＃.*?（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］
-                        """
-                        matchFig = Aozora.reFig.search(s)
+                    for tmp in Aozora.reCTRL.finditer(lnbuf):
+                        matchFig = Aozora.reFig.match(tmp.group())
                         if matchFig != None:
+                            """ 挿図
+                                キャンバスの大きさに合わせて画像を縮小する。
+                                幅　　上限　キャンバスの半分迄
+                                高さ　上限　キャンバスの高さ迄
+
+                                ページからはみ出るようであれば挿図前に
+                                改ページする。
+
+                                tmpRatio : 縮小倍率
+                                tmpWidth : 画像横幅
+                                figspan  : 画像幅の行数換算値
+                            """
                             tmpH = float(self.get_value(u'scrnheight')) - \
                                     float(self.get_value(u'bottommargin')) - \
                                             float(self.get_value(u'topmargin'))
@@ -776,9 +745,8 @@ class Aozora(ReaderSetting):
                                             float(self.get_value(u'leftmargin'))
                             tmpW /= 2 # 許可される最大幅
 
-                            """ タグに図のピクセルサイズが正しく登録されていない
-                                場合があるので、画像ファイルを開いてチェックする
-                            """
+                            #   タグに図のピクセルサイズが正しく登録されていない
+                            #   場合があるので、画像ファイルを開いてチェックする
                             try:
                                 fname = matchFig.group(u'filename1') if matchFig.group(u'filename1') != None else matchFig.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
@@ -795,6 +763,8 @@ class Aozora(ReaderSetting):
                                 logging.info(
                                     u'画像ファイル %s の読み出しに失敗しました。' % fname )
                                 self.write2file( dfile, '\n' )
+                                retline += lnbuf[priortail:tmp.start()]
+                                priortail = tmp.end()
                                 continue
 
                             if tmpRasioW > 1.0:
@@ -828,138 +798,195 @@ class Aozora(ReaderSetting):
                             while figspan > 0:
                                 self.write2file( dfile, '\n' )
                                 figspan -= 1
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
                             continue
-
 
                         """ 改ページ
                         """
-                        if Aozora.reKaipage.search(s) != None:
+                        if Aozora.reKaipage.match(tmp.group()) != None:
                             while self.write2file( dfile, '\n' ) != True:
                                 pass
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
                             continue
 
                         """ 見出し
-                            複数行に渡る処理は行わない
+                            ここでは正確なページ番号が分からないので、
+                            見出し出現のフラグだけ立てて、目次作成は後段で行う。
+                            複数行見出しはサポートしない
+                            同行見出しはサポートしない
+                            <span font_family="Sans" size="larger">
+                            見出し《ルビ》</span>
                         """
-                        matchMidashi = Aozora.reMidashi.search(s)
+                        matchMidashi = Aozora.reMidashi.match(tmp.group())
                         if matchMidashi != None:
+                            # 1行見出し
+                            self.inMidashi = True
                             self.sMidashiSize = matchMidashi.group('midashisize')
-                            s = ''
-                            self.midashi = True
+                            self.midashi = matchMidashi.group(u'midashi')
+                            pos = tmp.start() - 1
+                            if lnbuf[pos] == u'》':
+                                # 見出しにルビがついている場合
+                                while lnbuf[pos] != u'《':
+                                    pos -= 1
+                            else:
+                                pos = tmp.start()
+                            reTmp = re.compile( ur'%s$' % self.midashi )
+                            retline += reTmp.sub( u'', lnbuf[priortail:pos])
+                            retline += u'<span font_family="Sans"'
+                            if self.sMidashiSize == u'大':
+                                retline += u' size="larger"'
+                            retline += u'>'
+                            if pos != tmp.start():
+                                # 見出しのルビ
+                                retline += lnbuf[pos:tmp.start()]
+                            retline += u'%s</span>' % self.midashi
+                            priortail = tmp.end()
+                            continue
 
-                        matchMidashi = Aozora.reMidashi2.search(s)
+                        matchMidashi = Aozora.reMidashi2.match(tmp.group())
                         if matchMidashi != None:
+                            # <見出し>
                             self.sMidashiSize = matchMidashi.group('midashisize')
-                            s = ''
-                            self.midashi = False
+                            self.inMidashi = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            retline += u'<span font_family="Sans"'
+                            if self.sMidashiSize == u'大':
+                                retline += u' size="larger"'
+                            retline += u'>'
+                            priortail = tmp.end()
+                            matchMidashi = Aozora.reMidashi2name.match(lnbuf[priortail:])
+                            self.midashi = matchMidashi.group(u'name') if matchMidashi != None else u' '
+                            continue
 
-                        matchMidashi = Aozora.reMidashi2owari.search(s)
+                        matchMidashi = Aozora.reMidashi2owari.match(tmp.group())
                         if matchMidashi != None:
+                            # <見出し終わり>
                             self.sMidashiSize = matchMidashi.group('midashisize')
-                            s = ''
-                            self.midashi = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            retline += u'</span>'
+                            priortail = tmp.end()
+                            continue
+
+                        """ インデント
+                                |<---------- self.chars ------------>|
+                              行|<--------- self.charsmax --------->||行
+                                |<------ currchars ----->           ||
+                                |<--jisage-->                       ||
+                              頭|            <--jizume-->           ||末
+                                |                        <--jiage-->||
+
+                        """
+
 
                         """ 字詰
                         """
-                        tmp = Aozora.reJizume.search(s)
-                        if tmp != None:
-                            #self.jizume = self.zentoi(tmp.group('number'))
-                            s = ''
+                        tmp2 = Aozora.reJizume.match(tmp.group())
+                        if tmp2:
+                            pass
 
-                        if Aozora.reJizumeowari.search(s) != None:
-                            #self.jizume = 0
-                            s = ''
+                        if Aozora.reJizumeowari.match(tmp.group()):
+                            pass
 
                         """ ワンタイムインデント
                             sIndent に 桁数分の空白を得る
                         """
-                        maIndent = Aozora.reIndent.match(s)
+                        maIndent = Aozora.reIndent.match(tmp.group())
                         if maIndent != None:
                             self.sIndent = self.zenstring( u'　',
                                         self.zentoi(maIndent.group('number')))
-                            s = ''
                             self.onetime_indent = True
-                        #
-                        #   地付き
-                        #   ワンタイムインデントのバリエーションとして処理
-                        #   sIndent に 桁数分の空白を得る
-                        #   プログラムの都合上、タグの直後の要素が地付きとなる。
-                        #   例）
-                        #   ［＃地付き］ここが地付き［＃ダミー］←これはタグなので
-                        #                                           地付きされない
-                        #
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        """ 地付き
+                            ワンタイムインデントのバリエーションとして処理
+                            sIndent に 桁数分の空白を得る
+                            プログラムの都合上、タグの直後の要素が地付きとなる。
+                            例）
+                            ［＃地付き］ここが地付き［＃ダミー］←これはタグなので
+                                                                    地付きされない
+                        """
                         if IndentJitsuki == True:
                             # ［＃地付き］の直後の要素の長さから必要な空白を得る
                             self.sIndent = self.zenstring( u'　',
-                                self.charsmax - len(Aozora.reRubi.sub( u'',s)))
+                                self.charsmax - len(Aozora.reRubi.sub( u'',tmp.group())))
                             #self.sIndent = self.zenstring( u'　', self.chars - len(s))
                             self.onetime_indent = True
                             IndentJitsuki = False
-                        maIndent = Aozora.reJitsuki.match(s)
+                        maIndent = Aozora.reJitsuki.match(tmp.group())
                         if maIndent != None:
-                            logging.info(u'Indent: %s' % s )
-                            s = ''
+                            logging.info(u'Indent: %s' % tmp.group() )
                             IndentJitsuki = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
                             continue
-                        #
-                        #   ブロックインデント
-                        #   sIndent に 桁数分の空白を得る
-                        #
-                        maIndent = Aozora.reIndentStart.match(s)
+
+                        """ ブロックインデント
+                            sIndent に 桁数分の空白を得る
+                        """
+                        maIndent = Aozora.reIndentStart.match(tmp.group())
                         if maIndent != None:
                             self.sIndent = u''
                             self.onetime_indent = False
                             self.sIndent = self.zenstring( u'　',
                                         self.zentoi(maIndent.group('number')))
-                            s = ''
-                        #
-                        #   ブロックインデント終わり
-                        #
-                        if Aozora.reIndentEnd.match(s) != None:
-                            s = ''
-                            self.sIndent = u''
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
 
-                        #
-                        #   ワンタイム字上げ
-                        #
+                        """ ブロックインデント終わり
+                        """
+                        if Aozora.reIndentEnd.match(tmp.group()) != None:
+                            self.sIndent = u''
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        """ ワンタイム字上げ
+                        """
                         if self.onetime_jiage == True:
                             # ［＃地付き］の直後の要素の長さから必要な空白を得る
                             self.sIndent = self.zenstring( u'　',
-                                self.charsmax - len(Aozora.reRubi.sub( u'', s )) - len(self.sJiage))
+                                self.charsmax - len(Aozora.reRubi.sub( u'', tmp.group() )) - len(self.sJiage))
                             self.onetime_indent = True
                             self.onetime_jiage = False
 
-                        maIndent = Aozora.reJiage.match(s)
+                        maIndent = Aozora.reJiage.match(tmp.group())
                         if maIndent != None:
                             self.sJiage = self.zenstring( u'　',
                                         self.zentoi(maIndent.group('number')))
-                            s = ''
                             self.onetime_jiage = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
 
-                        #
-                        #   未定義のタグ
-                        #
-                        if Aozora.reCTRL.search(s) != None:
-                            logging.info( u'検出された未定義タグ : %s' % s )
 
-                        self.ln2 += s
+                        """ 未定義のタグ
+                        """
+                        logging.info( u'検出された未定義タグ : %s' % tmp.group() )
+                        retline += lnbuf[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        retline += tmp.group()
+                    retline += lnbuf[priortail:]
+                    lnbuf = retline
 
-                    self.lnbuf = self.ln2
-                    #
-                    #   ルビの処理
-                    #   本文に合わせてサイドライン(rubiline)に全角空白をセットする。
-                    #   文字種が変わる毎にルビ掛かり始めとみなして、＃をセットする。
-                    #   ルビが出現したら直前の ＃までバックしてルビをセットする。
-                    #
+                    """ ルビの処理
+                        本文に合わせてサイドライン(rubiline)に全角空白をセットする。
+                        文字種が変わる毎にルビ掛かり始めとみなして、＃をセットする。
+                        ルビが出現したら直前の ＃までバックしてルビをセットする。
+                    """
                     rubiline = u''
-                    self.ln2 = u''
+                    retline = u''
                     inRubi = False
                     tplast = 0
                     tp = 0
                     rubispan = 0
                     isAnchor = False
                     inTag = False
-                    for s in self.lnbuf:
+                    for s in lnbuf:
                         # タグは読み飛ばす
                         if s == u'>':
                             inTag = False
@@ -1028,33 +1055,28 @@ class Aozora(ReaderSetting):
                                     sPad = u''
                                 rubiline += sPad
 
-                        self.ln2 += s
+                        retline += s
 
                     rubiline = Aozora.reRubiclr.sub(u'　', rubiline)
-                    self.lnbuf = self.ln2
+                    lnbuf = retline
 
-                    #
-                    #   行をバッファ(中間ファイル)へ吐き出す
-                    #
-                    #   インデント幅分のスペース u'　' を行頭に付加されたソース
-                    #   self.lnbuf を、
-                    #   1行あたりの文字数 self.charsmax を 境にして分割、
-                    #   行末禁則、行頭禁則を行った後、中間ファイルへ書き出す。
-                    #
-                    while self.lnbuf != '':
-                        #
+                    """ 行をバッファ(中間ファイル)へ吐き出す
+
+                        インデント幅分のスペース u'　' を行頭に付加されたソース
+                        lnbuf を、
+                        1行あたりの文字数 self.charsmax を 境にして分割、
+                        行末禁則、行頭禁則を行った後、中間ファイルへ書き出す。
+                    """
+                    while lnbuf != '':
                         #   インデントの挿入
-                        #
-                        self.lnbuf = self.sIndent + self.lnbuf
+                        lnbuf = self.sIndent + lnbuf
                         rubiline = self.sIndent + self.sIndent + rubiline
                         if self.onetime_indent == True:
                             self.sIndent = u''
 
-                        #
                         #   画面上の1行で収まらなければ分割して次行を得る
-                        #
-                        self.ls, r, self.lnbuf, rubi2, rubiline = self.sizeofline(
-                                        self.lnbuf, rubiline, self.charsmax)
+                        self.ls, r, lnbuf, rubi2, rubiline = self.sizeofline(
+                                        lnbuf, rubiline, self.charsmax)
 
 
                         self.write2file( dfile, "%s\n" % self.ls, "%s\n" % rubi2)
@@ -1129,15 +1151,10 @@ class Aozora(ReaderSetting):
                     # 全角文字
                     lcc += 1
 
-                #lcc += 0.5 if unicodedata.east_asian_width(lsc) == 'Na' else 1
-
-
-
-        #
-        #   行末禁則処理
-        #   次行先頭へ追い出す
-        #   禁則文字が続く場合は全て追い出す
-        #
+        """ 行末禁則処理
+            次行先頭へ追い出す
+            禁則文字が続く場合は全て追い出す
+        """
         r = len(honbun) -1
         while Aozora.kinsoku2.find(honbun[r]) != -1:
             honbun2 = honbun[r] + honbun2
@@ -1150,15 +1167,14 @@ class Aozora(ReaderSetting):
                 pass
             r -= 1
 
-        #
-        #   行頭禁則処理 ver 2
-        #   前行末にぶら下げる。
-        #   但し2文字(以上)続く場合は括弧類ならさらにぶら下げ、
-        #   それ以外は前行の末尾をチェックし、非禁則文字なら
-        #   行頭へ追い込む。
-        #   例）シ　(改行) ャーロック・ホームズ ->
-        #      (改行)シャーロック・ホームズ
-        #
+        """ 行頭禁則処理 ver 2
+            前行末にぶら下げる。
+            但し2文字(以上)続く場合は括弧類ならさらにぶら下げ、
+            それ以外は前行の末尾をチェックし、非禁則文字なら
+            行頭へ追い込む。
+            例）シ　(改行) ャーロック・ホームズ ->
+                (改行)シャーロック・ホームズ
+        """
         if len(honbun2) > 0:
             if Aozora.kinsoku.find(honbun2[0]) != -1:
                 honbun += honbun2[0]
@@ -1195,11 +1211,9 @@ class Aozora(ReaderSetting):
                             except:
                                 pass
 
-
-        #
-        #   くの字記号の分離を阻止する
-        #   行頭禁則と重なるととんでもないことに！
-        #
+        """ くの字記号の分離を阻止する
+            行頭禁則と重なるととんでもないことに！
+        """
         if len(honbun2) > 0:
             if honbun2[0] == u'〵':
                 if u'〳〴'.find(honbun[r-1]) != -1:
@@ -1213,12 +1227,12 @@ class Aozora(ReaderSetting):
                         pass
 
         while tagstack != []:
-            # <tag>を閉じる
             # <tag>が閉じられていなければ次行に引き継ぐ
             s = tagstack.pop()
             if honbun2 != u'':
                 honbun2 = s + honbun2
-            honbun += u'</%s' % s.lstrip( u'<' )
+            # <tag>を閉じる
+            honbun += u'</%s>' % s.split()[0].rstrip(u'>').lstrip(u'<')
         return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
 
     def write2file(self, fd, s, rubiline=u'\n' ):
@@ -1227,23 +1241,19 @@ class Aozora(ReaderSetting):
             目次作成もここで行う。
         """
         rv = False
-        if self.midashi == True:
-            #
-            #   見出し処理
-            #
-            if self.sMidashiSize == u'大':
-                sMokujiForm = u'%-s  % 4d\n'
-                sMidashiForm = u'<span font_family="Sans" size="larger">'
-            elif self.sMidashiSize == u'中':
-                sMokujiForm = u'  %-s  % 4d\n'
-                sMidashiForm = u'<span font_family="Sans">'
-            elif self.sMidashiSize == u'小':
-                sMokujiForm = u'    %-s  % 4d\n'
-                sMidashiForm = u'<span font_family="Sans">'
-            self.mokuji_f.write( sMokujiForm % (s.lstrip(u' 　').rstrip('\n'),
-                                    self.pagecounter +1))
-            s = u'%s%s</span>\n' % (sMidashiForm, s.rstrip('\n'))
-            self.midashi = False
+        if self.inMidashi == True:
+            if self.midashi != u'':
+                #   見出し処理
+                #   見出し文字列が空の場合は処理を次行以降に持ち越す
+                if self.sMidashiSize == u'大':
+                    sMokujiForm = u'%-s  % 4d\n'
+                elif self.sMidashiSize == u'中':
+                    sMokujiForm = u'  %-s  % 4d\n'
+                elif self.sMidashiSize == u'小':
+                    sMokujiForm = u'    %-s  % 4d\n'
+                self.mokuji_f.write( sMokujiForm % (self.midashi.lstrip(u' 　').rstrip('\n'),
+                                        self.pagecounter +1))
+                self.inMidashi = False
 
         fd.write(rubiline)  # 右ルビ行
         fd.write(s)         # 本文

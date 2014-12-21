@@ -82,13 +82,13 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
         self.btnbox.pack_start(self.btnClear, False, False, 0)
         self.btnbox.pack_end(self.btnClose, False, False, 0)
 
+        # ビルド
         self.vBox = gtk.VBox()
         self.vBox.set_size_request(600,400)
         self.sw3.set_size_request(600,344)
         self.vBox.pack_start(self.mainmenu, expand=False)
-        self.vBox.pack_start(self.sw3, expand=False)
+        self.vBox.pack_start(self.sw3, expand=True)
         self.vBox.pack_end(self.btnbox, expand=False)
-
         self.add(self.vBox)
         self.set_title( u'青空文庫ビューア　デバッグメッセージ' )
         self.connect("delete_event", self.delete_event_cb)
@@ -155,8 +155,6 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
 
 
 
-"""
 if __name__=='__main__':
     a = Logviewer()
     a.run()
-"""

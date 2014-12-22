@@ -29,24 +29,6 @@
                 http://www.aozora.gr.jp/KOSAKU/txt_chu_kigo.html
             注記一覧
                 http://www.aozora.gr.jp/annotation/
-
-
-    サポートされる青空文庫の制御文字列
-        ［＃改ページ］
-        ［＃大見出し］［＃中見出し］［＃小見出し］
-        ［＃改段］ 　　　［＃改ページ］ 　　　［＃改丁］（次の左ページからはじめる)
-        ［＃ここから○字下げ］［＃ここで字下げ終わり］
-        ［＃ここから○字下げ、折り返して●字下げ］
-        ［＃ここから改行天付き、折り返して○字下げ］
-        ［＃地付き］
-        ［＃ここから地付き］［＃ここで地付き終わり］
-        ［＃地から○字上げ］
-        ［＃ここから地から○字上げ］［＃ここで字上げ終わり］
-        挿図
-
-    サポートされないもの
-        ［＃ページの左右中央］
-
 """
 
 from __future__ import with_statement
@@ -129,7 +111,7 @@ class Aozora(ReaderSetting):
     reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
 
     # 見出し
-    reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(?P<dougyou>.*?)(?P<midashisize>大|中|小)見出し］' )
+    reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(同行)??(?P<midashisize>大|中|小)見出し］' )
     reMidashi2 = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し］)' )
     reMidashi2name = re.compile( ur'((<.+?)??(?P<name>.+?)[<［\n]+?)' )
     reMidashi2owari = re.compile( ur'(［＃(?P<midashisize>大|中|小)見出し終わり］)' )
@@ -161,6 +143,7 @@ class Aozora(ReaderSetting):
         ur'((?P<month>\d+?)月)|'+
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<suri>\d+?)刷)' )
+
 
     # 禁則
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
@@ -815,7 +798,6 @@ class Aozora(ReaderSetting):
                             ここでは正確なページ番号が分からないので、
                             見出し出現のフラグだけ立てて、目次作成は後段で行う。
                             複数行見出しはサポートしない
-                            同行見出しはサポートしない
                             <span font_family="Sans" size="larger">
                             見出し《ルビ》</span>
                         """
@@ -837,11 +819,12 @@ class Aozora(ReaderSetting):
                             retline += u'<span font_family="Sans"'
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
-                            retline += u'>'
+                            elif self.sMidashiSize == u'中':
+                                retline += u' style="italic"'
+                            retline += u'>%s</span>' % self.midashi
                             if pos != tmp.start():
                                 # 見出しのルビ
                                 retline += lnbuf[pos:tmp.start()]
-                            retline += u'%s</span>' % self.midashi
                             priortail = tmp.end()
                             continue
 
@@ -856,8 +839,6 @@ class Aozora(ReaderSetting):
                                 retline += u' size="larger"'
                             retline += u'>'
                             priortail = tmp.end()
-                            matchMidashi = Aozora.reMidashi2name.match(lnbuf[priortail:])
-                            self.midashi = matchMidashi.group(u'name') if matchMidashi != None else u' '
                             continue
 
                         matchMidashi = Aozora.reMidashi2owari.match(tmp.group())
@@ -981,8 +962,8 @@ class Aozora(ReaderSetting):
                     rubiline = u''
                     retline = u''
                     inRubi = False
-                    tplast = 0
-                    tp = 0
+                    tplast = u''
+                    tp = u''
                     rubispan = 0
                     isAnchor = False
                     inTag = False
@@ -999,8 +980,7 @@ class Aozora(ReaderSetting):
                                 isAnchor = False
                                 inRubi = True
                                 # 直前のルビ打ち込み位置までバック
-                                r2 = rubiline.rstrip( u'　' )
-                                r2 = r2.rstrip( u'＃' )
+                                r2 = rubiline.rstrip( u'　' ).rstrip( u'＃' )
                                 rubispan = len(rubiline) - len(r2)
                                 rubiline = r2
                                 continue
@@ -1118,6 +1098,7 @@ class Aozora(ReaderSetting):
 
             honbun += lsc
             if lsc == u'>':
+                # tagスタックの操作
                 tagname += lsc
                 if inCloseTag:
                     inCloseTag = False
@@ -1140,7 +1121,7 @@ class Aozora(ReaderSetting):
                 else:
                     tagname += lsc
             else:
-                # 画面上における全長を計算
+                # 画面上における全長を計算 (ifの条件式に注意)
                 if unicodedata.category(lsc) == 'Lu':
                     # ラテン大文字(A-Z等)
                     lcc += 1
@@ -1155,17 +1136,15 @@ class Aozora(ReaderSetting):
             次行先頭へ追い出す
             禁則文字が続く場合は全て追い出す
         """
-        r = len(honbun) -1
-        while Aozora.kinsoku2.find(honbun[r]) != -1:
-            honbun2 = honbun[r] + honbun2
-            honbun = honbun[:r] + u'　'
-            # ルビも同様に処理
+        while Aozora.kinsoku2.find(honbun[-1]) != -1:
+            honbun2 = honbun[-1] + honbun2
+            honbun = honbun[:-1] + u'　'
             try:
-                rubi2 = rubi[r*2]+rubi[r*2+1]+rubi2
-                rubi = rubi[:r*2] + u'　　'#u'＊＊'
+                # ルビも同様に処理
+                rubi2 = rubi[-2:]+rubi2
+                rubi = rubi[:-2] + u'　　'#u'＊＊'
             except:
                 pass
-            r -= 1
 
         """ 行頭禁則処理 ver 2
             前行末にぶら下げる。
@@ -1179,37 +1158,37 @@ class Aozora(ReaderSetting):
             if Aozora.kinsoku.find(honbun2[0]) != -1:
                 honbun += honbun2[0]
                 honbun2 = honbun2[1:]
-                # ルビも同様に処理
                 try:
+                    # ルビも同様に処理
                     rubi = rubi + rubi2[:2]
                     rubi2 = rubi2[2:]
                 except:
                     pass
+
                 if len(honbun2) > 0:
                     if Aozora.kinsoku.find(honbun2[0]) != -1:
-                        if Aozora.kinsoku4.find(honbun2[0]) == -1:
-                            # もっぱら人名対策
-                            r = len(honbun)-2
-                            if Aozora.kinsoku.find(honbun[r]) == -1:
-                                honbun2 = honbun[r:r+2] + honbun2
-                                honbun = honbun[:r] + u'　　'
-                                # ルビも同様に処理
-                                try:
-                                    r *= 2
-                                    rubi2 = rubi[r:r+4]+rubi2
-                                    rubi = rubi[:r] + u'　　　　'
-                                except:
-                                    pass
-                        else:
+                        if Aozora.kinsoku4.find(honbun2[0]) != -1:
                             # ２文字目もぶら下げ
                             honbun += honbun2[0]
                             honbun2 = honbun2[1:]
-                            # ルビも同様に処理
                             try:
+                                # ルビも同様に処理
                                 rubi = rubi + rubi2[:2]
                                 rubi2 = rubi2[2:]
                             except:
                                 pass
+                        else:
+                            # 括弧類以外（もっぱら人名対策）
+                            if Aozora.kinsoku.find(honbun[-2]) == -1:
+                                honbun2 = honbun[-2:] + honbun2
+                                honbun = honbun[:-2] + u'　　'
+                                # ルビも同様に処理
+                                try:
+                                    rubi2 = rubi[-4:]+rubi2
+                                    rubi = rubi[:-4] + u'　　　　'
+                                except:
+                                    pass
+
 
         """ くの字記号の分離を阻止する
             行頭禁則と重なるととんでもないことに！
@@ -1242,18 +1221,16 @@ class Aozora(ReaderSetting):
         """
         rv = False
         if self.inMidashi == True:
-            if self.midashi != u'':
-                #   見出し処理
-                #   見出し文字列が空の場合は処理を次行以降に持ち越す
-                if self.sMidashiSize == u'大':
-                    sMokujiForm = u'%-s  % 4d\n'
-                elif self.sMidashiSize == u'中':
-                    sMokujiForm = u'  %-s  % 4d\n'
-                elif self.sMidashiSize == u'小':
-                    sMokujiForm = u'    %-s  % 4d\n'
-                self.mokuji_f.write( sMokujiForm % (self.midashi.lstrip(u' 　').rstrip('\n'),
-                                        self.pagecounter +1))
-                self.inMidashi = False
+            #   見出し処理（複数行に及ぶ見出しを除く）
+            if self.sMidashiSize == u'大':
+                sMokujiForm = u'%-s  % 4d\n'
+            elif self.sMidashiSize == u'中':
+                sMokujiForm = u'  %-s  % 4d\n'
+            elif self.sMidashiSize == u'小':
+                sMokujiForm = u'    %-s  % 4d\n'
+            self.mokuji_f.write( sMokujiForm % (self.midashi.lstrip(u' 　').rstrip('\n'),
+                                    self.pagecounter +1))
+            self.inMidashi = False
 
         fd.write(rubiline)  # 右ルビ行
         fd.write(s)         # 本文
@@ -1296,6 +1273,8 @@ class Aozora(ReaderSetting):
             r += s
             n -= 1
         return r
+
+
 
 
 class CairoCanvas(Aozora):

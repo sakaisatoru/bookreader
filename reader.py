@@ -220,9 +220,7 @@ class BookListDlg(gtk.Window, ReaderSetting):
         for fn in os.listdir(dirname):
             fullpath = os.path.join(dirname,fn)
             if os.path.isfile(fullpath) == True:
-                n = fn.split( '.' )
-                l = len(n)
-                if n[l-1] == 'txt':
+                if fn.split( '.' )[-1] == 'txt':
                     book, author = self.az.get_booktitle_sub(fullpath)
                     self.booklist_bl.get_model().append(
                                     (book,      # 書籍名

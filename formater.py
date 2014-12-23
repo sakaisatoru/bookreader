@@ -95,20 +95,19 @@ class Aozora(ReaderSetting):
     # 字下げ、字詰、地付き、地寄せ（地上げ）
     reIndent = re.compile( ur'［＃(天から)??(?P<number>[０-９]+?)字下げ］' )
     reIndentStart = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ］' )
+    reKaigyoTentsuki = re.compile( ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］' )
+    reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
     reIndentEnd = re.compile( ur'［＃(ここで)??字下げ終わり］|［＃字下げおわり］')
 
-    reJiage = re.compile( ur'［＃地から(?P<number>[０-９]+?)字上げ］' )
+    reJiage = re.compile( ur'((?P<name2>.+?)??(?P<tag>［＃地付き］|［＃地から(?P<number>[０-９]+?)字上げ］)(?P<name>.+?)??$)' )
     reKokokaraJiage = re.compile( ur'［＃ここから地から(?P<number>[０-９]+?)字上げ］')
     reJiageowari = re.compile( ur'［＃ここで字上げ終わり］' )
 
-    reJitsuki = re.compile( ur'［＃地付き］' )
     reKokokaraJitsuki = re.compile( ur'［＃ここから地付き］' )
     reJitsukiowari = re.compile( ur'［＃ここで地付き終わり］' )
 
     reJizume = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字詰め］' )
     reJizumeowari = re.compile( ur'［＃ここで字詰め終わり］' )
-    reKaigyoTentsulo = re.compile( ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］' )
-    reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
 
     # 見出し
     reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(同行)??(?P<midashisize>大|中|小)見出し］' )
@@ -144,6 +143,8 @@ class Aozora(ReaderSetting):
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<suri>\d+?)刷)' )
 
+    # pangocairo における & エスケープ用
+    reAmp = re.compile( ur'&' )
 
     # 禁則
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
@@ -673,21 +674,27 @@ class Aozora(ReaderSetting):
         with file( self.destfile, 'w' ) as dfile:
             self.linecounter = 0                    # 出力した行数
             self.pagecounter = 0                    # 出力したページ数
-            self.pageposition=[]                    # フォーマット済ファイルにおける各ページの絶対位置
+            self.pageposition=[] # フォーマット済ファイルにおける各ページの絶対位置
             self.pageposition.append(dfile.tell())  # 1頁目のファイル位置を保存
             self.iCurrentReadline = 0
-            self.sIndent = u''
-            self.onetime_indent = True
-            self.sJiage = u''
-            self.onetime_jiage = False
             self.midashi = u''
             self.inMidashi = False
+
+            self.tagstack = []                      # <tag> のスタック
 
             charmaxstack = []                       # 1行あたりの桁数のスタック
             currchars = self.charsmax               # 1行の表示文字数
             jizume = 0                              # 字詰指定
             jisage = 0                              # 字下指定
+            jisage2 = 0                             # 折り返し字下指定
+            jisage3 = 0                             # 折り返し字下げ退避用
             jiage = 0                               # 字上指定
+            inIndent = False                        # ブロックインデント
+            inJizume = False                        # ブロック字詰
+            inJiage = False                         # ブロック字上
+            onejitsuki = False                      # 地付き
+            inJitsuki = False                       # ブロック地付き
+
 
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
                 for lnbuf in self.formater_pass1():
@@ -819,8 +826,8 @@ class Aozora(ReaderSetting):
                             retline += u'<span font_family="Sans"'
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
-                            elif self.sMidashiSize == u'中':
-                                retline += u' style="italic"'
+                            #elif self.sMidashiSize == u'中':
+                            #    retline += u' style="italic"'
                             retline += u'>%s</span>' % self.midashi
                             if pos != tmp.start():
                                 # 見出しのルビ
@@ -851,99 +858,118 @@ class Aozora(ReaderSetting):
                             continue
 
                         """ インデント
+                            ２０１４年１２月２３日書き直し
+
                                 |<---------- self.chars ------------>|
                               行|<--------- self.charsmax --------->||行
                                 |<------ currchars ----->           ||
                                 |<--jisage-->                       ||
+                                |  <--jisage2-->                    ||
                               頭|            <--jizume-->           ||末
                                 |                        <--jiage-->||
 
                         """
 
+                        """ 字下げ
+                        """
+                        tmp2 = Aozora.reIndent.match(tmp.group())
+                        if tmp2:
+                            jisage = self.zentoi(tmp2.group('number'))
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        tmp2 = Aozora.reIndentStart.match(tmp.group())
+                        if tmp2:
+                            inIndent = True
+                            jisage = self.zentoi(tmp2.group('number'))
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        tmp2 = Aozora.reIndentEnd.match(tmp.group())
+                        if tmp2:
+                            inIndent = False
+                            jisage = 0
+                            jisage2 = 0
+                            jisage3 = 0
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        tmp2 = Aozora.reKokokaraSage.match(tmp.group())
+                        if tmp2:
+                            jisage = self.zentoi(tmp2.group('number'))
+                            jisage2 = self.zentoi(tmp2.group('number2'))
+                            inIndent = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        tmp2 = Aozora.reKaigyoTentsuki.match(tmp.group())
+                        if tmp2:
+                            jisage = 0
+                            jisage2 = self.zentoi(tmp2.group('number'))
+                            inIndent = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
 
                         """ 字詰
                         """
                         tmp2 = Aozora.reJizume.match(tmp.group())
                         if tmp2:
-                            pass
+                            jizume = self.zentoi(tmp2.group('number'))
+                            inJizume = True
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
 
                         if Aozora.reJizumeowari.match(tmp.group()):
-                            pass
+                            inJizume = False
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
 
-                        """ ワンタイムインデント
-                            sIndent に 桁数分の空白を得る
+                        """ 字上
                         """
-                        maIndent = Aozora.reIndent.match(tmp.group())
-                        if maIndent != None:
-                            self.sIndent = self.zenstring( u'　',
-                                        self.zentoi(maIndent.group('number')))
-                            self.onetime_indent = True
+                        tmp2 = Aozora.reJiage.match(tmp.group())
+                        if tmp2:
+                            """ 行途中で出現する字上げは後段へそのまま送る
+                            """
+                            retline += lnbuf[priortail:tmp.end()]
+                            priortail = tmp.end()
+                            continue
+
+                        tmp2 = Aozora.reKokokaraJiage.match(tmp.group())
+                        if tmp2:
+                            inJiage = True
+                            jiage = self.zentoi(tmp2.group('number'))
+                            logging.debug(tmp.group())
+                            logging.debug(u'%d' % jiage)
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
+                        if Aozora.reJiageowari.match(tmp.group()):
+                            inJiage = False
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue
 
                         """ 地付き
-                            ワンタイムインデントのバリエーションとして処理
-                            sIndent に 桁数分の空白を得る
-                            プログラムの都合上、タグの直後の要素が地付きとなる。
-                            例）
-                            ［＃地付き］ここが地付き［＃ダミー］←これはタグなので
-                                                                    地付きされない
                         """
-                        if IndentJitsuki == True:
-                            # ［＃地付き］の直後の要素の長さから必要な空白を得る
-                            self.sIndent = self.zenstring( u'　',
-                                self.charsmax - len(Aozora.reRubi.sub( u'',tmp.group())))
-                            #self.sIndent = self.zenstring( u'　', self.chars - len(s))
-                            self.onetime_indent = True
-                            IndentJitsuki = False
-                        maIndent = Aozora.reJitsuki.match(tmp.group())
-                        if maIndent != None:
-                            logging.info(u'Indent: %s' % tmp.group() )
-                            IndentJitsuki = True
+                        if Aozora.reKokokaraJitsuki.match(tmp.group()):
+                            inJitsuki = True
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue
 
-                        """ ブロックインデント
-                            sIndent に 桁数分の空白を得る
-                        """
-                        maIndent = Aozora.reIndentStart.match(tmp.group())
-                        if maIndent != None:
-                            self.sIndent = u''
-                            self.onetime_indent = False
-                            self.sIndent = self.zenstring( u'　',
-                                        self.zentoi(maIndent.group('number')))
+                        if Aozora.reJitsukiowari.match(tmp.group()):
+                            inJitsuki = False
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue
-
-                        """ ブロックインデント終わり
-                        """
-                        if Aozora.reIndentEnd.match(tmp.group()) != None:
-                            self.sIndent = u''
-                            retline += lnbuf[priortail:tmp.start()]
-                            priortail = tmp.end()
-                            continue
-
-                        """ ワンタイム字上げ
-                        """
-                        if self.onetime_jiage == True:
-                            # ［＃地付き］の直後の要素の長さから必要な空白を得る
-                            self.sIndent = self.zenstring( u'　',
-                                self.charsmax - len(Aozora.reRubi.sub( u'', tmp.group() )) - len(self.sJiage))
-                            self.onetime_indent = True
-                            self.onetime_jiage = False
-
-                        maIndent = Aozora.reJiage.match(tmp.group())
-                        if maIndent != None:
-                            self.sJiage = self.zenstring( u'　',
-                                        self.zentoi(maIndent.group('number')))
-                            self.onetime_jiage = True
-                            retline += lnbuf[priortail:tmp.start()]
-                            priortail = tmp.end()
-                            continue
-
 
                         """ 未定義のタグ
                         """
@@ -1041,35 +1067,91 @@ class Aozora(ReaderSetting):
                     lnbuf = retline
 
                     """ 行をバッファ(中間ファイル)へ吐き出す
-
-                        インデント幅分のスペース u'　' を行頭に付加されたソース
-                        lnbuf を、
-                        1行あたりの文字数 self.charsmax を 境にして分割、
-                        行末禁則、行頭禁則を行った後、中間ファイルへ書き出す。
                     """
+                    jisage3 = jisage
                     while lnbuf != '':
+                        #   1行の表示桁数の調整
+                        currchars = self.charsmax - jiage
+                        if jizume > 0:
+                            if jisage + jizume > currchars:
+                                jizume = currchars - jisage
+                            currchars = jisage + jizume
+
                         #   インデントの挿入
-                        lnbuf = self.sIndent + lnbuf
-                        rubiline = self.sIndent + self.sIndent + rubiline
-                        if self.onetime_indent == True:
-                            self.sIndent = u''
+                        if jisage > 0:
+                            sIndent = self.zenstring(u'　',jisage)
+                            lnbuf = sIndent + lnbuf
+                            rubiline = sIndent + sIndent + rubiline
+
+                        #   地付きあるいは字上げ
+                        tmp2 = Aozora.reJiage.match(lnbuf)
+                        if tmp2:
+                            try:
+                                # 字上げ n
+                                n = self.zentoi(tmp2.group('number'))
+                            except:
+                                # 地付き
+                                n = 0
+                            sP = u'' if tmp2.group('name2' ) == None else tmp2.group('name2' )
+                            lenP = self.linecount(sP)
+                            sN = u'' if tmp2.group('name' ) == None else tmp2.group('name' )
+                            lenN = self.linecount(sN)
+                            if  lenP + lenN <= self.charsmax:
+                                # 表示が1行分に収まる場合は処理する。
+                                sPad = self.zenstring(u'　',self.charsmax -lenP -lenN -n)
+                                lnbuf = sP + sPad + sN
+                                # ルビ表示 地付きタグ分を取り除くこと
+                                rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2+len(tmp2.group('tag'))*2 :]
 
                         #   画面上の1行で収まらなければ分割して次行を得る
-                        self.ls, r, lnbuf, rubi2, rubiline = self.sizeofline(
-                                        lnbuf, rubiline, self.charsmax)
-
+                        self.ls, lnbuf, rubi2, rubiline = self.linesplit(
+                                                    lnbuf, rubiline, currchars)
 
                         self.write2file( dfile, "%s\n" % self.ls, "%s\n" % rubi2)
 
-    def sizeofline(self, sline, rline, smax=0 ):
-        """ 文字列の長さを返す。
+                        #   折り返しインデント
+                        if lnbuf != '':
+                            if jisage2 != 0:
+                                if jisage2 != jisage:
+                                    jisage3 = jisage # 初段字下げ幅退避
+                                    jisage = jisage2
+                        else:
+                            jisage = jisage3 # 初段回復
+
+                        #   ブロックの処理
+                        if inIndent == False:
+                            jisage = 0
+                        if inJizume == False:
+                            jizume = 0
+                        if inJiage == False:
+                            jiage = 0
+
+    def linecount(self, sline):
+        """ 文字列の長さを数える
+            <tag></tag> はカウントしない。
+        """
+        l = 0
+        inTag = False
+        for s in sline:
+            if s == u'<':
+                inTag = True
+            elif s == u'>':
+                inTag = False
+            elif inTag:
+                pass
+            else:
+                l += 1
+
+        return l
+
+    def linesplit(self, sline, rline, smax=0):
+        """ 文字列を分割する
             <tag></tag> はカウントしない。
             半角文字は0.5文字として数え、合計時に切り上げる。
             カウント数が smax に達したらそこで文字列を分割して終了する。
             sline : 本文
             rline : ルビ
         """
-        tagstack = []       # <tag> のスタック
         tagname = u''
         lcc = 0.0           # 全角１、半角0.5で長さを積算
         honbun = u''        # 本文（カレント行）
@@ -1079,6 +1161,11 @@ class Aozora(ReaderSetting):
         inTag = False       # <tag>処理のフラグ
         inCloseTag = False  # </tag>処理のフラグ
         inSplit = False     # 行分割処理のフラグ
+
+        """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
+        """
+        while self.tagstack != []:
+            sline = self.tagstack.pop() + sline
 
         for lsc in sline:
             if inSplit:
@@ -1105,11 +1192,11 @@ class Aozora(ReaderSetting):
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     try:
-                        tagstack.pop()
+                        self.tagstack.pop()
                     except:
                         pass
                 else:
-                    tagstack.append(tagname)
+                    self.tagstack.append(tagname)
                     tagname = u''
                 inTag = False
             elif lsc == u'<':
@@ -1205,14 +1292,19 @@ class Aozora(ReaderSetting):
                     except:
                         pass
 
-        while tagstack != []:
-            # <tag>が閉じられていなければ次行に引き継ぐ
-            s = tagstack.pop()
-            if honbun2 != u'':
-                honbun2 = s + honbun2
-            # <tag>を閉じる
+        """ tag の処理
+            閉じていなければ一旦閉じ、次回の呼び出しに備えて
+            スタックに積み直す
+        """
+        substack = []
+        while self.tagstack != []:
+            s = self.tagstack.pop()
+            substack.append(s)
             honbun += u'</%s>' % s.split()[0].rstrip(u'>').lstrip(u'<')
-        return ( honbun, int(round(lcc)), honbun2, rubi, rubi2 )
+        while substack != []:
+            self.tagstack.append(substack.pop())
+
+        return ( honbun,  honbun2, rubi, rubi2 )
 
     def write2file(self, fd, s, rubiline=u'\n' ):
         """ formater 下請け
@@ -1267,6 +1359,7 @@ class Aozora(ReaderSetting):
 
     def zenstring(self, s, n):
         """ 文字列sをn回繰り返して返す
+            n が 0 あるいは 負の場合は '' を返す
         """
         r = ''
         while n > 0:
@@ -1435,7 +1528,7 @@ class CairoCanvas(Aozora):
         ctx.set_base_gravity( 'east' )
 
         #layout.set_text( s )
-        layout.set_markup(s)
+        layout.set_markup( s if s.find( u'&' ) == -1 else Aozora.reAmp.sub( u'&amp;', s ) )
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
 

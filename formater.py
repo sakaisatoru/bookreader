@@ -927,6 +927,7 @@ class Aozora(ReaderSetting):
 
                         if Aozora.reJizumeowari.match(tmp.group()):
                             inJizume = False
+                            jizume = 0
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue
@@ -953,6 +954,7 @@ class Aozora(ReaderSetting):
 
                         if Aozora.reJiageowari.match(tmp.group()):
                             inJiage = False
+                            jiage = 0
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue
@@ -1118,7 +1120,7 @@ class Aozora(ReaderSetting):
                         else:
                             jisage = jisage3 # 初段回復
 
-                        #   ブロックの処理
+                        #   単発か否か
                         if inIndent == False:
                             jisage = 0
                         if inJizume == False:

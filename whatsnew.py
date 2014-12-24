@@ -267,7 +267,6 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
     def exitall(self):
         self.hide_all()
         gtk.main_quit()
-        #self.destroy()
 
     def run(self):
         self.show_all()

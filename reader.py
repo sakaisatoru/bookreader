@@ -149,8 +149,6 @@ class BookListView(gtk.TreeView):
 class BookListDlg(gtk.Window, ReaderSetting):
     """ 青空文庫ファイル選択ダイアログ
             ファイルを読み込んで作品名と著作者名を表示する。
-            gtk.filechooserdialog と置換できるようにダイアログとしているので、
-            呼出側で必ず destroy すること。
     """
     def __init__(self):
         gtk.Window.__init__(self)
@@ -207,8 +205,8 @@ class BookListDlg(gtk.Window, ReaderSetting):
         self.set_size_request(640, 480)
         self.set_position(gtk.WIN_POS_CENTER)
 
-        self.connect("delete_event", self.delete_event_cb)
-        self.connect( 'key-press-event', self.key_press_event_cb )
+        self.connect('delete_event', self.delete_event_cb)
+        self.connect('key-press-event', self.key_press_event_cb )
         self.get_booklist(self.enDirectry.get_text())
         self.selectfile = u''
         self.ack = gtk.RESPONSE_NONE
@@ -252,7 +250,6 @@ class BookListDlg(gtk.Window, ReaderSetting):
             self.get_booklist(fn)
         else:
             dlg.destroy()
-
 
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()
@@ -306,7 +303,6 @@ class BookListDlg(gtk.Window, ReaderSetting):
     def exitall(self):
         self.hide_all()
         gtk.main_quit()
-        #self.destroy()
 
     def run(self):
         self.show_all()
@@ -367,12 +363,9 @@ class BookmarkView(gtk.TreeView):
 
 class BookmarkUI(gtk.Window):
     """ しおりの管理
-        ダイアログとして呼ぶので、呼出側で必ずdestroyすること。
         選択されたしおりの情報をタプルで返す
         選択されたしおりを削除する
         キャンセル時はNoneを返す
-        2014/2/5
-            ダイアログに変更
     """
     def __init__(self):
         gtk.Window.__init__(self)
@@ -512,7 +505,6 @@ class BookmarkUI(gtk.Window):
 
 class ScreenSetting(gtk.Window, ReaderSetting):
     """ 画面設定
-        ダイアログとして動作するので呼出側で必ずdestroyすること。
     """
     def __init__(self):
         gtk.Window.__init__(self)
@@ -656,7 +648,7 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.add(self.vbox5)
         self.set_size_request(384, 320)
 
-        self.connect("delete_event", self.delete_event_cb)
+        self.connect('delete_event', self.delete_event_cb)
 
         self.rv = False
 
@@ -683,9 +675,9 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.exitall()
 
     def clicked_btnOk_cb(self, widget):
-        """ 解像度のラジオボタンの処理
-        """
         for bt in self.radiobtn:
+            """ 解像度のラジオボタンの処理
+            """
             if bt.get_active() == True:
                 self.set_value(u'resolution', bt.get_label())
                 break
@@ -839,13 +831,14 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.scount = 0
         self.ecount = 0
         self.mousecount = 0
-        self.connect("delete_event", self.delete_event_cb)
+        self.connect('delete_event', self.delete_event_cb)
         self.connect('size-allocate', self.size_allocate_event_cb)
         self.connect('realize', self.realize_event_cb)
         self.connect('expose-event', self.expose_event_cb)
-        #self..connect( 'button-press-event', self.button_press_event_pass_cb )
         self.connect('key-press-event', self.key_press_event_cb)
         self.set_position(gtk.WIN_POS_CENTER)
+
+
 
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
@@ -1014,9 +1007,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.page_common( pagenum )
             self.mokuji_create()
 
-    def button_press_event_pass_cb( self, widget, event ):
-        return False
-
     def button_release_event_cb( self, widget, event ):
         return False
 
@@ -1075,20 +1065,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
     def delete_event_cb(self, widget, event, data=None):
         self.exitall(widget, None )
-        return False
 
     def exitall(self, widget, data=None ):
         logging.shutdown()
         self.hide_all()
         gtk.main_quit()
-        #self.destroy()
 
 
     def run(self):
         """ エントリー
         """
         self.currentpage = 0
-        self.cc.write_a_line(u'<span font_desc="Sans bold">青空文庫リーダー</span>')
+        self.cc.write_a_line(u'<span font_desc="Sans bold 6">あおぞらぶんこ</span>\n' +
+                                u'<span font_desc="Sans bold 12">青空文庫リーダー</span>')
         self.imagebuf.set_from_file(
                         '%s/.cache/aozora/thisistest.png' % self.get_homedir())
         self.set_title(u'青空文庫リーダー')

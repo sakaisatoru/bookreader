@@ -72,7 +72,6 @@ class Download():
                     try:
                         a = zipfile.ZipFile( sLocalfilename, u'r' )
                         b = a.namelist()
-                        #a.extract( b[0], self.get_value(u'aozoradir'))
                         a.extractall( self.get_value(u'aozoradir'))
                         lastselectfile = u'%s/%s' % (self.get_value(u'aozoradir'), b[0] )
                     except:

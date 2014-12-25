@@ -310,6 +310,34 @@ class Aozora(ReaderSetting):
                     yield u'\n'
                     continue
 
+                """ tag 対策
+                    pango で引っかかる & < > を 特殊文字に変換する
+                """
+                tmpStart = 0
+                while True:
+                    tmpStart = lnbuf.find( u'&', tmpStart )
+                    if tmpStart != -1:
+                        lnbuf = lnbuf[:tmpStart] + '&amp;' + lnbuf[tmpStart+1:]
+                        tmpStart += 4
+                    else:
+                        break
+                tmpStart = 0
+                while True:
+                    tmpStart = lnbuf.find( u'<', tmpStart )
+                    if tmpStart != -1:
+                        lnbuf = lnbuf[:tmpStart] + '&lt;' + lnbuf[tmpStart+1:]
+                        tmpStart += 4
+                    else:
+                        break
+                tmpStart = 0
+                while True:
+                    tmpStart = lnbuf.find( u'>', tmpStart )
+                    if tmpStart != -1:
+                        lnbuf = lnbuf[:tmpStart] + '&gt;' + lnbuf[tmpStart+1:]
+                        tmpStart += 4
+                    else:
+                        break
+
                 """ ヘッダ【テキスト中に現れる記号について】の処理
                     とりあえずばっさりと削除する
                 """
@@ -1599,8 +1627,8 @@ class CairoCanvas(Aozora):
         ctx = layout.get_context() # Pango を得る
         ctx.set_base_gravity( 'east' )
 
-        layout.set_markup(
-                s if s.find( u'&' ) == -1 else Aozora.reAmp.sub(u'&amp;', s) )
+        layout.set_markup(s)
+                 #s if s.find( u'&' ) == -1 else Aozora.reAmp.sub(u'&amp;', s) )
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
 

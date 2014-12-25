@@ -254,7 +254,6 @@ class BookshelfUI(gtk.Window, ReaderSetting):
         self.exitall()
 
     def get_filename(self):
-        print self.lastselectfile
         return self.lastselectfile
 
     def exitall(self):

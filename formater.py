@@ -37,6 +37,7 @@ from jis3 import gaiji
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorList
 import sys, codecs, re, os.path, datetime, unicodedata, logging
+import xml.sax.saxutils
 
 import gtk, cairo, pango, pangocairo, gobject
 
@@ -313,6 +314,8 @@ class Aozora(ReaderSetting):
                 """ tag 対策
                     pango で引っかかる & < > を 特殊文字に変換する
                 """
+                lnbuf = xml.sax.saxutils.escape( lnbuf )
+                """
                 tmpStart = 0
                 while True:
                     tmpStart = lnbuf.find( u'&', tmpStart )
@@ -337,7 +340,7 @@ class Aozora(ReaderSetting):
                         tmpStart += 4
                     else:
                         break
-
+                """
                 """ ヘッダ【テキスト中に現れる記号について】の処理
                     とりあえずばっさりと削除する
                 """

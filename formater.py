@@ -76,16 +76,13 @@ class Aozora(ReaderSetting):
 
     reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
     reFutoji2 = re.compile( ur'［＃(ここから)?太字］' )
-    #reFutojiowari = re.compile( ur'［＃(ここで)?太字終わり］')
     reSyatai = re.compile( ur'［＃「(?P<name>.+?)」は斜体］' )
     reSyatai2 = re.compile( ur'［＃(ここから)?斜体］' )
-    #reSyataiowari = re.compile( ur'［＃(ここで)?斜体終わり］')
 
     # キャプション
     reCaption = re.compile( ur'(［＃「(?P<name>.*?)」はキャプション］)' )
     # 文字サイズ
     reMojisize = re.compile( ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
-    #reMojisizeowari = re.compile( ur'(［＃(ここで)?((大き)|(小さ))+な文字終わり］)' )
 
     # 処理共通タグ ( </span>生成 )
     reOwari = re.compile(
@@ -127,13 +124,14 @@ class Aozora(ReaderSetting):
     reMidashi2 = re.compile( ur'(［＃(ここから)??(?P<midashisize>大|中|小)見出し］)' )
     reMidashi2owari = re.compile( ur'(［＃(ここで)??(?P<midashisize>大|中|小)見出し終わり］)' )
 
-    # 改ページ・改丁
+    # 改ページ・改丁・ページの左右中央
     reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］' )
-    reFig = re.compile( ur'(［＃図（(?P<filename1>.+?)）入る］)|'+
-        ur'［＃(?P<caption>.*?)（(?P<filename>fig.+?)、横(?P<width>[0-9]+?)×縦(?P<height>[0-9]+?)）入る］' )
     # reSayuuchuou = re.compile( ur'［＃ページの左右中央］' )
 
-
+    # 挿図
+    #reFig = re.compile( ur'(［＃(?P<name>.+?)）入る］)' )
+    reFig = re.compile(
+        ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)' )
 
     # 訓点・返り点
     reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
@@ -447,10 +445,10 @@ class Aozora(ReaderSetting):
                     if tmp2:
                         #   キャプション
                         #   暫定処理：小文字で表示
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()])
-                        retline += u'<span size="smaller">%s</span>' % sNameTmp
+                        tmpStart,tmpEnd = self.honbunsearch(
+                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
+                        retline += lnbuf[priortail:tmpStart]
+                        retline += u'<span size="smaller">%s</span>' % lnbuf[tmpStart:tmpEnd]
                         priortail = tmp.end()
                         continue
 
@@ -694,7 +692,8 @@ class Aozora(ReaderSetting):
     def honbunsearch(self, honbun, name):
         """ 本文中に出現する name を検索し、
             その出現範囲を返す。
-            name との比較に際してルビは無視される。
+            name との比較に際して
+                ルビ、<tag></tag>、［］は無視される。
             比較は行末から行頭に向かって行われることに注意。
         """
         start = -1
@@ -702,9 +701,23 @@ class Aozora(ReaderSetting):
         l = len(name)
         pos = len(honbun)
         inRubi = False
+        inTag = False
+        inAtag = False
         while l > 0 and pos > 0:
             pos -= 1
-            if honbun[pos] == u'《':
+            if honbun[pos] == u'［':
+                inAtag = False
+            elif honbun[pos] == u'］':
+                inAtag = True
+            elif inAtag:
+                pass
+            elif honbun[pos] == u'<':
+                inTag = False
+            elif honbun[pos] == u'>':
+                inTag = True
+            elif inTag:
+                pass
+            elif honbun[pos] == u'《':
                 inRubi = False
             elif honbun[pos] == u'》':
                 inRubi = True
@@ -796,7 +809,8 @@ class Aozora(ReaderSetting):
                             #   タグに図のピクセルサイズが正しく登録されていない
                             #   場合があるので、画像ファイルを開いてチェックする
                             try:
-                                fname = matchFig.group(u'filename1') if matchFig.group(u'filename1') != None else matchFig.group(u'filename')
+                                logging.debug( matchFig.group(u'filename'))
+                                fname = matchFig.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
                                     os.path.join(self.get_value(u'aozoracurrent'),
                                         fname))
@@ -808,13 +822,13 @@ class Aozora(ReaderSetting):
                                 del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
+                                self.loggingflag = True
                                 logging.info(
                                     u'画像ファイル %s の読み出しに失敗しました。' % fname )
-                                self.write2file( dfile, '\n' )
+                                #self.write2file( dfile, '\n' )
                                 retline += lnbuf[priortail:tmp.start()]
                                 priortail = tmp.end()
                                 continue
-
                             if tmpRasioW > 1.0:
                                 tmpRasioW = 1.0
                             if tmpRasio > 1.0:
@@ -825,10 +839,6 @@ class Aozora(ReaderSetting):
                                 tmpRasioW = tmpRasio
 
                             tmpWidth = int(round(figwidth * tmpRasioW,0))
-
-                            logging.info(
-                                u'挿図処理 %s %d' % (matchFig.group('caption'),
-                                                        tmpWidth) )
 
                             figspan = int(round(float(tmpWidth)/float(self.get_value(u'linewidth'))+0.5,0))
                             if self.linecounter + figspan >= int(self.get_value(u'lines')):

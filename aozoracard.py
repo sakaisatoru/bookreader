@@ -101,7 +101,7 @@ class AuthorListData(gtk.TreeView):
                                           text=0)
         #self.col_authorname.set_max_width(180)
         self.col_authorname.set_resizable(True)
-        #self.col_authorname.set_sort_column_id(0)
+        self.col_authorname.set_sort_column_id(0)
 
         self.append_column(self.col_authorname)
 
@@ -126,7 +126,7 @@ class BookListData(gtk.TreeView):
                                           text=0)
         #self.col_bookname.set_max_width(180)
         self.col_bookname.set_resizable(True)
-        #self.col_authorname.set_sort_column_id(0)
+        self.col_bookname.set_sort_column_id(0)
 
         self.col_remarks = gtk.TreeViewColumn(u'字体など',
                                           self.rend_remarks,

@@ -51,6 +51,7 @@ from aozoracard import AuthorList
 from formater import Aozora, CairoCanvas
 from whatsnew import WhatsNewUI
 from logview import Logviewer
+from booklist import BookshelfUI
 import sys, codecs, re, os.path, datetime, unicodedata, logging
 from threading import Thread
 import gtk, cairo, pango, pangocairo, gobject
@@ -986,7 +987,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     def menu_fileopen(self):
         """ ローカルにある青空文庫ファイルを開く
         """
-        dlg = BookListDlg()
+        #dlg = BookListDlg()
+        dlg = BookshelfUI()
         res = dlg.run()
         if res == gtk.RESPONSE_OK:
             fn = dlg.get_filename()

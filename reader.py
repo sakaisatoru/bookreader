@@ -33,11 +33,6 @@
             しおり機能
 
     既知の問題点
-        以下は本文にそのまま（青空文庫ファイルの注釈表記のまま）表示される。
-            いわゆるJIS第3及び第4水準にも含まれない漢字
-            漢文の読み下し文（レ点の類）
-            青空文庫の入力規則から外れた注釈等。（特に字下げや見出しの指示）
-
     更新履歴
         同梱のファイル(rireki.txt)を参照願います。
 
@@ -422,7 +417,7 @@ class BookmarkUI(gtk.Window):
                                     sc[3],          # 日付
                                     sc[4] )         # パス
                                     )
-        self.rv = ('')
+        self.rv = None
 
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()

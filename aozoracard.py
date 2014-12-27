@@ -133,7 +133,7 @@ class BookListData(gtk.TreeView):
                                           text=1)
         self.col_remarks.set_resizable(False)
         self.col_remarks.set_max_width(80)
-        #self.col_remarks.set_sort_column_id(1)
+        self.col_remarks.set_sort_column_id(1)
 
         self.append_column(self.col_bookname)
         self.append_column(self.col_remarks)

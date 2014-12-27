@@ -26,10 +26,10 @@ from __future__ import with_statement
 
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorListData, BookListData
-from formater import Aozora, CairoCanvas
+from formater import Aozora
 from logview import Logviewer
 import sys, codecs, re, os.path, datetime, unicodedata, logging
-import gtk, cairo, pango, pangocairo, gobject
+import gtk, gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
@@ -126,7 +126,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
         self.connect('delete_event', self.delete_event_cb)
         self.connect('key-press-event', self.key_press_event_cb )
 
-        self.get_booklist(self.enDirectry.get_text())# ディレクトリ内の書籍一覧
+        self.get_booklist(self.enDirectry.get_text())# ディレクトリ内の作品一覧
         self.get_authorlist()   # 著者一覧
 
     def clicked_btnDirectry_cb(self, widget):
@@ -155,7 +155,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
             dlg.destroy()
 
     def get_authorlist(self):
-        """ 書籍一覧より著作者一覧を得る
+        """ 作品一覧より著作者一覧を得る
         """
         self.al_data.get_model().clear()
         at = {}
@@ -180,7 +180,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
                         if filter != author:
                             continue
                     self.bl_data.get_model().append(
-                                    (book,      # 書籍名
+                                    (book,      # 作品名
                                     author,     # 著者
                                     fullpath )  # パス
                                     )
@@ -194,7 +194,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
             iters = [c.get_iter(p) for p in d]
             for i in iters:
                 self.lastselectfile = c.get_value(i, 2) # full path
-            f = True
+                f = True
         except:
             pass
         return f
@@ -221,6 +221,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
         """
         self.get_selectbook()
         self.exitall()
+        self.ack = gtk.RESPONSE_OK
 
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
@@ -236,13 +237,15 @@ class BookshelfUI(gtk.Window, ReaderSetting):
     def clicked_btnClear_cb(self, widget):
         """ 著者フィルタの解除
         """
-        self.get_booklist(self.enDirectry.get_text())# ディレクトリ内の書籍一覧
+        self.get_booklist(self.enDirectry.get_text())# ディレクトリ内の作品一覧
         self.get_authorlist()   # 著者一覧
 
     def clicked_btnOk_cb(self, widget):
         """ 開くボタンをクリックした時の処理
         """
-        self.get_selectbook()
+        if self.get_selectbook() == False:
+            # 作品が選択されていなければ戻る
+            return False
         self.exitall()
         self.ack = gtk.RESPONSE_OK
 

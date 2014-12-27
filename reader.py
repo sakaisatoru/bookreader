@@ -40,24 +40,22 @@
 
 from __future__ import with_statement
 
-from jis3 import gaiji
-from readersub import ReaderSetting, AozoraDialog
+from jis3       import gaiji
+from readersub  import ReaderSetting, AozoraDialog, History
 from aozoracard import AuthorList
-from formater import Aozora, CairoCanvas
-from whatsnew import WhatsNewUI
-from logview import Logviewer
-from booklist import BookshelfUI
+from formater   import Aozora, CairoCanvas
+from whatsnew   import WhatsNewUI
+from logview    import Logviewer
+from booklist   import BookshelfUI
+#from threading  import Thread
 import sys, codecs, re, os.path, datetime, unicodedata, logging
-from threading import Thread
-import gtk, cairo, pango, pangocairo, gobject
+import gtk, gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
-
 
 """
     UI
 """
-
 class BookMarkInfo(ReaderSetting):
     """ しおり情報の管理
 
@@ -113,203 +111,6 @@ class BookMarkInfo(ReaderSetting):
         for s in self.bookmarkbuff:
             yield s.rstrip('\n')
 
-
-class BookListView(gtk.TreeView):
-    """ BookListDlg 下請け
-    """
-    def __init__(self, *args, **kwargs):
-        gtk.TreeView.__init__(self, *args, **kwargs)
-        #self.set_headers_clickable(True)
-        #self.set_headers_visible(False)
-        # 各項目ごとのレンダリング関数の設定
-        self.rend_bookname = gtk.CellRendererText()
-        self.rend_bookname.set_property('editable', False)
-
-        self.rend_author = gtk.CellRendererText()
-        self.rend_author.set_property('editable', False)
-
-        self.col_bookname = gtk.TreeViewColumn(u'本の名前',
-                                          self.rend_bookname,
-                                          text=0)
-        self.col_bookname.set_resizable(True)
-        self.col_bookname.set_sort_column_id(0)
-        self.col_author = gtk.TreeViewColumn(u'著作者',
-                                          self.rend_author,
-                                          text=1)
-        self.col_author.set_resizable(True)
-        self.col_author.set_sort_column_id(1)
-        self.append_column(self.col_bookname)
-        self.append_column(self.col_author)
-
-
-class BookListDlg(gtk.Window, ReaderSetting):
-    """ 青空文庫ファイル選択ダイアログ
-            ファイルを読み込んで作品名と著作者名を表示する。
-    """
-    def __init__(self):
-        gtk.Window.__init__(self)
-        ReaderSetting.__init__(self)
-        self.az = Aozora()
-        currentdir = self.get_value(u'aozoradir')
-
-        self.set_title(u'青空文庫')
-
-        self.booklist_bl = BookListView(model=gtk.ListStore(
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING ))
-        self.booklist_bl.set_rules_hint(True)
-        self.booklist_bl.get_selection().set_mode(gtk.SELECTION_SINGLE)
-        self.booklist_bl.connect("row-activated", self.row_activated_treeview_cb)
-        self.booklist_bl.set_headers_clickable(True)
-
-        self.sw = gtk.ScrolledWindow()
-        self.sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        self.sw.add(self.booklist_bl)
-        self.sw.set_size_request(640,384)
-
-        # 開く・キャンセルボタン
-        self.btnOk = gtk.Button(stock=gtk.STOCK_OPEN)
-        self.btnOk.connect("clicked", self.clicked_btnOk_cb )
-        self.btnCancel = gtk.Button(stock=gtk.STOCK_CANCEL)
-        self.btnCancel.connect("clicked", self.clicked_btnCancel_cb )
-        self.bb = gtk.HButtonBox()
-        self.bb.set_size_request(640,44)
-        self.bb.set_layout(gtk.BUTTONBOX_SPREAD)
-        self.bb.pack_start(self.btnOk)
-        self.bb.pack_end(self.btnCancel)
-
-        # ディレクトリ選択部分
-        self.enDirectry = gtk.Entry()
-        self.enDirectry.set_text(currentdir)
-        self.enDirectry.set_size_request(522, 24)
-        self.btnDirectry = gtk.Button(stock=gtk.STOCK_OPEN)
-        self.btnDirectry.connect('clicked', self.clicked_btnDirectry_cb )
-        self.hbox = gtk.HBox()
-        self.hbox.set_size_request(640, 36)
-        self.hbox.pack_start(self.enDirectry, True, True, 8)
-        self.hbox.pack_end(self.btnDirectry, True, True, 0)
-
-        self.vbox = gtk.VBox()
-        self.vbox.pack_start(self.hbox, True, True, 0)
-        self.vbox.pack_start(gtk.HSeparator(), True, True, 0)
-        self.vbox.pack_start(self.sw, True, True, 0)
-        self.vbox.pack_start(gtk.HSeparator(), True, True, 0)
-        self.vbox.pack_end(self.bb, True, True, 0 )
-
-        self.add(self.vbox)
-        self.set_size_request(640, 480)
-        self.set_position(gtk.WIN_POS_CENTER)
-
-        self.connect('delete_event', self.delete_event_cb)
-        self.connect('key-press-event', self.key_press_event_cb )
-        self.get_booklist(self.enDirectry.get_text())
-        self.selectfile = u''
-        self.ack = gtk.RESPONSE_NONE
-
-    def get_booklist(self, dirname):
-        """ 指定されたディレクトリのファイル一覧を得る
-        """
-        self.booklist_bl.get_model().clear()
-        for fn in os.listdir(dirname):
-            fullpath = os.path.join(dirname,fn)
-            if os.path.isfile(fullpath) == True:
-                if fn.split( '.' )[-1] == 'txt':
-                    book, author = self.az.get_booktitle_sub(fullpath)
-                    self.booklist_bl.get_model().append(
-                                    (book,      # 書籍名
-                                    author,     # 著者
-                                    fullpath )  # パス
-                                    )
-
-    def clicked_btnDirectry_cb(self, widget):
-        """ 青空文庫ファイルのあるディレクトリを開く
-        """
-        fl = gtk.FileFilter()
-        fl.set_name(u'青空文庫(*.txt)')
-        fl.add_pattern( '*.txt' )
-        fl2 = gtk.FileFilter()
-        fl2.set_name(u'全て')
-        fl2.add_pattern( '*.*')
-
-        dlg = gtk.FileChooserDialog( u'青空文庫ファイルのあるディレクトリ',
-                    action = gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
-                        buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
-        dlg.add_button(gtk.STOCK_OPEN, gtk.RESPONSE_OK)
-        dlg.add_filter(fl)
-        dlg.add_filter(fl2)
-        res = dlg.run()
-        if res == gtk.RESPONSE_OK:
-            fn = dlg.get_filename()
-            dlg.destroy()
-            self.enDirectry.set_text(fn)
-            self.get_booklist(fn)
-        else:
-            dlg.destroy()
-
-    def delete_event_cb(self, widget, event, data=None):
-        self.exitall()
-
-    def row_activated_treeview_cb(self, path, view_column, column ):
-        """ ダブルクリックした時の処理
-        """
-        if self.get_selected_item() == True:
-            self.exitall()
-            self.ack = gtk.RESPONSE_OK
-
-    def get_selected_item(self):
-        """ 選択された青空文庫のファイル名を返す
-        """
-        # この操作で返されるのは
-        # c データモデルオブジェクト、ここではgtk.ListStore
-        # d 選択された行
-        (c,d) = self.booklist_bl.get_selection().get_selected_rows()  # 選択された行
-        f = False
-        try:
-            iters = [c.get_iter(p) for p in d]
-            for i in iters:
-                self.selectfile = c.get_value(i, 2)
-            f = True
-        except:
-            pass
-        return f
-
-    def clicked_btnOk_cb(self, widget):
-        if self.get_selected_item() == True:
-            self.exitall()
-            self.ack = gtk.RESPONSE_OK
-
-    def clicked_btnCancel_cb(self, widget):
-        self.exitall()
-        self.ack = gtk.RESPONSE_CANCEL
-        self.selectfile = ''
-
-    def key_press_event_cb( self, widget, event ):
-        """ キー入力のトラップ
-        """
-        key = event.keyval
-        if key == 0xff1b:
-            # ESC
-            self.exitall()
-            self.ack = gtk.RESPONSE_CANCEL
-            self.selectfile = ''
-        # デフォルトルーチンに繋ぐため False を返すこと
-        return False
-
-    def exitall(self):
-        self.hide_all()
-        gtk.main_quit()
-
-    def run(self):
-        self.show_all()
-        self.set_modal(True)
-        gtk.main()
-        return self.ack
-
-    def get_filename(self):
-        return self.selectfile
-
-
 class BookmarkView(gtk.TreeView):
     """ しおり一覧を表示・管理
         +---------------+--------+---------+--------+
@@ -356,7 +157,6 @@ class BookmarkView(gtk.TreeView):
         self.append_column(self.col_pagenumber)
         self.append_column(self.col_bookmarkdate)
 
-
 class BookmarkUI(gtk.Window):
     """ しおりの管理
         選択されたしおりの情報をタプルで返す
@@ -390,7 +190,7 @@ class BookmarkUI(gtk.Window):
         self.btnCancel = gtk.Button(stock=gtk.STOCK_QUIT)
         self.btnCancel.connect("clicked", self.clicked_btnCancel_cb )
         self.bb = gtk.HButtonBox()
-        self.bb.set_size_request(512,64)
+        self.bb.set_size_request(512,44)
         self.bb.set_layout(gtk.BUTTONBOX_SPREAD)
         self.bb.pack_start(self.btnDelete)
         self.bb.pack_start(self.btnOk)
@@ -398,8 +198,8 @@ class BookmarkUI(gtk.Window):
 
         self.vbox = gtk.VBox()
         self.vbox.pack_start(self.sw, True, True, 0)
-        self.vbox.pack_start(gtk.HSeparator(), True, True, 0)
-        self.vbox.pack_end(self.bb, True, True, 0 )
+        self.vbox.pack_start(gtk.HSeparator(), False, True, 0)
+        self.vbox.pack_end(self.bb, False, True, 0 )
 
         self.add(self.vbox)
         self.set_size_request(512, 256)
@@ -423,6 +223,8 @@ class BookmarkUI(gtk.Window):
         self.exitall()
 
     def clicked_btnDelete_cb(self, widget):
+        """ しおりの削除
+        """
         (c,d) = self.bookmark_bv.get_selection().get_selected_rows()  # 選択された行
         iters = [c.get_iter(p) for p in d]
         for i in iters:
@@ -474,6 +276,10 @@ class BookmarkUI(gtk.Window):
             # ESC
             self.exitall()
             self.rv = None
+        elif key == 0xffff:
+            # Delete
+            self.clicked_btnDelete_cb(widget)
+            return True
         # デフォルトルーチンに繋ぐため False を返すこと
         return False
 
@@ -717,8 +523,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             filemode='w',
             format = '%(levelname)s in %(filename)s : %(message)s',
             level=logging.DEBUG )
-
         self.logwindow = Logviewer()
+
+        """ 読書履歴
+        """
+        self.bookhistory = History(u'%s/history.txt' % self.dicSetting[u'settingdir'])
+        self.menuitem_history = []
+        count = 1
+        for item in self.bookhistory.iter():
+            self.menuitem_history.append(
+                        gtk.MenuItem('_%d: %s' % (count,item.split(',')[0]),True) )
+            count += 1
+        for item in self.menuitem_history:
+            item.connect('activate', self.menu_historyopen_cb)
 
         """ アクセラレータ
         """
@@ -727,19 +544,22 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
         """ メインメニュー - ファイル
         """
-        self.menuitem_file = gtk.MenuItem( u'ファイル(_F)', True )
+        self.menuitem_file = gtk.MenuItem(u'ファイル(_F)', True )
         self.menuitem_open = gtk.ImageMenuItem(gtk.STOCK_OPEN, self.accelgroup)
-        self.menuitem_open.connect( 'activate', self.menu_fileopen_cb )
-        self.menuitem_download = gtk.MenuItem( u'青空文庫へアクセス(_D)', True )
-        self.menuitem_download.connect( 'activate', self.online_access_cb )
-        self.menuitem_whatsnew = gtk.MenuItem( u'青空文庫新着情報(_N)', True )
-        self.menuitem_whatsnew.connect( 'activate', self.whatsnew_cb )
+        self.menuitem_open.connect('activate', self.menu_fileopen_cb )
+        self.menuitem_download = gtk.MenuItem(u'青空文庫へアクセス(_D)', True )
+        self.menuitem_download.connect('activate', self.online_access_cb )
+        self.menuitem_whatsnew = gtk.MenuItem(u'青空文庫新着情報(_N)', True )
+        self.menuitem_whatsnew.connect('activate', self.whatsnew_cb )
         self.menuitem_quit = gtk.ImageMenuItem(gtk.STOCK_QUIT, self.accelgroup)
-        self.menuitem_quit.connect( 'activate', self.exitall )
+        self.menuitem_quit.connect('activate', self.exitall )
         self.menu_file = gtk.Menu()
         self.menu_file.add(self.menuitem_open)
         self.menu_file.add(self.menuitem_download)
         self.menu_file.add(self.menuitem_whatsnew)
+        self.menu_file.add(gtk.SeparatorMenuItem())
+        for item in self.menuitem_history:
+            self.menu_file.add(item)
         self.menu_file.add(gtk.SeparatorMenuItem())
         self.menu_file.add(self.menuitem_quit)
         self.menuitem_file.set_submenu(self.menu_file)
@@ -768,8 +588,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menuitem_fontselect.connect( 'activate', self.menu_fontselect_cb )
 
         self.menuitem_setting = gtk.MenuItem( u'設定(_S)', True )
-
-
 
         self.menu_setting = gtk.Menu()
         self.menu_setting.add(self.menuitem_fontselect)
@@ -806,19 +624,15 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.popupmenu_bookmark.show_all()
 
 
-        #
         #   文章表示領域
-        #
-        self.cc = CairoCanvas() #self.get_value(u'resolution'))
+        self.cc = CairoCanvas()
         self.imagebuf = gtk.Image()
         self.ebox = gtk.EventBox()
         self.ebox.add(self.imagebuf)    # image がイベントを見ないのでeventboxを使う
-        self.ebox.connect( 'button-press-event', self.button_press_event_cb )
-        self.ebox.connect( 'button-release-event', self.button_release_event_cb )
+        self.ebox.connect('button-press-event', self.button_press_event_cb )
+        self.ebox.connect('button-release-event', self.button_release_event_cb )
 
-        #
         #   ビルド
-        #
         self.vbox = gtk.VBox()
         self.vbox.pack_start(self.mainmenu, expand=False)
         self.vbox.pack_end(self.ebox)
@@ -833,8 +647,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.connect('expose-event', self.expose_event_cb)
         self.connect('key-press-event', self.key_press_event_cb)
         self.set_position(gtk.WIN_POS_CENTER)
-
-
 
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
@@ -976,13 +788,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         dlg.run()
         dlg.destroy()
 
+    def menu_historyopen_cb(self, widget):
+        """ 読書履歴
+        """
+        i = int(widget.get_label().split(u':')[0][1:]) - 1
+        (nm, pg, fn) = self.bookhistory.get_item(i).split(u',')
+        self.bookopen(fn, int(pg))
+
     def menu_fileopen_cb( self, widget ):
         self.menu_fileopen()
 
     def menu_fileopen(self):
         """ ローカルにある青空文庫ファイルを開く
         """
-        #dlg = BookListDlg()
         dlg = BookshelfUI()
         res = dlg.run()
         if res == gtk.RESPONSE_OK:
@@ -994,11 +812,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
     def bookopen(self, fn, pagenum=0):
         if self.cc.get_source() == fn:
-            #
             #   既にフォーマット済みのテキストを表示する場合
-            #
             self.page_common( pagenum )
-
         else:
             self.cc.do_format(fn)
             self.page_common( pagenum )
@@ -1065,9 +880,14 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
     def exitall(self, widget, data=None ):
         logging.shutdown()
+        #   現在読んでいる本を履歴に保存する
+        bookname,author = self.cc.get_booktitle()
+        if bookname != u'':
+            self.bookhistory.update( u'%s,%d,%s' %
+                (bookname, self.currentpage,self.cc.sourcefile) )
+        self.bookhistory.save()
         self.hide_all()
         gtk.main_quit()
-
 
     def run(self):
         """ エントリー

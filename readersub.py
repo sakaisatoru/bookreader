@@ -20,8 +20,8 @@
 
 
 """ 青空文庫リーダー
-        ソース分割
 """
+from collections import deque
 import sys, codecs, re, os.path, datetime, unicodedata, urllib, zipfile
 import logging
 import gtk, cairo, pango, pangocairo, gobject
@@ -110,35 +110,12 @@ class AozoraDialog():
 
 class ReaderSetting():
     """ 設定等
-            2014年2月8日
-                ScreenResolutionを廃止
-                ルビフォントサイズを追加
-
-            2014年2月1日
-                ScreenResolutionを継承
-                フォント名を追加
-                フォントサイズをポイントへ変更
-                解像度にSVGA(800x600)を追加
-                マージン及び改行幅を追加
-                上記データにおける行数、文字数、改行幅(ピクセル)を追加
-                インターフェース変更
-
-            2013年11月2日
-                画面解像度
-
-            2013年8月10日
-                作業ディレクトリ
-                設定情報格納ディレクトリ
-                青空文庫格納ディレクトリ
-
             参照及び作業ディレクトリ
                 $HOME/.cahce/           一時ファイル、キャッシュ
                 $HOME/.config/aozora    各種設定
                 $HOME/aozora            青空文庫ディレクトリ
 
-
         テキスト表示領域の解像度等のデータベース
-
             XGA(1024x768)
                 width=880, height=616, topmargin = 8, rightmargin = 12, linestep = 30, colum = 37, lines = 29
             WXGA(1280x800)
@@ -285,3 +262,80 @@ class ReaderSetting():
         return self.dicSetting[key]
 
 
+class History():
+    """ 読書履歴
+        history.txt に格納されている読書履歴を操作する。
+        書籍名, ページ数, フルパス
+
+        使い方
+            プログラム開始時にインスタンスを生成することで、
+            ファイルを読み出して保持する。
+            プログラム終了時に update, save の順に呼び出す。
+    """
+    def __init__(self, filename=u'', items=5 ):
+        self.hislist = deque()
+        self.hisfile = filename
+        self.maxitems = items
+        self.items = 0
+        self.currentitem = None
+        if self.hisfile != u'':
+            try:
+                with open(self.hisfile, 'r') as f0:
+                    for ln in f0:
+                        ln = ln.strip('\n')
+                        if ln != u'':
+                            self.hislist.appendleft(ln)
+                            self.items += 1
+            except:
+                with open(self.hisfile, 'w') as f0:
+                    f0.write('')
+
+    def iter(self):
+        """ イテレータ
+        """
+        for i in self.hislist:
+            yield i
+
+    def save(self):
+        """ ファイルに保存する。
+        """
+        if self.hisfile != u'':
+            with open(self.hisfile, 'w') as f0:
+                self.hislist.reverse()
+                for ln in self.hislist:
+                    f0.write(u'%s\n' % ln)
+
+    def update(self, item):
+        """ 直前に参照した要素を削除し、新規にitemを追加する。
+        """
+        try:
+            self.hislist.remove(self.currentitem)
+        except ValueError:
+            pass
+        self.append(item)
+
+    def clear(self):
+        """ 全てを消去する。
+        """
+        self.hislist.clear()
+        if self.hisfile != u'':
+            with open(self.hisfile, 'w') as f0:
+                f0.write('')
+
+    def append(self, item):
+        """ 要素を追加する。オーバーフローした分は失われる。
+        """
+        if self.items >= self.maxitems:
+            self.hislist.pop()
+            self.items -= 1
+        self.hislist.appendleft(item)
+        self.items += 1
+
+    def get_item(self, n):
+        """ 指定要素を得る。要素がない場合はNoneを返す。
+        """
+        r = len(self.hislist) -1
+        if n < 0:
+            n = r + 1 - n
+        self.currentitem = self.hislist[n] if n >=0 and r >= n else None
+        return self.currentitem

@@ -315,32 +315,6 @@ class Aozora(ReaderSetting):
                     pango で引っかかる & < > を 特殊文字に変換する
                 """
                 lnbuf = xml.sax.saxutils.escape( lnbuf )
-                """
-                tmpStart = 0
-                while True:
-                    tmpStart = lnbuf.find( u'&', tmpStart )
-                    if tmpStart != -1:
-                        lnbuf = lnbuf[:tmpStart] + '&amp;' + lnbuf[tmpStart+1:]
-                        tmpStart += 4
-                    else:
-                        break
-                tmpStart = 0
-                while True:
-                    tmpStart = lnbuf.find( u'<', tmpStart )
-                    if tmpStart != -1:
-                        lnbuf = lnbuf[:tmpStart] + '&lt;' + lnbuf[tmpStart+1:]
-                        tmpStart += 4
-                    else:
-                        break
-                tmpStart = 0
-                while True:
-                    tmpStart = lnbuf.find( u'>', tmpStart )
-                    if tmpStart != -1:
-                        lnbuf = lnbuf[:tmpStart] + '&gt;' + lnbuf[tmpStart+1:]
-                        tmpStart += 4
-                    else:
-                        break
-                """
                 """ ヘッダ【テキスト中に現れる記号について】の処理
                     とりあえずばっさりと削除する
                 """
@@ -423,6 +397,21 @@ class Aozora(ReaderSetting):
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
+                    if Aozora.reOmit.match(tmp.group()):
+                        # 未実装タグの除去
+                        # 後述のループに含めると表示がおかしくなる
+                        # re の sub で削除するとバグる
+                        logging.info( u'未実装タグを検出: %s' % tmp.group() )
+                        self.loggingflag = True
+                        retline += lnbuf[priortail:tmp.start()]
+                        priortail = tmp.end()
+                        continue
+                retline += lnbuf[priortail:]
+                lnbuf = retline
+
+                priortail = 0
+                retline = u''
+                for tmp in Aozora.reCTRL.finditer(lnbuf):
                     if tmp.group() == u'［＃行右小書き］' or \
                             tmp.group() == u'［＃上付き小文字］':
                         retline += lnbuf[priortail:tmp.start()]
@@ -464,13 +453,6 @@ class Aozora(ReaderSetting):
                         priortail = tmp.end()
                         continue
 
-                    if Aozora.reOmit.match(tmp.group()):
-                        #   未実装タグは単純に削除する
-                        logging.info( u'削除されたタグ: %s' % tmp.group())
-                        self.loggingflag = True
-                        retline += lnbuf[priortail:tmp.start()]
-                        priortail = tmp.end()
-                        continue
 
                     tmp2 = Aozora.reCaption.match(tmp.group())
                     if tmp2:
@@ -1382,7 +1364,7 @@ class Aozora(ReaderSetting):
         """
         if len(honbun2) > 0:
             if honbun2[0] == u'〵':
-                if u'〳〴'.find(honbun[r-1]) != -1:
+                if u'〳〴'.find(honbun[-1]) != -1:
                     honbun +=  honbun2[0]
                     honbun2 = honbun2[1:]
                     # ルビも同様に処理
@@ -1487,9 +1469,9 @@ class CairoCanvas(Aozora):
         Aozora.__init__(self)
         self.resize()
 
-        self.reFormater = re.compile( ur'<[/a-z0-9A-Z]+?>')
-        self.reBold = re.compile(ur'<b>(?P<text>.*)' )
-        self.reBoldoff = re.compile(ur'(?P<text>.*)</b>' )
+        # 文字色の分解
+        (self.fontR,self.fontG,self.fontB)=self.convcolor(
+                                                self.get_value(u'fontcolor'))
 
     def resize(self):
         self.canvas_width = int(self.get_value( u'scrnwidth' ))
@@ -1599,39 +1581,22 @@ class CairoCanvas(Aozora):
         context = cairo.Context(self.sf)
         context.set_antialias(cairo.ANTIALIAS_GRAY)
         context.set_antialias(cairo.ANTIALIAS_SUBPIXEL)
-        (nR,nG,nB)=self.convcolor(self.get_value(u'fontcolor'))
-        context.set_source_rgb(nR,nG,nB) # 描画色
+        context.set_source_rgb(self.fontR,self.fontG,self.fontB) # 描画色
 
         # pangocairo の コンテキストをcairoコンテキストを元に作成
         pangocairo_context = pangocairo.CairoContext(context)
-        pangocairo_context.translate(x, y)         # 描画位置
-
-        """ 縦書き（上から下へ）に変更
-            PI/2(90度)右回転、すなわち左->右書きが上->下書きへ
-        """
-        pangocairo_context.rotate(3.1415/2)
-
-        """ レイアウトの作成
-        """
+        pangocairo_context.translate(x, y)  # 描画位置
+        pangocairo_context.rotate(3.1415/2) # 90度右回転、即ち左->右を上->下へ
+        # レイアウトの作成
         layout = pangocairo_context.create_layout()
-
-        """ 表示フォントの設定
-        """
+        # 表示フォントの設定
         self.font.set_size(pango.SCALE*honbunsize)
         layout.set_font_description(self.font)
-        """ フォントの回転
-            これをやらないとROTATEの効果で横倒しのままになる。
-            フォントによっては句読点の位置はおかしいまま。
-            pango 1.30.0 にバグ
-                rotate, gravity の効果を勘案し、日本語縦書きの場合は「」を
-                回転しないで表示する。が、rotate, gravityの効果が横書きと
-                変わらない場合、「」を回転してしまう。
-        """
+        # Pangoにおけるフォントの回転(横倒し対策)
         ctx = layout.get_context() # Pango を得る
         ctx.set_base_gravity( 'east' )
 
         layout.set_markup(s)
-                 #s if s.find( u'&' ) == -1 else Aozora.reAmp.sub(u'&amp;', s) )
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
 

@@ -894,7 +894,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """
         self.currentpage = 0
         self.cc.write_a_line(u'<span font_desc="Sans bold 6">あおぞらぶんこ</span>\n' +
-                                u'<span font_desc="Sans bold 12">青空文庫リーダー</span>')
+                                u'<span font_desc="Sans bold 12"><span underline="low">青空文庫リーダー</span></span>')
         self.imagebuf.set_from_file(
                         '%s/.cache/aozora/thisistest.png' % self.get_homedir())
         self.set_title(u'青空文庫リーダー')

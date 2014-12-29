@@ -18,7 +18,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-""" フォーマッタ及びレンダラー
+""" フォーマッタ
 
     準拠及び参考資料
 
@@ -52,28 +52,29 @@ class Aozora(ReaderSetting):
 
     reGaiji = re.compile( ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)' )
     reGaiji2 = re.compile( ur'※［＃「.+?」、U\+(?P<number>[0-9A-F]+?)、(\d+?\-\d+?)］' )
-    # ※［＃「口＋世」、U+546D、ページ数-行数］
 
     reKunoji = re.compile( ur'(／＼)' )
     reGunoji = re.compile( ur'(／″＼)' )
     reCTRL = re.compile( ur'(?P<aozoratag>［＃.*?］)' )
-    reHansoku = re.compile( ur'(【＃(?P<name>.+?)】)' )
+    #reHansoku = re.compile( ur'(【＃(?P<name>.+?)】)' )
     reNonokagi = re.compile( ur'(“(?P<name>.+?)”)' )
 
     reBouten = re.compile( ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)傍点］)' )
     reBouten2 = re.compile( ur'((?P<name>.*?)［＃傍点終わり］)' )
-    reBousen = re.compile( ur'(［＃「(?P<name>.+?)」に傍線］)' )
-    reNijuBousen = re.compile( ur'(［＃「(?P<name>.+?)」に二重傍線］)' )
-    reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は((行右小書き)|(上付き小文字))］)' )
+    reBousen = re.compile( ur'(［＃「(?P<name>.+?)」に(?P<type>二重)?傍線］)' )
+    reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は' +
+                        ur'(?P<type>(行右小書き)|(上付き小文字)|' +
+                        ur'(行左小書き)|(下付き小文字))］)' )
+
     reMama = re.compile( ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)' )
     reMama2 = re.compile( ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)' )
     reKogakiKatakana = re.compile( ur'(［＃小書(き)?片仮名(?P<name>.+?)、.+?］)' )
-    reShitatsukiKomoji = re.compile( ur'(［＃「(?P<name>.+?)」は((行左小書き)|(下付き小文字))］)' )
 
     reRubi = re.compile( ur'《.*?》' )
     reRubiclr = re.compile( ur'＃' )
     reRubimama = re.compile( ur'(［＃ルビの「(?P<name>.+?)」はママ］)' )
 
+    reLeftBousen = re.compile( ur'［＃「(?P<name>.+?)」の左に(?P<type>二重)?傍線］' )
 
     reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
     reFutoji2 = re.compile( ur'［＃(ここから)?太字］' )
@@ -153,23 +154,27 @@ class Aozora(ReaderSetting):
         ur'((?P<ban>\d+?)版)|' +
         ur'((?P<suri>\d+?)刷)' )
 
-    # pangocairo における & エスケープ用
-    reAmp = re.compile( ur'&' )
-
     # 禁則
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«'
     kinsoku3 = u'〳〴〵' # —…‥
     kinsoku4 = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»。、'
 
+    # Pangoタグへの単純な置換
+    dicAozoraTag = {
+        u'［＃行右小書き］':u'<sup>',   u'［＃行右小書き終わり］':u'</sup>',
+        u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
+        u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
+        u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
+        u'［＃ここからキャプション］':u'<span size="smaller">',
+            u'［＃ここでキャプション終わり］':u'</span>',
+        u'［＃左に傍線］':u'<span underline="single">',
+            u'［＃左に傍線終わり］':u'</span>',
+        u'［＃左に二重傍線］':u'<span underline="double">',
+            u'［＃左に二重傍線終わり］':u'</span>'    }
+
     """ ソースに直書きしているタグ
         u'［＃傍点］'
-        u'［＃行右小書き］'                 u'［＃行右小書き終わり］'
-        u'［＃行左小書き］'                 u'［＃行左小書き終わり］'
-        u'［＃上付き小文字］'               u'［＃上付き小文字終わり］'
-        u'［＃下付き小文字］'               u'［＃下付き小文字終わり］'
-        u'［＃ここからキャプション］'        u'［＃ここでキャプション終わり］'
-        u'［＃ここから１段階小さな文字］'    u'［＃ここで小さな文字終わり］'
     """
 
     def __init__( self, chars=40, lines=25 ):
@@ -278,22 +283,6 @@ class Aozora(ReaderSetting):
         """ フォーマッタ（第1パス）
             formater より呼び出されるジェネレータ。1行読み込んでもっぱら
             置換処理を行う。
-
-                特殊文字
-                    繰り返し記号のくの字及びぐの字を本来の文字に置換する。
-                外字変換
-                    面区点コードで指定されたJIS第3、第4水準文字を実際の文字に
-                    変換する。
-                ヘッダ
-                    削除する。
-                フッタ
-                    日付の半角数字を全角に変換する。
-                傍点・傍線
-                    ルビとして付す。
-                予約されているが実装されていないタグ
-                    単純に削除される
-                その他
-                    そのまま本文に埋め込んで呼び出し側に渡される。
         """
         if sourcefile == None:
             sourcefile = self.sourcefile
@@ -328,17 +317,6 @@ class Aozora(ReaderSetting):
                 """
                 if Aozora.reFooter.search(lnbuf) != None:
                     footerflag = True
-
-                """ 青空文庫の制御文字列である　［＃］を【＃】と表記する
-                    テキストへの対応
-                    (絶対矛盾的自己同一　西田幾多郎)
-                """
-                try:
-                    for tmp in Aozora.reHansoku.finditer( lnbuf ):
-                        lnbuf ='%s［＃%s］%s' % (
-                            lnbuf[:tmp.start()],tmp.group('name'),lnbuf[tmp.end():] )
-                except:
-                    pass
 
                 """ くの字の置換
                 """
@@ -412,47 +390,12 @@ class Aozora(ReaderSetting):
                 priortail = 0
                 retline = u''
                 for tmp in Aozora.reCTRL.finditer(lnbuf):
-                    if tmp.group() == u'［＃行右小書き］' or \
-                            tmp.group() == u'［＃上付き小文字］':
+                    if tmp.group() in Aozora.dicAozoraTag:
+                        # 単純な Pango タグへの置換
                         retline += lnbuf[priortail:tmp.start()]
-                        retline += u'<sup>'
+                        retline += Aozora.dicAozoraTag[tmp.group()]
                         priortail = tmp.end()
                         continue
-
-                    if tmp.group() == u'［＃行右小書き終わり］' or \
-                            tmp.group() == u'［＃上付き小文字終わり］':
-                        retline += lnbuf[priortail:tmp.start()]
-                        retline += u'</sup>'
-                        priortail = tmp.end()
-                        continue
-
-                    if tmp.group() == u'［＃行左小書き］' or \
-                            tmp.group() == u'［＃下付き小文字］':
-                        retline += lnbuf[priortail:tmp.start()]
-                        retline += u'<sub>'
-                        priortail = tmp.end()
-                        continue
-
-                    if tmp.group() == u'［＃行左小書き終わり］' or \
-                            tmp.group() == u'［＃下付き小文字終わり］':
-                        retline += lnbuf[priortail:tmp.start()]
-                        retline += u'</sub>'
-                        priortail = tmp.end()
-                        continue
-
-                    # キャプションの小文字表示は暫定処理
-                    if tmp.group() == u'［＃ここからキャプション］':
-                        retline += lnbuf[priortail:tmp.start()]
-                        retline += u'<span size="smaller">'
-                        priortail = tmp.end()
-                        continue
-
-                    if tmp.group() == u'［＃ここでキャプション終わり］':
-                        retline += lnbuf[priortail:tmp.start()]
-                        retline += u'</span>'
-                        priortail = tmp.end()
-                        continue
-
 
                     tmp2 = Aozora.reCaption.match(tmp.group())
                     if tmp2:
@@ -487,8 +430,22 @@ class Aozora(ReaderSetting):
                             sSizeTmp = u'large'
                         elif tmp2.group( u'size' ) == u'２':
                             sSizeTmp = u'x-large'
+                        else:
+                            sSizeTmp = u'normal'
                         retline += lnbuf[priortail:tmp.start()]
                         retline += u'<span size="%s">' % sSizeTmp
+                        priortail = tmp.end()
+                        continue
+
+                    tmp2 = Aozora.reLeftBousen.match(tmp.group())
+                    if tmp2:
+                        #   左に（二重）傍線
+                        tmpStart,tmpEnd = self.honbunsearch(
+                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
+                        retline += lnbuf[priortail:tmpStart]
+                        retline += u'<span underline="%s">%s</span>' % (
+                            'single' if tmp2.group('type') == None else 'double',
+                            lnbuf[tmpStart:tmpEnd] )
                         priortail = tmp.end()
                         continue
 
@@ -554,47 +511,26 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reBousen.match(tmp.group())
                     if tmp2:
-                        #   傍線
+                        #   傍線・二重傍線
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
                         retline += u'｜%s《%s》' % (
-                                    sNameTmp,
-                                    self.zenstring(u'━━', len(sNameTmp)))
-                        priortail = tmp.end()
-                        continue
-
-                    tmp2 = Aozora.reNijuBousen.match(tmp.group())
-                    if tmp2:
-                        #   二重傍線
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
-                        retline += u'｜%s《%s》' % (
-                                    sNameTmp,
-                                    self.zenstring(u'〓〓', len(sNameTmp)))
+                            sNameTmp,
+                            self.zenstring(u'━━' if tmp2.group(u'type') == None else u'〓〓',
+                                len(sNameTmp))  )
                         priortail = tmp.end()
                         continue
 
                     tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
                     if tmp2:
-                        #   行右小書き
+                        #   行右小書き・上付き小文字、行左小書き・下付き小文字
                         #   pango のタグを流用
                         sNameTmp = tmp2.group(u'name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
-                        retline += u'<sup>%s</sup>' % tmp2.group(u'name')
-                        priortail = tmp.end()
-                        continue
-
-                    tmp2 = Aozora.reShitatsukiKomoji.match(tmp.group())
-                    if tmp2:
-                        #   下付き小文字 -> 行左小書き
-                        #   pango のタグを流用
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        retline += reTmp.sub( u'', lnbuf[priortail:tmp.start()] )
-                        retline += u'<sub>%s</sub>' % tmp2.group(u'name')
+                        retline += u'<sup>%s</sup>' % tmp2.group(u'name') if tmp2.group(u'type') == u'行右小書き' or \
+                            tmp2.group('type') == u'(上付き小文字)' else u'<sub>%s</sub>' % tmp2.group(u'name')
                         priortail = tmp.end()
                         continue
 

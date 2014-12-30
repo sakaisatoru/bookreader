@@ -134,7 +134,7 @@ class ReaderSetting():
             設定情報が既存であれば読み込み、なければ初期化する。
         """
         #             SVGA       WSVGA       WXGA         XGA
-        screendata = [448, 740,  448, 880,   736, 1240,   616, 880]
+        screendata = [448, 740,  448, 880,   736, 1240,   616, 910]
         self.dicScreen = {}
         for i in (u'XGA', u'WXGA', u'WSVGA', u'SVGA'):
             for j in (u'width', u'height'):

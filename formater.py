@@ -91,10 +91,11 @@ class Aozora(ReaderSetting):
                 ur'(［＃(ここで)?((大き)|(小さ))+な文字終わり］)|' +
                 ur'(［＃(ここで)?斜体終わり］)|' +
                 ur'(［＃(ここで)?太字終わり］)')
+    # ページの左右中央
+    #rePageCenter = re.compile( ur'(［＃ページの左右中央］)')
 
     # 未実装タグ
     reOmit = re.compile(
-                ur'(［＃ページの左右中央］)|' +
                 ur'(［＃本文終わり］)|' +
                 ur'(［＃(ここから)??横組み］)|'+
                 ur'(［＃(ここで)??横組み終わり］)|' +
@@ -138,14 +139,9 @@ class Aozora(ReaderSetting):
     # 訓点・返り点
     reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
     reKaeriten = re.compile(
-                    ur'(［＃(?P<name>[レ一二三四五六七八九'+
-                            ur'上中下' +
-                            ur'甲乙丙丁戊己庚辛壬癸' +
-                            ur'天地人' +
-                            ur'元亨利貞' +
-                            ur'春夏秋冬'+
-                            ur'木火土金水'+
-                            ur']??)］)' )
+                ur'(［＃(?P<name>[レ一二三四五六七八九'+
+                        ur'上中下' + ur'甲乙丙丁戊己庚辛壬癸' + ur'天地人' +
+                        ur'元亨利貞' + ur'春夏秋冬'+ ur'木火土金水'+ ur']??)］)' )
 
     # フッターにおける年月日刷を漢数字に変換
     reNenGetsuNichi = re.compile( ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>\d+?)）)??年)|'+
@@ -179,8 +175,9 @@ class Aozora(ReaderSetting):
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
-        self.destfile = self.get_value( u'workingdir') + '/view.txt'    # フォーマッタ出力先
-        self.mokujifile = self.get_value( u'workingdir') + '/mokuji.txt'    # 目次ファイル
+        self.destfile = os.path.join(self.get_value( u'workingdir'), 'view.txt')    # フォーマッタ出力先
+        self.mokujifile = os.path.join(self.get_value( u'workingdir'), 'mokuji.txt')    # 目次ファイル
+        self.pagefile = os.path.join(self.get_value( u'workingdir'), 'page.txt') # 作業用一時ファイル
         self.readcodecs = 'shift_jis'
         self.pagelines = int(self.get_value(u'lines'))  # 1頁の行数
         self.chars = int(self.get_value(u'column'))     # 1行の最大文字数
@@ -292,7 +289,21 @@ class Aozora(ReaderSetting):
         gaijitest = gaiji()
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
+            yield u'［＃ページの左右中央］' # 作品名を1ページ目に表示する為
             for lnbuf in f0:
+                """ ヘッダ【テキスト中に現れる記号について】の処理
+                    とりあえずばっさりと削除する
+                """
+                if Aozora.reHeader.search(lnbuf) != None:
+                    if headerflag == False:
+                        headerflag = True
+                    else:
+                        headerflag = False
+                        yield u'［＃改ページ］\n'
+                    continue
+                if headerflag == True:
+                    continue
+
                 lnbuf = lnbuf.rstrip('\r\n')
                 """空行の処理
                 """
@@ -304,14 +315,6 @@ class Aozora(ReaderSetting):
                     pango で引っかかる & < > を 特殊文字に変換する
                 """
                 lnbuf = xml.sax.saxutils.escape( lnbuf )
-                """ ヘッダ【テキスト中に現れる記号について】の処理
-                    とりあえずばっさりと削除する
-                """
-                if Aozora.reHeader.search(lnbuf) != None:
-                    headerflag = True if headerflag == False else False
-                    continue
-                if headerflag == True:
-                    continue
 
                 """ フッタ
                 """
@@ -410,7 +413,6 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reKogakiKatakana.match(tmp.group())
                     if tmp2:
-                        #
                         #   小書き片仮名
                         #   ヱの小文字など、JISにフォントが無い場合
                         retline += lnbuf[priortail:tmp.start()].rstrip(u'※')
@@ -696,7 +698,10 @@ class Aozora(ReaderSetting):
         logging.info( u'****** %s ******' % self.sourcefile )
 
 
-        with file( self.destfile, 'w' ) as dfile:
+        with file( self.destfile, 'w' ) as fpMain:
+            dfile = fpMain                      # フォーマット済出力先
+            self.pagecenterflag = False         # ページ左右中央用フラグ
+            self.countpage = True               # ページ作成フラグ
             self.linecounter = 0                # 出力した行数
             self.pagecounter = 0                # 出力したページ数
             self.pageposition=[] # フォーマット済ファイルにおける各ページの絶対位置
@@ -809,9 +814,51 @@ class Aozora(ReaderSetting):
                             priortail = tmp.end()
                             continue
 
+                        """ ページの左右中央
+                        """
+                        if tmp.group() == u'［＃ページの左右中央］':
+                            self.pagecenterflag = True
+                            try:
+                                fpPage = open( self.pagefile, 'w+' )
+                                dfile = fpPage # 出力先つなぎかえ
+                                self.countpage = False
+                            except:
+                                logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
+                                pass
+                            retline += lnbuf[priortail:tmp.start()]
+                            priortail = tmp.end()
+                            continue
+
                         """ 改ページ
                         """
                         if Aozora.reKaipage.match(tmp.group()) != None:
+                            if self.pagecenterflag:
+                                # ページの左右中央の処理
+                                self.pagecenterflag = False
+                                # テンポラリ内に掃き出された行数を数えて
+                                # ページ中央にくるようにパディングする
+                                # ルビ行が含まれていることに留意
+                                fpPage.seek(0)
+                                iCenter = 0
+                                for sCenter in fpPage:
+                                    iCenter += 1
+                                iCenter = int(round((self.pagelines - iCenter/2)/2))
+                                dfile = fpMain
+                                self.countpage = True
+                                while iCenter > 0:
+                                    self.write2file( dfile, '\n' )
+                                    iCenter -= 1
+                                fpPage.seek(0)
+                                iCenter = 0
+                                for sCenter in fpPage:
+                                    if iCenter == 0:
+                                        sRubi = sCenter
+                                        iCenter += 1
+                                    else:
+                                        self.write2file( dfile, sCenter,sRubi )
+                                        iCenter = 0
+                                fpPage.close()
+
                             while self.write2file( dfile, '\n' ) != True:
                                 pass
                             retline += lnbuf[priortail:tmp.start()]
@@ -1324,28 +1371,29 @@ class Aozora(ReaderSetting):
 
         return ( honbun,  honbun2, rubi, rubi2 )
 
-    def write2file(self, fd, s, rubiline=u'\n' ):
+    def write2file(self, fd, s, rubiline=u'\n'):
         """ formater 下請け
             1行出力後、改ページしたらその位置を記録して True を返す。
             目次作成もここで行う。
             出力時の正確なページ数と行数が分かるのはここだけ。
         """
         rv = False
-        if self.inMidashi == True:
-            # 見出し書式
-            if self.sMidashiSize == u'大':
-                sMokujiForm = u'%-s  % 4d\n'
-            elif self.sMidashiSize == u'中':
-                sMokujiForm = u'  %-s  % 4d\n'
-            elif self.sMidashiSize == u'小':
-                sMokujiForm = u'    %-s  % 4d\n'
-            # 目次作成
-            if self.inFukusuMidashi == True:
-                self.midashi += s.rstrip('\n')
-            else:
-                self.mokuji_f.write( sMokujiForm % (
-                    self.midashi.lstrip(u' 　').rstrip('\n'), self.pagecounter +1))
-                self.inMidashi = False
+        if self.countpage:
+            if self.inMidashi == True:
+                # 見出し書式
+                if self.sMidashiSize == u'大':
+                    sMokujiForm = u'%-s  % 4d\n'
+                elif self.sMidashiSize == u'中':
+                    sMokujiForm = u'  %-s  % 4d\n'
+                elif self.sMidashiSize == u'小':
+                    sMokujiForm = u'    %-s  % 4d\n'
+                # 目次作成
+                if self.inFukusuMidashi == True:
+                    self.midashi += s.rstrip('\n')
+                else:
+                    self.mokuji_f.write( sMokujiForm % (
+                        self.midashi.lstrip(u' 　').rstrip('\n'), self.pagecounter +1))
+                    self.inMidashi = False
 
         if self.loggingflag:
             logging.debug( u'　位置：%dページ、%d行目' % (
@@ -1354,13 +1402,14 @@ class Aozora(ReaderSetting):
 
         fd.write(rubiline)  # 右ルビ行
         fd.write(s)         # 本文
-        self.linecounter += 1
-        if self.linecounter >= self.pagelines:
-            # 1頁出力し終えたらその位置を記録する
-            self.pagecounter += 1
-            self.pageposition.append(fd.tell())
-            self.linecounter = 0
-            rv = True
+        if self.countpage:
+            self.linecounter += 1
+            if self.linecounter >= self.pagelines:
+                # 1頁出力し終えたらその位置を記録する
+                self.pagecounter += 1
+                self.pageposition.append(fd.tell())
+                self.linecounter = 0
+                rv = True
         return rv
 
     def do_format(self, s):

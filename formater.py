@@ -58,9 +58,11 @@ class Aozora(ReaderSetting):
     reCTRL = re.compile( ur'(?P<aozoratag>［＃.*?］)' )
     reNonokagi = re.compile( ur'(“(?P<name>.+?)”)' )
 
-    reBouten = re.compile( ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)傍点］)' )
-    reBouten2 = re.compile( ur'((?P<name>.*?)［＃傍点終わり］)' )
-    reBousen = re.compile( ur'(［＃「(?P<name>.+?)」に(?P<type>二重)?傍線］)' )
+    # 傍線・傍点
+    reBouten = re.compile( ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)(?P<type3>傍|波)(?P<type2>(点)|(線))］)' )
+    reBouten2 = re.compile( ur'［＃(?P<type>(ばつ)|(蛇の目)|(二重丸)|(白三角)|(黒三角)|(白丸)|(丸)|(白ゴマ)|(二重))?(?P<type3>傍|波)(?P<type2>(線)|(点))］' )
+    reBouten2owari = re.compile( ur'((?P<name>.*?)［＃(?P<type>.*?)(?P<type3>傍|波)(?P<type2>(線)|(点))終わり］)' )
+
     reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は' +
                         ur'(?P<type>(行右小書き)|(上付き小文字)|' +
                         ur'(行左小書き)|(下付き小文字))］)' )
@@ -165,6 +167,14 @@ class Aozora(ReaderSetting):
             u'［＃左に傍線終わり］':u'</span>',
         u'［＃左に二重傍線］':u'<span underline="double">',
             u'［＃左に二重傍線終わり］':u'</span>'    }
+
+    # 右側傍点
+    dicBouten = {
+        u'白ゴマ':u'﹆　',
+        u'丸':u'●　',     u'白丸':u'○　',        u'黒三角':u'▲　',
+        u'白三角':u'△　',   u'二重丸':u'◎　',   u'蛇の目':u'　◉',
+        u'ばつ':u'　×' }
+        # u'　﹅'
 
     # Pangoタグを除去する
     reTagRemove = re.compile( ur'<[^>]*?>' )
@@ -483,49 +493,40 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reBouten.match(tmp.group())
                     if tmp2:
-                        #   傍点
+                        #   傍点・傍線
                         #   rstrip では必要以上に削除する場合があるので
                         #   reのsubで消す
                         sNameTmp = tmp2.group('name')
                         reTmp = re.compile( ur'%s$' % sNameTmp )
                         lnbuf = u'%s｜%s《%s》%s' % (
-                                    reTmp.sub( u'', lnbuf[:tmp.start()]),
-                                    sNameTmp,
-                                    self.zenstring(
-                                        self.boutentype(tmp2.group('type')),
+                            reTmp.sub( u'', lnbuf[:tmp.start()]),
+                            sNameTmp,
+                            self.zenstring(self.boutentype(
+                                            tmp2.group('type'),
+                                                tmp2.group('type2'),
+                                                    tmp2.group('type3') ),
                                                 len(sNameTmp)),
                                     lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
-                    if tmp.group() == u'［＃傍点］':
-                        #   傍点　形式２
-                        tmp2 = Aozora.reBouten2.search(lnbuf, tmp.end())
+                    if Aozora.reBouten2.match(tmp.group()):
+                        #   傍点・傍線 形式2
+                        #   バグあり、1行で閉じていないとおかしくなる。
+                        tmp2 = Aozora.reBouten2owari.search(lnbuf, tmp.end())
                         if tmp2:
                             sNameTmp = tmp2.group('name')
                             lnbuf = u'%s｜%s《%s》%s' % (
-                                    lnbuf[:tmp.start()],
-                                    sNameTmp,
-                                    self.zenstring(
-                                            self.boutentype(''),
-                                                    len(sNameTmp)),
-                                    lnbuf[tmp2.end():] )
+                                lnbuf[:tmp.start()],
+                                sNameTmp,
+                                self.zenstring(self.boutentype(
+                                                tmp2.group('type'),
+                                                    tmp2.group('type2'),
+                                                        tmp2.group('type3')),
+                                            len(sNameTmp)),
+                                lnbuf[tmp2.end():] )
                         else:
                             lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
-                        tmp = Aozora.reCTRL.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reBousen.match(tmp.group())
-                    if tmp2:
-                        #   傍線・二重傍線
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        lnbuf = u'%s｜%s《%s》%s' % (
-                            reTmp.sub( u'', lnbuf[:tmp.start()] ),
-                            sNameTmp,
-                            self.zenstring(u'━━' if tmp2.group(u'type') == None else u'〓〓',
-                                len(sNameTmp)),
-                            lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -625,25 +626,18 @@ class Aozora(ReaderSetting):
                 """
                 yield u'%s\n' % retline
 
-    def boutentype(self, t):
-        if t == u'白ゴマ':
-            rv = u'﹆　' # 1-3-29
-        elif t == u'丸':
-            rv = u'●　'
-        elif t == u'白丸':
-            rv = u'○　'
-        elif t == u'黒三角':
-            rv = u'▲　'
-        elif t == u'白三角':
-            rv = u'△　'
-        elif t == u'二重丸':
-            rv = u'◎　'
-        elif t == u'蛇の目':
-            rv = u'　◉'  # 1-3-27
-        elif t == u'ばつ':
-            rv = u'　×'
+    def boutentype(self, t, t2, t3):
+        if t2 == u'点':
+            rv = Aozora.dicBouten[t] if t in Aozora.dicBouten else u'　﹅'
+        elif t2 == u'線':
+            if t3 == u'波':
+                rv = u'〜〜'
+            elif t == u'二重':
+                rv = u'━━'
+            else:
+                rv = u'──'
         else:
-            rv = u'　﹅'
+            rv = u''
         return rv
 
     def honbunsearch(self, honbun, name):

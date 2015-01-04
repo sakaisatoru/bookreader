@@ -40,17 +40,20 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
         HTMLParser.__init__(self)
         ReaderSetting.__init__(self)
 
-        self.nTableCount = 0
         self.nTrCount = 0
         self.nTdCount = 0
         self.flagTD = False
         self.sData = u''
         self.record=[]
         self.page=[]
+        self.flagListTable = False  # リストを格納しているTableの検出用
 
     def handle_starttag(self, tag, attrs):
         if tag == u'table':
-            self.nTableCount += 1
+            for i in attrs:
+                if i[0] == u'class' and i[1] == u'list':
+                    self.flagListTable = True
+                    break
             self.nTrCount = 0
             self.nTdCount = 0
         elif tag == u'tr':
@@ -62,18 +65,18 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
             self.sData = u''
         elif tag == u'a':
             if self.flagTD == True:
-                if self.nTdCount == 2 and self.nTableCount == 2:
+                if self.nTdCount == 2 and self.flagListTable == True:
                     self.record.append(attrs[0][1])
 
     def handle_data(self, data):
-        if self.nTableCount == 2:
+        if self.flagListTable == True:
             if self.nTrCount >= 2:
                 if self.nTdCount < 4:
                     if self.flagTD == True:
                         self.sData += data.lstrip().rstrip( u' \r\n' )
 
     def handle_endtag(self, tag):
-        if self.nTableCount == 2:
+        if self.flagListTable == True:
             if tag == u'tr':
                 self.page.append(self.record)
                 self.record=[]
@@ -82,6 +85,8 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
                 if self.nTdCount < 4:
                     self.record.append(self.sData)
                     self.flagTD = False
+            elif tag == u'table':
+                self.flagListTable = False
 
     def setbaseurl(self, s):
         self.AOZORA_URL = s
@@ -195,6 +200,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
 
         a = ReadHTMLpage()
         a.setbaseurl( self.AOZORA_URL )
+        #a.gethtml( u'whatsnew_2014_1')
         a.gethtml( u'whatsnew1.html')
         for i in a.readrecord():
             try:
@@ -274,4 +280,8 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         gtk.main()
         return (self.ack, self.lastselectfile)
 
-
+"""
+if __name__ == '__main__':
+    a = WhatsNewUI()
+    a.run()
+"""

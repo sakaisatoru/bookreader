@@ -898,7 +898,8 @@ class Aozora(ReaderSetting):
                             tmpStart,tmpEnd = self.honbunsearch(
                                     lnbuf[:tmp.start()],self.midashi)
                             retline += lnbuf[priortail:tmpStart]
-                            retline += u'<span font_family="Sans"'
+                            #retline += u'<span font_family="Sans"'
+                            retline += u'<span font_desc="Sans"'
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
                             retline += u'>%s</span>' % lnbuf[tmpStart:tmpEnd]
@@ -913,7 +914,8 @@ class Aozora(ReaderSetting):
                             self.inFukusuMidashi = True
                             self.midashi = u''
                             retline += lnbuf[priortail:tmp.start()]
-                            retline += u'<span font_family="Sans"'
+                            #retline += u'<span font_family="Sans"'
+                            retline += u'<span font_desc="Sans"'
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
                             retline += u'>'
@@ -1600,7 +1602,8 @@ class CairoCanvas(Aozora):
         layout.set_font_description(self.font)
         # Pangoにおけるフォントの回転(横倒し対策)
         ctx = layout.get_context() # Pango を得る
-        ctx.set_base_gravity( 'east' )
+        #ctx.set_base_gravity( 'east' )
+        ctx.set_base_gravity( 'auto' )
 
         layout.set_markup(s)
         pangocairo_context.update_layout(layout)

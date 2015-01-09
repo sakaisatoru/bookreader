@@ -108,7 +108,7 @@ class Aozora(ReaderSetting):
     reIndentStart = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ］' )
     reKaigyoTentsuki = re.compile( ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］' )
     reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
-    reIndentEnd = re.compile( ur'［＃(ここで)?字下げ終わり］|［＃(ここで)?字下げおわり］')
+    reIndentEnd = re.compile( ur'［＃(ここで)?字下げ終(わ)??り］|［＃(ここで)?字下げおわり］')
 
     reJiage = re.compile( ur'((?P<name2>.+?)??(?P<tag>(［＃地付き］)|(［＃地から(?P<number>[０-９]+?)字上げ］))(?P<name>.+?)??$)' )
     reKokokaraJiage = re.compile( ur'［＃ここから地から(?P<number>[０-９]+?)字上げ］')
@@ -747,7 +747,7 @@ class Aozora(ReaderSetting):
                     if len(lnbuf) == 0:
                         self.write2file( dfile, '\n' )
                         continue
-
+                    print lnbuf
                     """ 制御文字列の処理
                         読み込んだ行に含まれる［＃.*?］を全てチェックする。
                     """
@@ -1172,6 +1172,7 @@ class Aozora(ReaderSetting):
 
                             # 地付きあるいは字上げ(同一行中を含む)
                             # 出現した場合、字詰はキャンセルされる
+                            #  name2 [tag] name
                             tmp2 = Aozora.reJiage.match(lnbuf)
                             if tmp2:
                                 currchars = self.charsmax
@@ -1186,7 +1187,15 @@ class Aozora(ReaderSetting):
                                     # 地付き
                                     n = 0
                                 currchars = self.charsmax - n
-                                if  lenP + lenN <= currchars:
+                                if lenN >= currchars:
+                                    # 地付きする文字列が1行の長さを越えている場合、通常の
+                                    # 行として終わる。
+                                    # 地付きはこれで良いが、字上げの場合はタグの次行繰越処理を
+                                    # 追加したい（ここで処理できないのでlinesplitで）
+                                    lnbuf = sP + sN
+                                    rubiline = rubiline[:lenP*2] + rubiline[lenP*2+len(tmp2.group('tag'))*2:]
+                                    currchars = self.charsmax
+                                elif lenP + lenN <= currchars:
                                     # 表示が1行分に収まる場合は処理する。
                                     sPad = self.zenstring(u'　',currchars -lenP -lenN)
                                     lnbuf = sP + sPad + sN

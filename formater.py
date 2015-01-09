@@ -747,7 +747,6 @@ class Aozora(ReaderSetting):
                     if len(lnbuf) == 0:
                         self.write2file( dfile, '\n' )
                         continue
-                    print lnbuf
                     """ 制御文字列の処理
                         読み込んだ行に含まれる［＃.*?］を全てチェックする。
                     """
@@ -1187,25 +1186,26 @@ class Aozora(ReaderSetting):
                                     # 地付き
                                     n = 0
                                 currchars = self.charsmax - n
-                                if lenN >= currchars:
-                                    # 地付きする文字列が1行の長さを越えている場合、通常の
-                                    # 行として終わる。
-                                    # 地付きはこれで良いが、字上げの場合はタグの次行繰越処理を
-                                    # 追加したい（ここで処理できないのでlinesplitで）
-                                    lnbuf = sP + sN
-                                    rubiline = rubiline[:lenP*2] + rubiline[lenP*2+len(tmp2.group('tag'))*2:]
-                                    currchars = self.charsmax
-                                elif lenP + lenN <= currchars:
+                                if lenP + lenN <= currchars:
                                     # 表示が1行分に収まる場合は処理する。
                                     sPad = self.zenstring(u'　',currchars -lenP -lenN)
                                     lnbuf = sP + sPad + sN
                                     # ルビ表示 地付きタグ分を取り除くこと
                                     rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2+len(tmp2.group('tag'))*2 :]
                                 else:
-                                    # 収まらない場合は次行に送る
-                                    sPad = self.zenstring(u'　',currchars -lenP)
-                                    lnbuf = sP + sPad + tmp2.group('tag') + sN
-                                    rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2:]
+                                    if lenN >= currchars or lenP >= currchars:
+                                        # 地付きする文字列が1行の長さを越えている場合、通常の
+                                        # 行として終わる。
+                                        # 地付きはこれで良いが、字上げの場合はタグの次行繰越処理を
+                                        # 追加したい（ここで処理できないのでlinesplitで）
+                                        lnbuf = sP + sN
+                                        rubiline = rubiline[:lenP*2] + rubiline[lenP*2+len(tmp2.group('tag'))*2:]
+                                        currchars = self.charsmax
+                                    else:
+                                        # 収まらない場合は次行に送る
+                                        sPad = self.zenstring(u'　',currchars -lenP)
+                                        lnbuf = sP + sPad + tmp2.group('tag') + sN
+                                        rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2:]
 
                         #   画面上の1行で収まらなければ分割して次行を得る
                         self.ls, lnbuf, rubi2, rubiline = self.linesplit(

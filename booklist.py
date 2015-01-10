@@ -28,8 +28,15 @@ from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorListData, BookListData
 from formater import Aozora
 from logview import Logviewer
-import sys, codecs, re, os.path, datetime, unicodedata, logging
-import gtk, gobject
+import sys
+import codecs
+import re
+import os.path
+import datetime
+import unicodedata
+import logging
+import gtk
+import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 

@@ -19,7 +19,11 @@
 #  MA 02110-1301, USA.
 
 
-import gtk, cairo, pango, pangocairo, gobject
+import gtk
+import cairo
+import pango
+import pangocairo
+import gobject
 
 class HyperTextView(gtk.TextView):
     __gtype_name__ = 'HyperTextView'

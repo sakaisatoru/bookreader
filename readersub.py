@@ -22,9 +22,20 @@
 """ 青空文庫リーダー
 """
 from collections import deque
-import sys, codecs, re, os.path, datetime, unicodedata, urllib, zipfile
+import sys
+import codecs
+import re
+import os.path
+import datetime
+import unicodedata
+import urllib
+import zipfile
 import logging
-import gtk, cairo, pango, pangocairo, gobject
+import gtk
+import cairo
+import pango
+import pangocairo
+import gobject
 
 class Download():
     """ 作品ファイルダウンロード下請け

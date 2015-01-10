@@ -25,9 +25,19 @@ from __future__ import with_statement
 from hypertext import HyperTextView
 
 from readersub import ReaderSetting, AozoraDialog
-import sys, codecs, os.path, datetime, unicodedata, urllib, logging
+import sys
+import codecs
+import os.path
+import datetime
+import unicodedata
+import urllib
+import logging
 import webbrowser
-import gtk, cairo, pango, pangocairo, gobject
+import gtk
+import cairo
+import pango
+import pangocairo
+import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
@@ -152,7 +162,6 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
         self.show_all()
         gtk.main()
         return self.ack
-
 
 
 if __name__=='__main__':

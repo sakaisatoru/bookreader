@@ -74,9 +74,20 @@ from hypertext import HyperTextView
 
 from jis3 import gaiji
 from readersub import ReaderSetting, AozoraDialog, Download
-import sys, codecs, re, os.path, datetime, unicodedata, urllib
+
+import sys
+import codecs
+import re
+import os.path
+import datetime
+import unicodedata
+import urllib
 import webbrowser
-import gtk, cairo, pango, pangocairo, gobject
+import gtk
+import cairo
+import pango
+import pangocairo
+import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
@@ -104,6 +115,7 @@ class AuthorListData(gtk.TreeView):
         self.col_authorname.set_sort_column_id(0)
 
         self.append_column(self.col_authorname)
+
 
 class BookListData(gtk.TreeView):
     """ 著作リスト (GUI データモデル)

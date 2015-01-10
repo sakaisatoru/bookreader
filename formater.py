@@ -36,10 +36,21 @@ from __future__ import with_statement
 from jis3 import gaiji
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorList
-import sys, codecs, re, os.path, datetime, unicodedata, logging
+
+import sys
+import codecs
+import re
+import os.path
+import datetime
+import unicodedata
+import logging
 import xml.sax.saxutils
 
-import gtk, cairo, pango, pangocairo, gobject
+import gtk
+import cairo
+import pango
+import pangocairo
+import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
@@ -95,7 +106,6 @@ class Aozora(ReaderSetting):
 
     # 未実装タグ
     reOmit = re.compile(
-                ur'(［＃本文終わり］)|' +
                 ur'(［＃(ここから)??横組み］)|'+
                 ur'(［＃(ここで)??横組み終わり］)|' +
                 ur'(［＃「.+?」は縦中横］)|' +
@@ -398,7 +408,9 @@ class Aozora(ReaderSetting):
                 while tmp != None:
                     if tmp.group() in Aozora.dicAozoraTag:
                         # 単純な Pango タグへの置換
-                        lnbuf = lnbuf[:tmp.start()] + Aozora.dicAozoraTag[tmp.group()] + lnbuf[tmp.end():]
+                        lnbuf = lnbuf[:tmp.start()] + \
+                                Aozora.dicAozoraTag[tmp.group()] + \
+                                lnbuf[tmp.end():]
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -417,7 +429,9 @@ class Aozora(ReaderSetting):
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                         lnbuf = u'%s<span size="smaller">%s</span>%s' % (
-                            lnbuf[:tmpStart], lnbuf[tmpStart:tmpEnd], lnbuf[tmp.end():] )
+                                    lnbuf[:tmpStart],
+                                    lnbuf[tmpStart:tmpEnd],
+                                    lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf,tmpStart)
                         continue
 
@@ -488,7 +502,9 @@ class Aozora(ReaderSetting):
                     if tmp2:
                         #   ルビのママ
                         lnbuf = u'%s《%s》%s' % (
-                            lnbuf[:tmp.start()], u'(ルビママ)', lnbuf[tmp.end():] )
+                                lnbuf[:tmp.start()],
+                                u'(ルビママ)',
+                                lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -517,7 +533,7 @@ class Aozora(ReaderSetting):
                         if tmp2 == None:
                             tmp2 = Aozora.reBouten2.match(tmp.group())
                             # 1行中に閉じられていない場合は一旦閉じる
-                            sNameTmp = tmp2.group(u'type3')+ tmp2.group(u'type2')
+                            sNameTmp = tmp2.group(u'type3') + tmp2.group(u'type2')
                             try:
                                 sNameTmp += tmp2.group(u'type')
                             except TypeError:
@@ -560,7 +576,9 @@ class Aozora(ReaderSetting):
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                         lnbuf = u'%s<span font_desc="Sans bold">%s</span>%s' % (
-                            lnbuf[:tmpStart], lnbuf[tmpStart:tmpEnd], lnbuf[tmp.end():] )
+                                    lnbuf[:tmpStart],
+                                        lnbuf[tmpStart:tmpEnd],
+                                            lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -578,7 +596,9 @@ class Aozora(ReaderSetting):
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                         lnbuf = u'%s<span style="italic">%s</span>%s' % (
-                            lnbuf[:tmpStart], lnbuf[tmpStart:tmpEnd], lnbuf[tmp.end():] )
+                                    lnbuf[:tmpStart],
+                                        lnbuf[tmpStart:tmpEnd],
+                                            lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -594,7 +614,9 @@ class Aozora(ReaderSetting):
                         #   訓点送り仮名
                         #   pango のタグを流用
                         lnbuf = u'%s<sup>%s</sup>%s' % (
-                            lnbuf[:tmp.start()], tmp2.group(u'name'), lnbuf[tmp.end():])
+                            lnbuf[:tmp.start()],
+                                tmp2.group(u'name'),
+                                    lnbuf[tmp.end():])
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -603,7 +625,9 @@ class Aozora(ReaderSetting):
                         #   返り点
                         #   pango のタグを流用
                         lnbuf = u'%s<sub>%s</sub>%s' % (
-                            lnbuf[:tmp.start()], tmp2.group(u'name'), lnbuf[tmp.end():])
+                            lnbuf[:tmp.start()],
+                                tmp2.group(u'name'),
+                                    lnbuf[tmp.end():])
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
@@ -668,6 +692,7 @@ class Aozora(ReaderSetting):
         l = len(name)
         pos = len(honbun)
         inRubi = False
+        inRubiDetect = False
         inTag = False
         inAtag = False
         while l > 0 and pos > 0:
@@ -688,6 +713,9 @@ class Aozora(ReaderSetting):
                 inRubi = False
             elif honbun[pos] == u'》':
                 inRubi = True
+                inRubiDetect = True
+            elif inRubiDetect == True and honbun[pos] == u'｜':
+                pass
             elif inRubi:
                 pass
             else:
@@ -698,8 +726,17 @@ class Aozora(ReaderSetting):
                     l -= 1
                     continue
                 else:
-                    # Missmatch
                     break
+        if end > -1:
+            # 検出した文字列の直後にルビが続くなら文字列を拡張して返す
+            # ルビが閉じていなければ拡張しない
+            try:
+                if honbun[end+1] == u'《':
+                    pos = honbun.find(u'》', end+1)
+                    if pos != -1:
+                        end = pos
+            except IndexError:
+                pass
         return (start,end+1)
 
     def formater( self, output_file=None, mokuji_file=None ):
@@ -885,7 +922,7 @@ class Aozora(ReaderSetting):
                             ここでは正確なページ番号が分からないので、
                             見出し出現のフラグだけ立てて、目次作成は後段で行う。
                             複数行見出しはサポートしない
-                            <span font_family="Sans" size="larger">
+                            <span face="Sans" size="larger">
                             見出し《ルビ》</span>
                         """
                         matchMidashi = Aozora.reMidashi.match(tmp.group())
@@ -1419,12 +1456,14 @@ class Aozora(ReaderSetting):
                         self.FukusuMidashiOwari = False
                         self.inFukusuMidashi = False
                         self.mokuji_f.write( sMokujiForm % (
-                            Aozora.reTagRemove.sub(u'',self.midashi.lstrip(u' 　').rstrip('\n')),
+                            Aozora.reTagRemove.sub(u'',
+                                self.midashi.lstrip(u' 　').rstrip('\n')),
                             self.pagecounter +1))
                         self.inMidashi = False
                 else:
                     self.mokuji_f.write( sMokujiForm % (
-                        Aozora.reTagRemove.sub(u'',self.midashi.lstrip(u' 　').rstrip('\n')),
+                        Aozora.reTagRemove.sub(u'',
+                            self.midashi.lstrip(u' 　').rstrip('\n')),
                         self.pagecounter +1))
                     self.inMidashi = False
 
@@ -1452,9 +1491,6 @@ class Aozora(ReaderSetting):
         self.set_source(s)
         self.formater()
 
-    #
-    #   雑関数
-    #
     def zentoi(self, s):
         """ 全角文字列を整数に変換する
         """
@@ -1477,8 +1513,6 @@ class Aozora(ReaderSetting):
             r += s
             n -= 1
         return r
-
-
 
 
 class CairoCanvas(Aozora):

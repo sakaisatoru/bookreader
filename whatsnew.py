@@ -28,9 +28,19 @@ from __future__ import with_statement
 
 from readersub import ReaderSetting, AozoraDialog, Download
 from aozoracard import AuthorList
-import sys, codecs, re, os.path, datetime, unicodedata, urllib
+import sys
+import codecs
+import re
+import os.path
+import datetime
+import unicodedata
+import urllib
 from HTMLParser import HTMLParser
-import gtk, cairo, pango, pangocairo, gobject
+import gtk
+import cairo
+import pango
+import pangocairo
+import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
@@ -150,6 +160,7 @@ class BookListData(gtk.TreeView):
         self.append_column(self.col_releasedate)
         self.append_column(self.col_bookname)
         self.append_column(self.col_authorname)
+
 
 class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
     """ UI
@@ -279,6 +290,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         self.set_modal(True)
         gtk.main()
         return (self.ack, self.lastselectfile)
+
 
 """
 if __name__ == '__main__':

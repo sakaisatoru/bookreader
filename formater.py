@@ -108,7 +108,7 @@ class Aozora(ReaderSetting):
     reIndentStart = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ］' )
     reKaigyoTentsuki = re.compile( ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］' )
     reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
-    reIndentEnd = re.compile( ur'［＃(ここで)?字下げ終(わ)??り］|［＃(ここで)?字下げおわり］')
+    reIndentEnd = re.compile( ur'［＃(ここで)?字下げ終わり］|［＃(ここで)?字下げおわり］')
 
     reJiage = re.compile( ur'((?P<name2>.+?)??(?P<tag>(［＃地付き］)|(［＃地から(?P<number>[０-９]+?)字上げ］))(?P<name>.+?)??$)' )
     reKokokaraJiage = re.compile( ur'［＃ここから地から(?P<number>[０-９]+?)字上げ］')
@@ -898,7 +898,8 @@ class Aozora(ReaderSetting):
                                     lnbuf[:tmp.start()],self.midashi)
                             retline += lnbuf[priortail:tmpStart]
                             #retline += u'<span font_family="Sans"'
-                            retline += u'<span font_desc="Sans"'
+                            #retline += u'<span font_desc="Sans"'
+                            retline += u'<span face="Sans"'
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
                             retline += u'>%s</span>' % lnbuf[tmpStart:tmpEnd]
@@ -914,7 +915,8 @@ class Aozora(ReaderSetting):
                             self.midashi = u''
                             retline += lnbuf[priortail:tmp.start()]
                             #retline += u'<span font_family="Sans"'
-                            retline += u'<span font_desc="Sans"'
+                            #retline += u'<span font_desc="Sans"'
+                            retline += u'<span face="Sans"'
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
                             retline += u'>'

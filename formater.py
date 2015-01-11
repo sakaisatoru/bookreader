@@ -54,6 +54,77 @@ import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
+class AozoraAccent():
+    """ アクセント分解による文字の置換
+    """
+    accenttable = {
+        u'!@':u'¡', u'?@':u'¿', u'A`':u'À', u"A'":u'Á', u'A^':u'Â', u'A~':u'Ã',
+        u'A':u'Ä',  u'A&':u'Å', u'AE&':u'Æ',u'C,':u'Ç', u'E`':u'È', u"E'":u'É',
+        u'E^':u'Ê', u'E':u'Ë',  u'I`':u'Ì', u"I'":u'Í', u'I^':u'Î', u'I':u'Ï',
+        u'N~':u'Ñ', u'O`':u'Ò', u"O'":u'Ó', u'O^':u'Ô', u'O~':u'Õ',
+        u'O':u'Ö',  u'O/':u'Ø', u'U`':u'Ù', u"U'":u'Ú', u'U^':u'Û', u'U':u'Ü',
+        u"Y'":u'Ý', u's&':u'ß', u'a`':u'à', u"a'":u'á', u'a^':u'â',
+        u'a~':u'ã', u'a':u'ä',  u'a&':u'å', u'ae&':u'æ',u'c,':u'ç', u'e`':u'è',
+        u"e'":u'é', u'e^':u'ê', u'e':u'ë',  u'i`':u'ì', u"i'":u'í', u'i^':u'î',
+        u'i':u'ï',  u'n~':u'ñ', u'o`':u'ò', u"o'":u'ó', u'o^':u'ô',
+        u'o~':u'õ', u'o':u'ö',  u'o/':u'ø', u'u`':u'ù', u"u'":u'ú', u'u^':u'û',
+        u'u':u'ü',  u"y'":u'ý', u'y':u'ÿ',  u'A_':u'Ā', u'a_':u'ā',
+        u'E_':u'Ē', u'e_':u'ē', u'I_':u'Ī', u'i_':u'ī', u'O_':u'Ō', u'o_':u'ō',
+        u'OE&':u'Œ',u'oe&':u'œ',u'U_':u'Ū', u'u_':u'ū' }
+
+        # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
+
+    reTest = re.compile( ur'(〔(?P<name>.*?)〕)' )
+
+    def __init__(self):
+        pass
+
+    def replace_sub(self, src, pos=0):
+        """ アクセント変換文字列〔〕を渡して定義済み文字があれば変換して返す。
+            〔〕は閉じていること。
+            前後の括弧は取り除かれる。
+            無ければ source をそのまま返す。
+            ネスティング対応あり。
+        """
+        try:
+            while src[pos] != u'〕':
+                if src[pos] == u'〔':
+                    tmpSrc, tmpEnd = self.replace_sub( src[pos+1:] )
+                    curr = pos
+                    pos = len(src[:curr]+tmpSrc)
+                    src = src[:curr] + tmpSrc + tmpEnd
+                    continue
+
+                sTmp = src[pos:pos+2]
+                if sTmp in AozoraAccent.accenttable:
+                    # match
+                    src = src[:pos] + \
+                            AozoraAccent.accenttable[sTmp] + \
+                            src[pos+2:]
+                    pos += len(AozoraAccent.accenttable[sTmp])
+                else:
+                    sTmp = src[pos:pos+3]
+                    if sTmp in AozoraAccent.accenttable:
+                        # match
+                        src = src[:pos] + \
+                                AozoraAccent.accenttable[sTmp] + \
+                                src[pos+3:]
+                        pos += len(AozoraAccent.accenttable[sTmp])
+                    else:
+                        pos += 1
+        except IndexError:
+            pass
+
+        return src[:pos], src[pos+1:]
+
+    def replace(self, src):
+        """ 呼び出し
+        """
+        r = src.find( u'〔' )
+        if r != -1:
+            src, src1 = self.replace_sub(src, r)
+            src = src + src1
+        return src
 
 class Aozora(ReaderSetting):
     """
@@ -157,6 +228,7 @@ class Aozora(ReaderSetting):
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<ban>\d+?)版)|' +
         ur'((?P<suri>\d+?)刷)' )
+
 
     # 禁則
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
@@ -302,8 +374,9 @@ class Aozora(ReaderSetting):
 
         headerflag = False      # 書名以降の注釈部分を示す
         footerflag = False
-        gaijitest = gaiji()
         aozorastack = []        # ［＃形式タグ用のスタック
+        gaijitest = gaiji()
+        accenttest = AozoraAccent()
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
             yield u'［＃ページの左右中央］' # 作品名を1ページ目に表示する為
@@ -336,6 +409,10 @@ class Aozora(ReaderSetting):
                 if len(lnbuf) == 0:
                     yield u'\n'
                     continue
+
+                """ アクセント分解 & を処理するので xml.sax より前に呼ぶこと
+                """
+                lnbuf = accenttest.replace( lnbuf )
 
                 """ tag 対策
                     pango で引っかかる & < > を 特殊文字に変換する

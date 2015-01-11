@@ -48,8 +48,15 @@ from whatsnew   import WhatsNewUI
 from logview    import Logviewer
 from booklist   import BookshelfUI
 #from threading  import Thread
-import sys, codecs, re, os.path, datetime, unicodedata, logging
-import gtk, gobject
+import sys
+import codecs
+import re
+import os.path
+import datetime
+import unicodedata
+import logging
+import gtk
+import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
@@ -111,6 +118,7 @@ class BookMarkInfo(ReaderSetting):
         for s in self.bookmarkbuff:
             yield s.rstrip('\n')
 
+
 class BookmarkView(gtk.TreeView):
     """ しおり一覧を表示・管理
         +---------------+--------+---------+--------+
@@ -156,6 +164,7 @@ class BookmarkView(gtk.TreeView):
         self.append_column(self.col_author)
         self.append_column(self.col_pagenumber)
         self.append_column(self.col_bookmarkdate)
+
 
 class BookmarkUI(gtk.Window):
     """ しおりの管理
@@ -900,6 +909,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.set_title(u'青空文庫リーダー')
         self.show_all()
         gtk.main()
+
 
 if __name__ == '__main__':
     ui = ReaderUI()

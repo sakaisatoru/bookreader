@@ -74,7 +74,6 @@ class AozoraAccent():
 
         # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
 
-    reTest = re.compile( ur'(〔(?P<name>.*?)〕)' )
 
     def __init__(self):
         pass

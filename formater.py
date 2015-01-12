@@ -167,6 +167,7 @@ class Aozora(ReaderSetting):
     reCaption = re.compile( ur'(［＃「(?P<name>.*?)」はキャプション］)' )
     # 文字サイズ
     reMojisize = re.compile( ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
+    reMojisize2 = re.compile( ur'(［＃「(?P<name2>.+?)」は(?P<size>.+?)段階(?P<name>.+?)な文字］)')
 
     # 処理共通タグ ( </span>生成 )
     reOwari = re.compile(
@@ -522,20 +523,53 @@ class Aozora(ReaderSetting):
                         tmp = Aozora.reCTRL.search(lnbuf)
                         continue
 
-                    tmp2 = Aozora.reMojisize.match(tmp.group())
+                    tmp2 = Aozora.reMojisize2.match(tmp.group())
                     if tmp2:
-                        #   文字の大きさ
+                        #   文字の大きさ　２
+                        #   文字の大きさ　と互換性がないので、こちらを
+                        #   先に処理すること
                         if tmp2.group(u'name') == u'小さ':
                             if tmp2.group(u'size') == u'１':
                                 sSizeTmp = u'small'
                             if tmp2.group(u'size') == u'２':
                                 sSizeTmp = u'x-small'
+                            else:
+                                sSizeTmp = u'xx-small'
                         elif tmp2.group( u'size' ) == u'１':
                             sSizeTmp = u'large'
                         elif tmp2.group( u'size' ) == u'２':
                             sSizeTmp = u'x-large'
                         else:
-                            sSizeTmp = u'normal'
+                            sSizeTmp = u'xx-large'
+
+                        tmpStart,tmpEnd = self.honbunsearch(
+                                        lnbuf[:tmp.start()],tmp2.group(u'name2'))
+                        lnbuf = u'%s<span size="%s">%s</span>%s' % (
+                                    lnbuf[:tmpStart],
+                                        sSizeTmp,
+                                            lnbuf[tmpStart:tmpEnd],
+                                                lnbuf[tmp.end():] )
+                        tmp = Aozora.reCTRL.search(lnbuf)
+                        continue
+
+                    tmp2 = Aozora.reMojisize.match(tmp.group())
+                    if tmp2:
+                        #   文字の大きさ
+                        #   文字の大きさ２　と互換性がない（誤検出する）ので、
+                        #   こちらを後に処理すること
+                        if tmp2.group(u'name') == u'小さ':
+                            if tmp2.group(u'size') == u'１':
+                                sSizeTmp = u'small'
+                            if tmp2.group(u'size') == u'２':
+                                sSizeTmp = u'x-small'
+                            else:
+                                sSizeTmp = u'xx-small'
+                        elif tmp2.group( u'size' ) == u'１':
+                            sSizeTmp = u'large'
+                        elif tmp2.group( u'size' ) == u'２':
+                            sSizeTmp = u'x-large'
+                        else:
+                            sSizeTmp = u'xx-large'
                         lnbuf = u'%s<span size="%s">%s' % (
                             lnbuf[:tmp.start()], sSizeTmp, lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL.search(lnbuf)

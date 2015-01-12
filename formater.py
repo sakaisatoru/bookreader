@@ -207,7 +207,7 @@ class Aozora(ReaderSetting):
     reMidashi2owari = re.compile( ur'(［＃(ここで)??(?P<midashisize>大|中|小)見出し終わり］)' )
 
     # 改ページ・改丁・ページの左右中央
-    reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］|［＃改段］' )
+    reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］|［＃改段］|［＃改見開き］' )
 
     # 挿図
     #reFig = re.compile( ur'(［＃(?P<name>.+?)）入る］)' )
@@ -988,8 +988,10 @@ class Aozora(ReaderSetting):
                                         iCenter = 0
                                 fpPage.close()
 
-                            while self.write2file( dfile, '\n' ) != True:
-                                pass
+                            if self.linecounter != 0:
+                                # ページ先頭に出現した場合は改ページしない
+                                while self.write2file( dfile, '\n' ) != True:
+                                    pass
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue

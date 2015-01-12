@@ -573,15 +573,21 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menu_file.add(self.menuitem_quit)
         self.menuitem_file.set_submenu(self.menu_file)
 
-        """ メインメニュー - ツール
+        """ メインメニュー - ページ
         """
-        self.menuitem_tool = gtk.MenuItem( u'ツール(_T)', True )
+        self.menuitem_tool = gtk.MenuItem(u'ページ(_P)', True)
         self.menuitem_pagejump = gtk.ImageMenuItem(gtk.STOCK_JUMP_TO, self.accelgroup)
-        self.menuitem_pagejump.connect( 'activate', self.menu_pagejump_cb )
+        self.menuitem_pagejump.connect('activate', self.menu_pagejump_cb)
         self.menuitem_bookmark = gtk.MenuItem( u'しおりの管理(_L)', True)
-        self.menuitem_bookmark.connect( 'activate', self.shiori_list_cb )
+        self.menuitem_bookmark.connect('activate', self.shiori_list_cb)
+        self.menuitem_gototop = gtk.MenuItem( u'先頭(_T)', True )
+        self.menuitem_gototop.connect('activate', self.menu_gototop_cb)
+        self.menuitem_gotoend = gtk.MenuItem( u'最後(_E)', True )
+        self.menuitem_gotoend.connect('activate', self.menu_gotoend_cb)
         self.menu_tool = gtk.Menu()
         self.menu_tool.add(self.menuitem_pagejump)
+        self.menu_tool.add(self.menuitem_gototop)
+        self.menu_tool.add(self.menuitem_gotoend)
         self.menu_tool.add(self.menuitem_bookmark)
         self.menuitem_tool.set_submenu(self.menu_tool)
 
@@ -782,6 +788,16 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.page_common(int(a)-1)
         dlg.destroy()
 
+    def menu_gototop_cb( self, widget ):
+        """ 先頭ページへ
+        """
+        self.page_common( 0 )
+
+    def menu_gotoend_cb( self, widget ):
+        """ 最終ページへ
+        """
+        self.page_common( self.cc.pagecounter )
+
     def menu_logwindow_cb( self, widget ):
         """ ログファイルの表示
         """
@@ -864,16 +880,18 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
     def page_common(self, n=None):
         """ 指定されたページをUIへ表示する
+            テキストが開かれていなければ何もしない
         """
-        if n != None:
-            if n <= self.cc.pagecounter and n >= 0:
-                self.currentpage = n
+        if self.cc.sourcefile != u'':
+            if n != None:
+                if n <= self.cc.pagecounter and n >= 0:
+                    self.currentpage = n
 
-        self.cc.writepage(self.currentpage)
-        self.imagebuf.set_from_file(self.get_value(u'workingdir') + '/thisistest.png')
-        bookname,author = self.cc.get_booktitle()
-        self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
-            (bookname, author, self.currentpage+1,self.cc.pagecounter+1) )
+            self.cc.writepage(self.currentpage)
+            self.imagebuf.set_from_file(self.get_value(u'workingdir') + '/thisistest.png')
+            bookname,author = self.cc.get_booktitle()
+            self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
+                (bookname, author, self.currentpage+1,self.cc.pagecounter+1) )
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass

@@ -840,9 +840,24 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             #   既にフォーマット済みのテキストを表示する場合
             self.page_common( pagenum )
         else:
-            self.cc.do_format(fn)
+            self.cc.set_source(fn)
+            m = self.cc.countlines()
+            c = 0
+            for tmp in self.cc.formater():
+                c += 1
+                self.set_title2(None,u'読込中 %s / %s' % (c,m))
             self.page_common( pagenum )
             self.mokuji_create()
+            self.set_title2(None,'')
+
+    def set_title2(self, t, s):
+        """ ウインドウタイトルの設定の拡張
+        """
+        if t != None:
+            self.t1 = t
+        if s != None:
+            self.t2 = s
+        self.set_title( self.t1 + ' ' + self.t2 )
 
     def button_release_event_cb( self, widget, event ):
         return False
@@ -890,8 +905,9 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.cc.writepage(self.currentpage)
             self.imagebuf.set_from_file(self.get_value(u'workingdir') + '/thisistest.png')
             bookname,author = self.cc.get_booktitle()
-            self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
-                (bookname, author, self.currentpage+1,self.cc.pagecounter+1) )
+            self.set_title2(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
+                (bookname, author, self.currentpage+1,self.cc.pagecounter+1),
+                None )
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass
@@ -924,7 +940,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                                 u'<span font_desc="Sans bold 12"><span underline="low">青空文庫リーダー</span></span>')
         self.imagebuf.set_from_file(
                         '%s/.cache/aozora/thisistest.png' % self.get_homedir())
-        self.set_title(u'青空文庫リーダー')
+        self.set_title2(u'青空文庫リーダー', '')
         self.show_all()
         gtk.main()
 

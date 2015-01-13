@@ -364,6 +364,17 @@ class Aozora(ReaderSetting):
         sBookTitle = u'%s %s' % (sBookTitle, sBookTitle2 )
         return (sBookTitle, sBookAuthor)
 
+    def countlines(self, sourcefile=None ):
+        """ ファイル中の行を数える
+        """
+        if sourcefile == None:
+            sourcefile = self.sourcefile
+        with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
+            c = 0
+            for ln in f0:
+                c += 1
+        return c
+
     def formater_pass1( self, sourcefile=None ):
         """ フォーマッタ（第1パス）
             formater より呼び出されるジェネレータ。1行読み込んでもっぱら
@@ -525,13 +536,13 @@ class Aozora(ReaderSetting):
 
                     tmp2 = Aozora.reMojisize.match(tmp.group())
                     if tmp2:
-                        #   文字の大きさ　２
-                        #   文字の大きさ　と互換性がないので、こちらを
+                        #   文字の大きさ
+                        #   文字の大きさ２　と互換性がないので、こちらを
                         #   先に処理すること
                         if tmp2.group(u'name') == u'小さ':
                             if tmp2.group(u'size') == u'１':
                                 sSizeTmp = u'small'
-                            if tmp2.group(u'size') == u'２':
+                            elif tmp2.group(u'size') == u'２':
                                 sSizeTmp = u'x-small'
                             else:
                                 sSizeTmp = u'xx-small'
@@ -560,7 +571,7 @@ class Aozora(ReaderSetting):
                         if tmp2.group(u'name') == u'小さ':
                             if tmp2.group(u'size') == u'１':
                                 sSizeTmp = u'small'
-                            if tmp2.group(u'size') == u'２':
+                            elif tmp2.group(u'size') == u'２':
                                 sSizeTmp = u'x-small'
                             else:
                                 sSizeTmp = u'xx-small'
@@ -889,6 +900,7 @@ class Aozora(ReaderSetting):
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
                 for lnbuf in self.formater_pass1():
                     lnbuf = lnbuf.rstrip('\n')
+                    yield
                     """ 空行の処理
                     """
                     if len(lnbuf) == 0:
@@ -1325,7 +1337,6 @@ class Aozora(ReaderSetting):
                             #  name2 [tag] name
                             tmp2 = Aozora.reJiage.match(lnbuf)
                             if tmp2:
-                                currchars = self.charsmax
                                 sP = u'' if tmp2.group('name2') == None else tmp2.group('name2')
                                 lenP = self.linecount(sP)
                                 sN = u'' if tmp2.group('name') == None else tmp2.group('name')
@@ -1344,7 +1355,8 @@ class Aozora(ReaderSetting):
                                     # ルビ表示 地付きタグ分を取り除くこと
                                     rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2+len(tmp2.group('tag'))*2 :]
                                 else:
-                                    if lenN >= currchars or lenP >= currchars:
+                                    #if lenN >= currchars or lenP >= currchars:
+                                    if lenN >= currchars:
                                         # 地付きする文字列が1行の長さを越えている場合、通常の
                                         # 行として終わる。
                                         # 地付きはこれで良いが、字上げの場合はタグの次行繰越処理を
@@ -1353,10 +1365,15 @@ class Aozora(ReaderSetting):
                                         rubiline = rubiline[:lenP*2] + rubiline[lenP*2+len(tmp2.group('tag'))*2:]
                                         currchars = self.charsmax
                                     else:
-                                        # 収まらない場合は次行に送る
-                                        sPad = self.zenstring(u'　',currchars -lenP)
-                                        lnbuf = sP + sPad + tmp2.group('tag') + sN
-                                        rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2:]
+                                        # 収まらない場合、最終行のみ字下げする
+                                        if (lenP % self.charsmax + lenN) > currchars:
+                                            sPad = self.zenstring(u'　',self.charsmax - lenP % self.charsmax)
+                                            sPad += self.zenstring(u'　',currchars - lenN)
+                                        else:
+                                            sPad = self.zenstring(u'　',currchars -lenN - lenP % self.charsmax)
+                                        lnbuf = sP + sPad  + sN
+                                        rubiline = rubiline[:lenP*2] + sPad + sPad + rubiline[lenP*2+len(tmp2.group('tag'))*2:]
+                                        currchars = self.charsmax
 
                         #   画面上の1行で収まらなければ分割して次行を得る
                         self.ls, lnbuf, rubi2, rubiline = self.linesplit(
@@ -1596,12 +1613,6 @@ class Aozora(ReaderSetting):
                 self.linecounter = 0
                 rv = True
         return rv
-
-    def do_format(self, s):
-        """ フォーマット処理一式
-        """
-        self.set_source(s)
-        self.formater()
 
     def zentoi(self, s):
         """ 全角文字列を整数に変換する

@@ -857,7 +857,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.t1 = t
         if s != None:
             self.t2 = s
-        self.set_title( self.t1 + ' ' + self.t2 )
+        self.set_title( u'%s %s 青空文庫リーダー' % (self.t1, self.t2))
 
     def button_release_event_cb( self, widget, event ):
         return False
@@ -905,7 +905,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.cc.writepage(self.currentpage)
             self.imagebuf.set_from_file(self.get_value(u'workingdir') + '/thisistest.png')
             bookname,author = self.cc.get_booktitle()
-            self.set_title2(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
+            self.set_title2(u'【%s】 %s - %s / %s -' %
                 (bookname, author, self.currentpage+1,self.cc.pagecounter+1),
                 None )
 
@@ -940,7 +940,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                                 u'<span font_desc="Sans bold 12"><span underline="low">青空文庫リーダー</span></span>')
         self.imagebuf.set_from_file(
                         '%s/.cache/aozora/thisistest.png' % self.get_homedir())
-        self.set_title2(u'青空文庫リーダー', '')
+        self.set_title2(u'', u'')
         self.show_all()
         gtk.main()
 

@@ -125,6 +125,45 @@ class AozoraAccent():
             src = src + src1
         return src
 
+
+class AozoraTag():
+    """ 青空タグの検出　ネスティング対応版
+    """
+    def __init__(self, regex=ur'［＃.*?］'):
+        self.reTmp = re.compile(regex)
+
+    def sub_1(self, s, pos=0):
+        """ s[pos]から終わり迄、［＃ を探してインデックスを返す。
+            見つからない場合は -1 を返す。
+        """
+        try:
+            while True:
+                if s[pos:pos+2] == u'［＃':
+                    index = self.sub_1(s, pos+2)
+                    if index != -1:
+                        if s[index] == u'］':
+                            """ 例えば[# [# ] の場合、最初の[# のペアとして
+                                2番目の [# がindexとして戻るため、ここでチェ
+                                ックする。
+                            """
+                            index = pos
+                    break
+                elif s[pos] == u'］':
+                    index = pos
+                    break
+                else:
+                    pos += 1
+        except IndexError:
+            index = -1
+        return index
+
+    def search(self, s, pos=0):
+        """ re.search の代替
+        """
+        index = self.sub_1(s,pos)
+        return None if index == -1 else self.reTmp.search(s,index)
+
+
 class Aozora(ReaderSetting):
     """
     """
@@ -132,11 +171,12 @@ class Aozora(ReaderSetting):
     reFooter = re.compile( ur'(?P<type>(^(翻訳の)?底本：)|(［＃本文終わり］))' )
 
     reGaiji = re.compile( ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)' )
-    reGaiji2 = re.compile( ur'※［＃「.+?」、U\+(?P<number>[0-9A-F]+?)、(\d+?\-\d+?)］' )
+    reGaiji2 = re.compile( ur'※［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］' )
 
     reKunoji = re.compile( ur'(／＼)' )
     reGunoji = re.compile( ur'(／″＼)' )
     reCTRL = re.compile( ur'(?P<aozoratag>［＃.*?］)' )
+    reCTRL2 = AozoraTag(ur'(?P<aozoratag>［＃.*?］)') # ネスティング対応
     reNonokagi = re.compile( ur'(“(?P<name>.+?)”)' )
 
     # 傍線・傍点
@@ -480,6 +520,8 @@ class Aozora(ReaderSetting):
                 priortail = 0
                 for tmp in Aozora.reGaiji2.finditer(retline):
                     lnbuf += retline[priortail:tmp.start()]
+                    logging.debug(tmp.group())
+
                     try:
                         k = unicodedata.lookup(
                             u'CJK UNIFIED IDEOGRAPH-' + tmp.group('number'))
@@ -492,14 +534,14 @@ class Aozora(ReaderSetting):
 
                 """ ［＃　で始まるタグの処理
                 """
-                tmp = Aozora.reCTRL.search(lnbuf)
+                tmp = Aozora.reCTRL2.search(lnbuf)
                 while tmp != None:
                     if tmp.group() in Aozora.dicAozoraTag:
                         # 単純な Pango タグへの置換
                         lnbuf = lnbuf[:tmp.start()] + \
                                 Aozora.dicAozoraTag[tmp.group()] + \
                                 lnbuf[tmp.end():]
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     if Aozora.reOmit.match(tmp.group()):
@@ -507,7 +549,7 @@ class Aozora(ReaderSetting):
                         logging.info( u'未実装タグを検出: %s' % tmp.group() )
                         self.loggingflag = True
                         lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reCaption.match(tmp.group())
@@ -520,7 +562,7 @@ class Aozora(ReaderSetting):
                                     lnbuf[:tmpStart],
                                     lnbuf[tmpStart:tmpEnd],
                                     lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf,tmpStart)
+                        tmp = Aozora.reCTRL2.search(lnbuf,tmpStart)
                         continue
 
                     tmp2 = Aozora.reKogakiKatakana.match(tmp.group())
@@ -531,7 +573,7 @@ class Aozora(ReaderSetting):
                             lnbuf[:tmp.start()].rstrip(u'※'),
                             tmp2.group(u'name'),
                             lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reMojisize.match(tmp.group())
@@ -560,7 +602,7 @@ class Aozora(ReaderSetting):
                                         sSizeTmp,
                                             lnbuf[tmpStart:tmpEnd],
                                                 lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reMojisize2.match(tmp.group())
@@ -583,7 +625,7 @@ class Aozora(ReaderSetting):
                             sSizeTmp = u'xx-large'
                         lnbuf = u'%s<span size="%s">%s' % (
                             lnbuf[:tmp.start()], sSizeTmp, lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reLeftBousen.match(tmp.group())
@@ -596,14 +638,14 @@ class Aozora(ReaderSetting):
                             'single' if tmp2.group('type') == None else 'double',
                             lnbuf[tmpStart:tmpEnd],
                             lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     if Aozora.reOwari.match(tmp.group()):
                         #   </span>生成用共通処理
                         lnbuf = u'%s</span>%s' % (
                             lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reMama.match(tmp.group())
@@ -616,7 +658,7 @@ class Aozora(ReaderSetting):
                         lnbuf = u'%s｜%s《%s》%s' % (
                             reTmp.sub( u'', lnbuf[:tmp.start()]),
                             sNameTmp, tmp2.group(u'mama'), lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reRubimama.match(tmp.group())
@@ -626,7 +668,7 @@ class Aozora(ReaderSetting):
                                 lnbuf[:tmp.start()],
                                 u'(ルビママ)',
                                 lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reBouten.match(tmp.group())
@@ -645,7 +687,7 @@ class Aozora(ReaderSetting):
                                                     tmp2.group('type3') ),
                                                 len(sNameTmp)),
                                     lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     if Aozora.reBouten2.match(tmp.group()):
@@ -673,7 +715,7 @@ class Aozora(ReaderSetting):
                                         len(sNameTmp)),
                             lnbuf[tmp2.end():] )
 
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
@@ -687,7 +729,7 @@ class Aozora(ReaderSetting):
                             u'<sup>%s</sup>' % tmp2.group(u'name') if tmp2.group(u'type') == u'行右小書き' or \
                                 tmp2.group('type') == u'(上付き小文字)' else u'<sub>%s</sub>' % tmp2.group(u'name'),
                             lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reFutoji.match(tmp.group())
@@ -700,14 +742,14 @@ class Aozora(ReaderSetting):
                                     lnbuf[:tmpStart],
                                         lnbuf[tmpStart:tmpEnd],
                                             lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     if Aozora.reFutoji2.match(tmp.group()):
                         #   太字  形式2
                         lnbuf = u'%s<span font_desc="Sans bold">%s' % (
                             lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reSyatai.match(tmp.group())
@@ -720,14 +762,14 @@ class Aozora(ReaderSetting):
                                     lnbuf[:tmpStart],
                                         lnbuf[tmpStart:tmpEnd],
                                             lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     if Aozora.reSyatai2.match(tmp.group()):
                         #   斜体  形式2
                         lnbuf = u'%s<span style="italic">%s' % (
                             lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reKuntenOkuri.match(tmp.group())
@@ -738,7 +780,7 @@ class Aozora(ReaderSetting):
                             lnbuf[:tmp.start()],
                                 tmp2.group(u'name'),
                                     lnbuf[tmp.end():])
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     tmp2 = Aozora.reKaeriten.match(tmp.group())
@@ -749,11 +791,11 @@ class Aozora(ReaderSetting):
                             lnbuf[:tmp.start()],
                                 tmp2.group(u'name'),
                                     lnbuf[tmp.end():])
-                        tmp = Aozora.reCTRL.search(lnbuf)
+                        tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
                     #   上記以外のタグは後続処理に引き渡す
-                    tmp = Aozora.reCTRL.search(lnbuf,tmp.end())
+                    tmp = Aozora.reCTRL2.search(lnbuf,tmp.end())
 
 
                 if footerflag:
@@ -788,6 +830,8 @@ class Aozora(ReaderSetting):
         yield u'［＃改ページ］'
 
     def boutentype(self, t, t2, t3):
+        """ ルビ行に格納する側線の代替文字を返す
+        """
         if t2 == u'点':
             rv = Aozora.dicBouten[t] if t in Aozora.dicBouten else u'　﹅'
         elif t2 == u'線':

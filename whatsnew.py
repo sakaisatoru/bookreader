@@ -90,7 +90,6 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
             if tag == u'tr':
                 self.page.append(self.record)
                 self.record=[]
-                print u'\r\n'
             elif tag == u'td':
                 if self.nTdCount < 4:
                     self.record.append(self.sData)

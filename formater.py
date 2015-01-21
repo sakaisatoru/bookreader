@@ -424,6 +424,7 @@ class Aozora(ReaderSetting):
             sourcefile = self.sourcefile
 
         headerflag = False      # 書名以降の注釈部分を示す
+        boutoudone = False      # ヘッダ処理が終わったことを示す
         footerflag = False
         aozorastack = []        # ［＃形式タグ用のスタック
         gaijitest = gaiji()
@@ -437,17 +438,15 @@ class Aozora(ReaderSetting):
                     とりあえずばっさりと削除する
                 """
                 if Aozora.sHeader == lnbuf:
-                    if headerflag == False:
-                        headerflag = True
-                        yield u'［＃改ページ］\n'
-                    else:
-                        headerflag = False
+                    headerflag = False if headerflag else True
                     continue
                 if headerflag == True:
                     continue
 
+                """ 前の行で閉じていなかった青空タグがあれば
+                    復元する
+                """
                 if aozorastack != []:
-                    # 前の行で閉じていなかった青空タグを復元する
                     while True:
                         try:
                             lnbuf = aozorastack.pop() + lnbuf
@@ -455,10 +454,14 @@ class Aozora(ReaderSetting):
                             break
                     aozorastack = []
 
-                """空行の処理
+                """ 空行及び冒頭の処理
                 """
                 if len(lnbuf) == 0:
-                    yield u'\n'
+                    if boutoudone:
+                        yield u'\n'
+                    else:
+                        boutoudone = True
+                        yield u'［＃改ページ］\n'
                     continue
 
                 """ アクセント分解 & を処理するので xml.sax より前に呼ぶこと
@@ -820,14 +823,14 @@ class Aozora(ReaderSetting):
                 yield u'%s\n' % lnbuf
 
         """ 最初の1ページ目に作品名・著者名を左右中央で表示するため、
-            最初に［＃ページの左右中央］を出力している。これを閉じるのは、
-            ［＃改ページ］あるいは［＃改丁］であり、ヘッダ遭遇時に出力して
-            いる。しかし、独自構成テキスト等でヘッダの検出に失敗した場合、
-            本文処理に遷移しないまま処理が終了してしまう。このため、ダミー
-            としてここで出力しておく。
-            なお、副作用として独自構成テキストでは目次が作成されない。
+            最初に［＃ページの左右中央］を出力している。最初の空行出現時に
+            これを閉じている。
+            このため、冒頭からまったく空行のないテキストだと、本文処理に遷移
+            しないまま処理が終了してしまう。そのためここで出力する。
+            なお、副作用として目次は作成されない。
         """
-        yield u'［＃改ページ］'
+        if boutoudone == False:
+            yield u'［＃改ページ］'
 
     def boutentype(self, t, t2, t3):
         """ ルビ行に格納する側線の代替文字を返す
@@ -998,7 +1001,6 @@ class Aozora(ReaderSetting):
                                 self.loggingflag = True
                                 logging.info(
                                     u'画像ファイル %s の読み出しに失敗しました。' % fname )
-                                #self.write2file( dfile, '\n' )
                                 retline += lnbuf[priortail:tmp.start()]
                                 priortail = tmp.end()
                                 continue
@@ -1013,8 +1015,10 @@ class Aozora(ReaderSetting):
 
                             tmpWidth = int(round(figwidth * tmpRasioW,0))
 
-                            figspan = int(round(float(tmpWidth)/float(self.get_value(u'linewidth'))+0.5,0))
-                            if self.linecounter + figspan >= int(self.get_value(u'lines')):
+                            figspan = int(round(float(tmpWidth) / \
+                                    float(self.get_value(u'linewidth'))+0.5,0))
+                            if self.linecounter + figspan >= \
+                                                int(self.get_value(u'lines')):
                                 # 画像がはみ出すようなら改ページする
                                 while self.write2file( dfile, '\n' ) != True:
                                     pass
@@ -1727,16 +1731,19 @@ class CairoCanvas(Aozora):
                     if matchFig != None:
                         # 挿図処理
                         try:
-                            img = cairo.ImageSurface.create_from_png(os.path.join(self.get_value(u'aozoracurrent'), matchFig.group('filename')))
+                            img = cairo.ImageSurface.create_from_png(
+                                    os.path.join(self.get_value(u'aozoracurrent'),
+                                    matchFig.group('filename')) )
                         except cairo.Error, m:
                             logging.error( u'挿図処理中 %s %s/%s' % (
                                                 m,
                                                 self.get_value(u'aozoracurrent'),
-                                                matchFig.group('filename')  ))
+                                                matchFig.group('filename')) )
 
                         context = cairo.Context(self.sf)
                         # 単にscaleで画像を縮小すると座標系全てが影響を受ける
-                        context.scale(float(matchFig.group('rasio')), float(matchFig.group('rasio')))
+                        context.scale(float(matchFig.group('rasio')),
+                                                float(matchFig.group('rasio')) )
                         context.set_source_surface(img,
                                 round((xpos + int(matchFig.group('lines'))/2 - \
                                    ((int(matchFig.group('lines')) * \
@@ -1749,8 +1756,10 @@ class CairoCanvas(Aozora):
                                 xpos,
                                 self.canvas_topmargin,
                                 '<span font_desc="%s %d">%s</span><span font_desc="%s %d">%s</span>' % (
-                                    self.get_value(u'fontname'), self.canvas_rubisize, sRubiline,
-                                        self.get_value(u'fontname'), self.canvas_fontsize, s0 )  ,
+                                        self.get_value(u'fontname'),
+                                        self.canvas_rubisize, sRubiline,
+                                        self.get_value(u'fontname'),
+                                        self.canvas_fontsize, s0 ),
                                 self.canvas_fontsize )
                     xpos -= self.canvas_linewidth
         self.pagefinish()
@@ -1773,10 +1782,13 @@ class CairoCanvas(Aozora):
 
         """ 表示フォントの設定
         """
-        self.font = pango.FontDescription(u'%s %s' % (self.get_value( u'fontname' ),
-                                                self.get_value(u'fontsize')))
-        self.font_rubi = pango.FontDescription(u'%s %s' % (self.get_value( u'fontname' ),
-                    str(-1+int(round(int(self.get_value(u'fontsize'))/2-0.5)))))
+        self.font = pango.FontDescription(u'%s %s' % (
+                                        self.get_value( u'fontname' ),
+                                        self.get_value(u'fontsize')) )
+        self.font_rubi = pango.FontDescription(u'%s %d' % (
+                            self.get_value( u'fontname' ),
+                            int(round(int(
+                                    self.get_value(u'fontsize'))/2-0.5))-1) )
         """ 画面クリア
         """
         context = cairo.Context(self.sf)
@@ -1799,8 +1811,11 @@ class CairoCanvas(Aozora):
         """
         # cairo コンテキストの作成と初期化
         context = cairo.Context(self.sf)
-        context.set_antialias(cairo.ANTIALIAS_GRAY)
-        context.set_antialias(cairo.ANTIALIAS_SUBPIXEL)
+        #context.set_antialias(cairo.ANTIALIAS_GRAY)
+        #context.set_antialias(cairo.ANTIALIAS_SUBPIXEL)
+        context.set_antialias(cairo.ANTIALIAS_DEFAULT)
+        # cairo 1.12 以降 FAST, GOOD, BEST(未確認)
+        #context.set_antialias(cairo.ANTIALIAS_BEST)
         context.set_source_rgb(self.fontR,self.fontG,self.fontB) # 描画色
 
         # pangocairo の コンテキストをcairoコンテキストを元に作成

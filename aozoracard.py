@@ -492,5 +492,8 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         return (self.ack, self.lastselectfile)
 
 
+if __name__ == '__main__':
+    a = AuthorList()
+    a.run()
 
 

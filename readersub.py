@@ -40,17 +40,24 @@ import gobject
 class Download():
     """ 作品ファイルダウンロード下請け
 
-            テキストファイルへのリンクURLが . で始まる場合は青空文庫URL内とみなして
-            URLを合成、httpで始まる場合は外部サイトへのリンクとしてそのままURLを
-            用いる。
+            テキストファイルへのリンクURLが . で始まる場合は
+            青空文庫URL内とみなしてURLを合成、httpで始まる場合は
+            外部サイトへのリンクとしてそのままURLを用いる。
     """
     def __init__(self):
         pass
 
-    def selected_book(self, url):
+    def selected_book(self, url, chklocal=True):
         """ 指定したURLにアクセスしてダウンロードを試みる。
             (True,最後に展開したファイル名) を返す。
             エラーの場合は (False, エラーメッセージ)を返す。
+
+            2014/01/20
+                chklocal 追加
+                Trueであれば、ローカルの青空ディレクトリに同名ファイルが
+                存在しないかチェックし、ダウンロードの是非を問う。
+
+                ファイルの展開先を /tmp へ変更。
         """
         readcodecs = 'UTF-8'
         reTarget = re.compile( ur'.+?<td><a href="(?P<TARGETFILE>.+?.zip)">.+?.zip</a></td>' )
@@ -61,7 +68,8 @@ class Download():
         try:
             urllib.urlretrieve(url, sTmpfile)
         except IOError:
-            return (False, u'ダウンロードできません。ネットワークへの接続状況を確認してください。')
+            return (False, u'ダウンロードできません。' + \
+                            u'ネットワークへの接続状況を確認してください。')
 
         with codecs.open( sTmpfile, 'r', readcodecs ) as f0:
             for line in f0:
@@ -69,27 +77,49 @@ class Download():
                 if mTmp != None:
                     flag = True
                     sTarget = mTmp.group( u'TARGETFILE' )
-                    sLocalfilename = u'%s/%s' % (self.get_value(u'aozoradir'),os.path.basename(sTarget))
                     if sTarget.split(u':')[0].lower() == u'http':
                         sTargetURL = sTarget
                     else:
                         sTargetURL = u'%s/%s' % (os.path.dirname(url),sTarget)
 
+                    sLocalfilename = u'%s/%s' % (
+                        self.get_value(u'aozoradir'),os.path.basename(sTarget))
+
+                    isDownload = gtk.RESPONSE_YES
+                    if chklocal and os.path.isfile(sLocalfilename):
+                        """ ローカルにアーカイブが既存する場合は、
+                            問い合わせる。
+                        """
+                        tmpdlg = AozoraDialog()
+                        isDownload = tmpdlg.msgyesno( u'既にダウンロード' + \
+                                        u'されています。上書きしますか？')
                     try:
-                        urllib.urlretrieve( sTargetURL, sLocalfilename)
+                        if isDownload == gtk.RESPONSE_YES:
+                            urllib.urlretrieve( sTargetURL, sLocalfilename)
                     except IOError:
-                        return (False, u'ダウンロードできません。ネットワークへの接続状況を確認してください。' )
+                        return (False, u'ダウンロードできません。' + \
+                            u'ネットワークへの接続状況を確認してください。' )
 
                     try:
                         a = zipfile.ZipFile( sLocalfilename, u'r' )
-                        b = a.namelist()
                         a.extractall( self.get_value(u'aozoradir'))
-                        lastselectfile = u'%s/%s' % (self.get_value(u'aozoradir'), b[0] )
+                        for b in a.namelist():
+                            if os.path.split(b)[1].split(u'.')[1] == 'txt':
+                                lastselectfile = u'%s/%s' % (
+                                    self.get_value(u'aozoradir'), b )
+                                break
+                        else:
+                            return (False, u'アーカイブを' + \
+                                            u'展開しましたがテキスト' + \
+                                            u'ファイルが含まれていません。')
                     except:
-                        return (False, u'ファイルの展開時にエラーが発生しました。ディスク容量等を確認してください。')
+                        return (False, u'ファイルの展開時にエラーが発生' + \
+                                        u'しました。ディスク容量等を確認' + \
+                                        u'してください。')
 
         if flag != True:
-            return (False, u'ダウンロードできません。この作品はルビありテキストファイルで登録されていません。' )
+            return (False, u'ダウンロードできません。この作品はルビあり' + \
+                            u'テキストファイルで登録されていません。' )
 
         return (True, lastselectfile)
 
@@ -100,7 +130,7 @@ class AozoraDialog():
     def __init__(self):
         pass
 
-    def msgerrinfo( self, s ):
+    def msgerrinfo(self, s):
         """ エラーダイアログ
         """
         dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
@@ -109,7 +139,7 @@ class AozoraDialog():
         dlg.run()
         dlg.destroy()
 
-    def msginfo( self, s ):
+    def msginfo(self, s):
         """ メッセージダイアログ
         """
         dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
@@ -117,6 +147,14 @@ class AozoraDialog():
         dlg.set_position(gtk.WIN_POS_CENTER)
         dlg.run()
         dlg.destroy()
+
+    def msgyesno(self, s):
+        dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
+                gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, s )
+        dlg.set_position(gtk.WIN_POS_CENTER)
+        rv = dlg.run()
+        dlg.destroy()
+        return rv
 
 
 class ReaderSetting():
@@ -171,7 +209,8 @@ class ReaderSetting():
                                 u'scrnheight':u'448',
                                 u'scrnwidth':u'740',
                                 u'topmargin':u'8',
-                                u'workingdir':u''
+                                u'workingdir':u'',
+                                u'tmpdir':u'/tmp/aozora'
                             }
         self.settingfile = os.path.join(self.dicSetting[u'settingdir'], 'aozora.conf')
         self.checkdir(self.dicSetting[u'settingdir'])

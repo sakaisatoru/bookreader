@@ -98,6 +98,8 @@
     開発履歴
     ２０１５年１月
         既存のバグ
+        ・２４００行を越えるテキストを読み込ませると、RAMが残っているにも関わらず
+        　スワップを見に行って戻ってこなくなります。
         ・アクセント分解用に予約したため、本文中の〔〕は表示されません。
         ・Pango 1.36 において、一部のタグ使用時にGravity が解除されるバグ。
         ・同一文字に複数のタグがかかると正常に表示されないバグ。
@@ -105,6 +107,14 @@
         　UnicodeDecodeError: 'shift_jis' codec can't decode bytes in
         　position 35-36: illegal multibyte sequence
         ・モジュール設計が適当過ぎて酷いので後日修正予定。
+
+    ２０１５年１月２５日
+        ・画面設定変更直後からの再起動を追加。
+        ・'%s/%s' % (dir, file) を os.path.join(dir,file) に変更。（URLは除く)
+        ・ルビ行のフォントサイズが本文行の半分に固定されていたバグを修正。
+        ・hogehoge［＃「hogehoge」はホニャララ］形式のタグ処理にて、hogehoge
+        　の前方参照に失敗することがあるバグを修正。
+        　前方の hogehoge が hogehoge foo の場合、無限ループに陥っていました。
 
     ２０１５年１月２２日
         ・文字描画の設定をcairo.ANTIALIAS_DEFAULTに変更。

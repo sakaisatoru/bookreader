@@ -314,7 +314,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         reAuthorList = re.compile( ur'.*?<li><a href=\"(?P<URL>.+?)\">.*?(?P<AUTHOR>.+?)</a>.*?公開中：(?P<BOOKS>\d+).*?</li>' )
 
         url = u'%s/person_%s.html' % ( self.AOZORA_URL,  a )
-        filename = u'%s/person_%s.html' % (self.get_value(u'workingdir'), a)
+        filename = os.path.join(self.get_value(u'workingdir'), u'person_%s.html' % a)
         if os.path.exists(filename) == False:
             try:
                 urllib.urlretrieve(url, filename)
@@ -345,7 +345,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
 
         filename = a.split(u'#')[0]
         url = u'%s/%s' % (self.AOZORA_URL,filename)
-        filename = u'%s/%s' % (self.get_value(u'workingdir'), filename)
+        filename = os.path.join(self.get_value(u'workingdir'), filename)
         if os.path.exists(filename) == False:
             try:
                 urllib.urlretrieve(url, filename)
@@ -403,7 +403,8 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         f = False
         iters = [c.get_iter(p) for p in d]
         for i in iters:
-            (f, sMes) = self.selected_book( u'%s/%s' % ( self.AOZORA_URL, c.get_value(i, 2)) )
+            (f, sMes) = self.selected_book(u'%s/%s' %
+                                        (self.AOZORA_URL, c.get_value(i, 2)) )
             if f == False:
                 self.msgerrinfo( sMes )
             else:

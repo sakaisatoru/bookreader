@@ -458,25 +458,10 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         self.add(self.vbox5)
         self.set_size_request(384, 320)
-
         self.connect('delete_event', self.delete_event_cb)
 
         self.rv = False
 
-
-    def fontsel_cb(self, widget):
-        """ 本文とルビのフォント名の同期をとる
-        """
-        s = widget.get_font_name().rstrip( u' 0123456789' )
-        s = s + u' ' + self.rubifontsel.get_font_name().split(u' ')[-1]
-        self.rubifontsel.set_font_name(s)
-
-    def rubifontsel_cb(self, widget):
-        """ 本文とルビのフォント名の同期をとる
-        """
-        s = widget.get_font_name().rstrip( u' 0123456789' )
-        s = s + u' ' + self.fontsel.get_font_name().split(u' ')[-1]
-        self.fontsel.set_font_name(s)
 
     def exitall(self):
         self.hide_all()
@@ -485,6 +470,24 @@ class ScreenSetting(gtk.Window, ReaderSetting):
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()
 
+    def fontsel_cb(self, widget):
+        """ 本文とルビのフォント名の同期をとる
+        """
+        fontsize = round(float(self.rubifontsel.get_font_name().lstrip(
+                    self.rubifontsel.get_font_name().rstrip(u'.0123456789'))),
+                    1 )
+        fontname = widget.get_font_name().rstrip( u'.0123456789' ).lstrip(u' ')
+        self.rubifontsel.set_font_name(u'%s %s' % (fontname,fontsize))
+
+    def rubifontsel_cb(self, widget):
+        """ 本文とルビのフォント名の同期をとる
+        """
+        fontsize = round(float(self.fontsel.get_font_name().lstrip(
+                        self.fontsel.get_font_name().rstrip(u'.0123456789'))),
+                        1)
+        fontname = widget.get_font_name().rstrip( u'.0123456789' ).lstrip(u' ')
+        self.fontsel.set_font_name(u'%s %s' % (fontname,fontsize))
+
     def clicked_btnOk_cb(self, widget):
         for bt in self.radiobtn:
             """ 解像度のラジオボタンの処理
@@ -492,9 +495,13 @@ class ScreenSetting(gtk.Window, ReaderSetting):
             if bt.get_active() == True:
                 self.set_value(u'resolution', bt.get_label())
                 break
-        self.set_value(u'fontname',     self.fontsel.get_font_name().rstrip(' 1234567890') )
-        self.set_value(u'fontsize',     str(self.fontsel.get_font_name().split(' ')[-1]))
-        self.set_value(u'rubifontsize', str(self.rubifontsel.get_font_name().split(' ')[-1]))
+
+        fontname = self.fontsel.get_font_name().rstrip('.1234567890')
+        self.set_value(u'fontname', fontname.strip(u' '))
+        self.set_value(u'fontsize','%s' % round(float(
+                        self.fontsel.get_font_name().lstrip(fontname)),1))
+        self.set_value(u'rubifontsize', '%s' % round(float(
+                        self.rubifontsel.get_font_name().lstrip(fontname)),1))
         self.set_value(u'topmargin',    str(int(self.topmargin.get_value())))
         self.set_value(u'bottommargin', str(int(self.bottommargin.get_value())))
         self.set_value(u'leftmargin',   str(int(self.leftmargin.get_value())))
@@ -522,13 +529,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     """ メインウィンドウ
     """
     def __init__(self):
+        """
+        """
         gtk.Window.__init__(self)
         ReaderSetting.__init__(self)
         AozoraDialog.__init__(self)
 
+        # フラグ類
+        self.isRestart = False
+        self.isBookopened = False
+
         # logging 設定
         logging.basicConfig(
-            filename=u'%s/aozora.log' % self.dicSetting[u'workingdir'],
+            filename=os.path.join(self.dicSetting[u'workingdir'],u'aozora.log'),
             filemode='w',
             format = '%(levelname)s in %(filename)s : %(message)s',
             level=logging.DEBUG )
@@ -536,15 +549,16 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
         """ 読書履歴
         """
-        self.bookhistory = History(u'%s/history.txt' % self.dicSetting[u'settingdir'])
+        self.bookhistory = History(os.path.join(self.dicSetting[u'settingdir'],
+                                                            u'history.txt' ))
         self.menuitem_history = []
         count = 1
         for item in self.bookhistory.iter():
-            self.menuitem_history.append(
-                        gtk.MenuItem('_%d: %s' % (count,item.split(',')[0]),True) )
+            self.menuitem_history.append(gtk.MenuItem('_%d: %s' %
+                                            (count, item.split(',')[0]),True) )
+            self.menuitem_history[-1].connect('activate',
+                                                    self.menu_historyopen_cb)
             count += 1
-        for item in self.menuitem_history:
-            item.connect('activate', self.menu_historyopen_cb)
 
         """ アクセラレータ
         """
@@ -561,7 +575,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menuitem_whatsnew = gtk.MenuItem(u'青空文庫新着情報(_N)', True )
         self.menuitem_whatsnew.connect('activate', self.whatsnew_cb )
         self.menuitem_quit = gtk.ImageMenuItem(gtk.STOCK_QUIT, self.accelgroup)
-        self.menuitem_quit.connect('activate', self.exitall )
+        self.menuitem_quit.connect('activate', self.menu_quit )
         self.menu_file = gtk.Menu()
         self.menu_file.add(self.menuitem_open)
         self.menu_file.add(self.menuitem_download)
@@ -576,7 +590,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ メインメニュー - ページ
         """
         self.menuitem_tool = gtk.MenuItem(u'ページ(_P)', True)
-        self.menuitem_pagejump = gtk.ImageMenuItem(gtk.STOCK_JUMP_TO, self.accelgroup)
+        self.menuitem_pagejump = gtk.ImageMenuItem(gtk.STOCK_JUMP_TO,
+                                                            self.accelgroup)
         self.menuitem_pagejump.connect('activate', self.menu_pagejump_cb)
         self.menuitem_bookmark = gtk.MenuItem( u'しおりの管理(_L)', True)
         self.menuitem_bookmark.connect('activate', self.shiori_list_cb)
@@ -599,7 +614,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ メインメニュー - 設定
         """
         self.menuitem_fontselect = gtk.MenuItem( u'フォント(_F)', True )
-        self.menuitem_fontselect = gtk.ImageMenuItem( gtk.STOCK_SELECT_FONT, self.accelgroup )
+        self.menuitem_fontselect = gtk.ImageMenuItem( gtk.STOCK_SELECT_FONT,
+                                                            self.accelgroup )
         self.menuitem_fontselect.connect( 'activate', self.menu_fontselect_cb )
 
         self.menuitem_setting = gtk.MenuItem( u'設定(_S)', True )
@@ -629,10 +645,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
         """ ポップアップメニュー
         """
-        self.pmenu_book_do = gtk.MenuItem( u'このページにしおりを挟む(_S)', True)
-        self.pmenu_book_do.connect( 'activate', self.shiori_here_cb )
+        self.pmenu_book_do = gtk.MenuItem(u'このページにしおりを挟む(_S)', True)
+        self.pmenu_book_do.connect('activate', self.shiori_here_cb )
         self.pmenu_book_list = gtk.MenuItem( u'しおりの管理(_L)', True)
-        self.pmenu_book_list.connect( 'activate', self.shiori_list_cb )
+        self.pmenu_book_list.connect('activate', self.shiori_list_cb )
         self.popupmenu_bookmark = gtk.Menu()
         self.popupmenu_bookmark.append(self.pmenu_book_do)
         self.popupmenu_bookmark.append(self.pmenu_book_list)
@@ -643,7 +659,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.cc = CairoCanvas()
         self.imagebuf = gtk.Image()
         self.ebox = gtk.EventBox()
-        self.ebox.add(self.imagebuf)    # image がイベントを見ないのでeventboxを使う
+        self.ebox.add(self.imagebuf) # image がイベントを見ないのでeventboxを使う
         self.ebox.connect('button-press-event', self.button_press_event_cb )
         self.ebox.connect('button-release-event', self.button_release_event_cb )
 
@@ -763,10 +779,12 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """
         dlg = ScreenSetting()
         if dlg.run() == True:
-            self.msginfo( u'変更した設定は再起動後に反映されます。' )
-            #self.cc.resize()
+            if self.msgyesno( u'設定を反映するには再起動が必要です。' + \
+                            u'今すぐ再起動しますか？' ) == gtk.RESPONSE_YES:
+                self.isRestart = True
         dlg.destroy()
-
+        if self.isRestart:
+            self.exitall()
 
     def menu_pagejump_cb( self, widget ):
         """ ページ指定ジャンプ
@@ -820,6 +838,9 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         (nm, pg, fn) = self.bookhistory.get_item(i).split(u',')
         self.bookopen(fn, int(pg))
 
+    def menu_quit(self,widget,data=None):
+        self.exitall()
+
     def menu_fileopen_cb( self, widget ):
         self.menu_fileopen()
 
@@ -846,7 +867,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             for tmp in self.cc.formater():
                 c += 1
                 self.set_title2(None,u'読込中 %s / %s' % (c,m))
-            self.page_common( pagenum )
+            self.page_common(pagenum)
             self.mokuji_create()
             self.set_title2(None,'')
 
@@ -919,32 +940,58 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         return False
 
     def delete_event_cb(self, widget, event, data=None):
-        self.exitall(widget, None )
+        self.exitall()
 
-    def exitall(self, widget, data=None ):
+    def exitall(self, data=None ):
         logging.shutdown()
         #   現在読んでいる本を履歴に保存する
         bookname,author = self.cc.get_booktitle()
         if bookname != u'':
             self.bookhistory.update( u'%s,%d,%s' %
                 (bookname, self.currentpage,self.cc.sourcefile) )
+            self.isBookopened = True # テキストを開いていた場合
         self.bookhistory.save()
         self.hide_all()
         gtk.main_quit()
 
-    def run(self):
+    def run(self, restart=False, opened=False):
         """ エントリー
+            再起動フラグ及びテキストを開いていたかどうかを返す
         """
-        self.currentpage = 0
-        self.cc.write_a_line(u'<span font_desc="Sans bold 6">あおぞらぶんこ</span>\n' +
-                                u'<span font_desc="Sans bold 12"><span underline="low">青空文庫リーダー</span></span>')
-        self.imagebuf.set_from_file(
-                        '%s/.cache/aozora/thisistest.png' % self.get_homedir())
         self.set_title2(u'', u'')
+        while restart:
+            """ 再起動時の処理
+            """
+            if opened and len(self.menuitem_history):
+                self.menu_historyopen_cb(self.menuitem_history[0])
+                break
+            else:
+                restart = False
+        else:
+            self.cc.pageinit()
+            self.cc.writepageline(self.cc.canvas_width / 2, 48,
+                    u'<span font_desc="Sans bold 6">あおぞらぶんこ</span>\n' +
+                    u'<span font_desc="Sans bold 12">青空文庫リーダー</span>')
+            self.cc.pagefinish()
+            self.currentpage = 0
+            self.imagebuf.set_from_file(
+                os.path.join(self.get_value(u'workingdir'), 'thisistest.png' ))
         self.show_all()
         gtk.main()
+        return self.isRestart, self.isBookopened
 
 
 if __name__ == '__main__':
-    ui = ReaderUI()
-    ui.run()
+    restart = False
+    book = False
+    while True:
+        ui = ReaderUI()
+        restart, book = ui.run(restart, book)
+        ui.destroy()
+        del ui
+        if not restart:
+            break
+
+
+
+

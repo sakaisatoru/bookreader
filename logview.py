@@ -49,7 +49,8 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
         ReaderSetting.__init__(self)
         AozoraDialog.__init__(self)
 
-        self.logfilename = u'%s/aozora.log' % self.get_value(u'workingdir')
+        self.logfilename = os.path.join(self.get_value(u'workingdir'),
+                                                                u'aozora.log' )
 
         # アクセラレータ
         self.accelgroup = gtk.AccelGroup()

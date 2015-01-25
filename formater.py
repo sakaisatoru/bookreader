@@ -538,6 +538,7 @@ class Aozora(ReaderSetting):
                 """ ［＃　で始まるタグの処理
                 """
                 tmp = Aozora.reCTRL2.search(lnbuf)
+
                 while tmp != None:
                     if tmp.group() in Aozora.dicAozoraTag:
                         # 単純な Pango タグへの置換
@@ -561,9 +562,10 @@ class Aozora(ReaderSetting):
                         #   暫定処理：小文字で表示
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span size="smaller">%s</span>%s' % (
+                        lnbuf = u'%s<span size="smaller">%s</span>%s%s' % (
                                     lnbuf[:tmpStart],
                                     lnbuf[tmpStart:tmpEnd],
+                                    lnbuf[tmpEnd:tmp.start()],
                                     lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL2.search(lnbuf,tmpStart)
                         continue
@@ -600,10 +602,11 @@ class Aozora(ReaderSetting):
 
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name2'))
-                        lnbuf = u'%s<span size="%s">%s</span>%s' % (
+                        lnbuf = u'%s<span size="%s">%s</span>%s%s' % (
                                     lnbuf[:tmpStart],
                                         sSizeTmp,
                                             lnbuf[tmpStart:tmpEnd],
+                                            lnbuf[tmpEnd:tmp.start()],
                                                 lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
@@ -636,10 +639,11 @@ class Aozora(ReaderSetting):
                         #   左に（二重）傍線
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span underline="%s">%s</span>%s' % (
+                        lnbuf = u'%s<span underline="%s">%s</span>%s%s' % (
                             lnbuf[:tmpStart],
                             'single' if tmp2.group('type') == None else 'double',
                             lnbuf[tmpStart:tmpEnd],
+                            lnbuf[tmpEnd:tmp.start()],
                             lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
@@ -741,9 +745,10 @@ class Aozora(ReaderSetting):
                         #   pango のタグを流用
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span font_desc="Sans bold">%s</span>%s' % (
+                        lnbuf = u'%s<span font_desc="Sans bold">%s</span>%s%s' % (
                                     lnbuf[:tmpStart],
                                         lnbuf[tmpStart:tmpEnd],
+                                        lnbuf[tmpEnd:tmp.start()],
                                             lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
@@ -755,15 +760,17 @@ class Aozora(ReaderSetting):
                         tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
 
+
                     tmp2 = Aozora.reSyatai.match(tmp.group())
                     if tmp2:
                         #   斜体
                         #   pango のタグを流用
                         tmpStart,tmpEnd = self.honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span style="italic">%s</span>%s' % (
+                        lnbuf = u'%s<span style="italic">%s</span>%s%s' % (
                                     lnbuf[:tmpStart],
                                         lnbuf[tmpStart:tmpEnd],
+                                        lnbuf[tmpEnd:tmp.start()],
                                             lnbuf[tmp.end():] )
                         tmp = Aozora.reCTRL2.search(lnbuf)
                         continue
@@ -800,7 +807,6 @@ class Aozora(ReaderSetting):
                     #   上記以外のタグは後続処理に引き渡す
                     tmp = Aozora.reCTRL2.search(lnbuf,tmp.end())
 
-
                 if footerflag:
                     """ フッタにおける年月日を漢数字に置換
                     """
@@ -817,11 +823,9 @@ class Aozora(ReaderSetting):
 
                     ln += lnbuf[priortail:]
                     lnbuf = ln
-
                 """ 処理の終わった行を返す
                 """
                 yield u'%s\n' % lnbuf
-
         """ 最初の1ページ目に作品名・著者名を左右中央で表示するため、
             最初に［＃ページの左右中央］を出力している。最初の空行出現時に
             これを閉じている。
@@ -849,11 +853,12 @@ class Aozora(ReaderSetting):
         return rv
 
     def honbunsearch(self, honbun, name):
-        """ 本文中に出現する name を検索し、
-            その出現範囲を返す。
+        """ 本文中に出現する name を検索し、その出現範囲を返す。
             name との比較に際して
                 ルビ、<tag></tag>、［］は無視される。
             比較は行末から行頭に向かって行われることに注意。
+            見つからなければ start とend に同じ値を返す。
+            配列添字に使えばヌル文字となる。
         """
         start = -1
         end = -1
@@ -892,9 +897,18 @@ class Aozora(ReaderSetting):
                         end = pos
                     start = pos
                     l -= 1
-                    continue
+                    if l == 0:
+                        # match
+                        break
                 else:
-                    break
+                    # mismatch の場合はその位置から照合しなおす
+                    l = len(name)
+                    end = -1
+        else:
+            # non match
+            start = -1
+            end = -2
+
         if end > -1:
             # 検出した文字列の直後にルビが続くなら文字列を拡張して返す
             # ルビが閉じていなければ拡張しない
@@ -1112,6 +1126,7 @@ class Aozora(ReaderSetting):
                             if self.sMidashiSize == u'大':
                                 retline += u' size="larger"'
                             retline += u'>%s</span>' % lnbuf[tmpStart:tmpEnd]
+                            retline += lnbuf[tmpEnd:tmp.start()]
                             priortail = tmp.end()
                             continue
 
@@ -1644,7 +1659,6 @@ class Aozora(ReaderSetting):
                         self.pagecounter +1))
                     self.inMidashi = False
 
-
         if self.loggingflag:
             logging.debug( u'　位置：%dページ、%d行目' % (
                                     self.pagecounter+1,self.linecounter+1 ))
@@ -1652,6 +1666,7 @@ class Aozora(ReaderSetting):
 
         fd.write(rubiline)  # 右ルビ行
         fd.write(s)         # 本文
+        fd.flush()
         if self.countpage:
             self.linecounter += 1
             if self.linecounter >= self.pagelines:
@@ -1689,10 +1704,9 @@ class Aozora(ReaderSetting):
 class CairoCanvas(Aozora):
     """ cairo / pangocairo を使って文面を縦書きする
     """
-    def __init__(self):#, resolution = u'XGA'):
+    def __init__(self):
         Aozora.__init__(self)
         self.resize()
-
         # 文字色の分解
         (self.fontR,self.fontG,self.fontB)=self.convcolor(
                                                 self.get_value(u'fontcolor'))
@@ -1702,8 +1716,8 @@ class CairoCanvas(Aozora):
         self.canvas_height = int(self.get_value( u'scrnheight'))
         self.canvas_topmargin = int(self.get_value( u'topmargin'))
         self.canvas_rightmargin = int(self.get_value( u'rightmargin' ))
-        self.canvas_fontsize = int(self.get_value( u'fontsize' ))
-        self.canvas_rubisize = int(self.get_value( u'rubifontsize' ))
+        self.canvas_fontsize = float(self.get_value( u'fontsize' ))
+        self.canvas_rubisize = float(self.get_value( u'rubifontsize' ))
         self.canvas_linewidth = int(self.get_value(u'linewidth'))
         self.canvas_rubispan = int(self.get_value(u'rubiwidth'))
         self.canvas_fontname = self.get_value(u'fontname')
@@ -1735,10 +1749,10 @@ class CairoCanvas(Aozora):
                                     os.path.join(self.get_value(u'aozoracurrent'),
                                     matchFig.group('filename')) )
                         except cairo.Error, m:
-                            logging.error( u'挿図処理中 %s %s/%s' % (
-                                                m,
-                                                self.get_value(u'aozoracurrent'),
-                                                matchFig.group('filename')) )
+                            logging.error( u'挿図処理中 %s %s' % (
+                                m,
+                                os.path.joiin(self.get_value(u'aozoracurrent'),
+                                                matchFig.group('filename')) ))
 
                         context = cairo.Context(self.sf)
                         # 単にscaleで画像を縮小すると座標系全てが影響を受ける
@@ -1753,23 +1767,14 @@ class CairoCanvas(Aozora):
                         context.paint()
                     else:
                         self.writepageline(
-                                xpos,
-                                self.canvas_topmargin,
-                                '<span font_desc="%s %d">%s</span><span font_desc="%s %d">%s</span>' % (
-                                        self.get_value(u'fontname'),
-                                        self.canvas_rubisize, sRubiline,
-                                        self.get_value(u'fontname'),
-                                        self.canvas_fontsize, s0 ),
-                                self.canvas_fontsize )
+                            xpos,
+                            self.canvas_topmargin,
+                            '<span font_desc="%s %s">%s</span><span font_desc="%s %s">%s</span>' % (
+                                    self.get_value(u'fontname'),
+                                    self.canvas_rubisize, sRubiline,
+                                    self.get_value(u'fontname'),
+                                    self.canvas_fontsize, s0 ) )
                     xpos -= self.canvas_linewidth
-        self.pagefinish()
-
-    def write_a_line(self, s):
-        """ 画面中央に1行表示する
-            スタートアップ用
-        """
-        self.pageinit()
-        self.writepageline(self.canvas_width / 2, 48, s )
         self.pagefinish()
 
     def pageinit(self):
@@ -1777,18 +1782,15 @@ class CairoCanvas(Aozora):
         """
         # キャンバスの確保
         self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
-                                        self.canvas_width,
-                                        self.canvas_height)
-
+                                        self.canvas_width, self.canvas_height)
         """ 表示フォントの設定
         """
         self.font = pango.FontDescription(u'%s %s' % (
                                         self.get_value( u'fontname' ),
                                         self.get_value(u'fontsize')) )
-        self.font_rubi = pango.FontDescription(u'%s %d' % (
-                            self.get_value( u'fontname' ),
-                            int(round(int(
-                                    self.get_value(u'fontsize'))/2-0.5))-1) )
+        self.font_rubi = pango.FontDescription(u'%s %s' % (
+                                        self.get_value( u'fontname' ),
+                                        self.get_value(u'rubifontsize')) )
         """ 画面クリア
         """
         context = cairo.Context(self.sf)
@@ -1806,7 +1808,7 @@ class CairoCanvas(Aozora):
         nB = float(eval(u'0x'+s[1+p+p:1+p+p+p])/65535.0)
         return (nR,nG,nB)
 
-    def writepageline(self, x, y, s='', honbunsize=12):
+    def writepageline(self, x, y, s=u''):
         """ 指定位置へ1行書き出す
         """
         # cairo コンテキストの作成と初期化
@@ -1825,7 +1827,7 @@ class CairoCanvas(Aozora):
         # レイアウトの作成
         layout = pangocairo_context.create_layout()
         # 表示フォントの設定
-        self.font.set_size(pango.SCALE*honbunsize)
+        self.font.set_size(pango.SCALE*12)
         layout.set_font_description(self.font)
         # Pangoにおけるフォントの回転(横倒し対策)
         ctx = layout.get_context() # Pango を得る
@@ -1837,7 +1839,8 @@ class CairoCanvas(Aozora):
         pangocairo_context.show_layout(layout)
 
     def pagefinish(self):
-        self.sf.write_to_png( self.get_value(u'workingdir') + '/thisistest.png' )
+        self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
+                                                            'thisistest.png'))
         self.sf.finish()
 
 

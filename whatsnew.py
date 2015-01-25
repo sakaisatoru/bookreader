@@ -104,7 +104,7 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
         """ 新着情報のページをダウンロードして読み込む
         """
         url = u'%s/%s' % (self.AOZORA_URL,n)
-        filename = u'%s/%s' % (self.get_value(u'workingdir'), n)
+        filename = os.path.join(self.get_value(u'workingdir'), n)
         try:
             urllib.urlretrieve(url, filename)
         except IOError:

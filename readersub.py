@@ -64,7 +64,7 @@ class Download():
         flag = False
         lastselectfile = u''
 
-        sTmpfile = ( u'%s/a.html' % self.get_value( u'workingdir' ))
+        sTmpfile = os.path.join(self.get_value( u'workingdir' ), u'a.html')
         try:
             urllib.urlretrieve(url, sTmpfile)
         except IOError:
@@ -80,9 +80,9 @@ class Download():
                     if sTarget.split(u':')[0].lower() == u'http':
                         sTargetURL = sTarget
                     else:
-                        sTargetURL = u'%s/%s' % (os.path.dirname(url),sTarget)
+                        sTargetURL = os.path.join(os.path.dirname(url),sTarget)
 
-                    sLocalfilename = u'%s/%s' % (
+                    sLocalfilename = os.path.join(
                         self.get_value(u'aozoradir'),os.path.basename(sTarget))
 
                     isDownload = gtk.RESPONSE_YES
@@ -105,7 +105,7 @@ class Download():
                         a.extractall( self.get_value(u'aozoradir'))
                         for b in a.namelist():
                             if os.path.split(b)[1].split(u'.')[1] == 'txt':
-                                lastselectfile = u'%s/%s' % (
+                                lastselectfile = os.path.join(
                                     self.get_value(u'aozoradir'), b )
                                 break
                         else:
@@ -223,7 +223,8 @@ class ReaderSetting():
                         self.dicSetting[ln[0]] = ln[1].rstrip('\n')
         except:
             # 設定ファイルの新規作成
-            self.dicSetting[u'workingdir'] = os.path.join(homedir, u'.cache/aozora')
+            self.dicSetting[u'workingdir'] = os.path.join(homedir, u'.cache',
+                                                                    u'aozora')
             self.checkdir(self.dicSetting[u'workingdir'])
             self.set_aozorabunkodir(name)
             self.update()
@@ -240,20 +241,32 @@ class ReaderSetting():
                     linewidth       1行幅（ピクセル）
         """
         honbunwidth = int(round(fsize *1.24+0.5))
-        rubiwidth = int(round( honbunwidth / 2 + 0.5))
-        linewidth = int(round(( honbunwidth + rubiwidth ) * (1 + linestep ) + 0.5))
+        rubiwidth = int(round(honbunwidth / 2 + 0.5))
+        linewidth = int(round((honbunwidth + rubiwidth) * (1 + linestep) + 0.5))
         return (honbunwidth, rubiwidth, linewidth)
 
     def update(self):
         """ 設定ファイルを更新する
         """
-        (honbun, rubiwidth, linewidth) = self.get_linedata(int(self.dicSetting[u'fontsize']), float(self.dicSetting[u'linestep']))
+        (honbun, rubiwidth, linewidth) = self.get_linedata(
+                                        float(self.dicSetting[u'fontsize']),
+                                        float(self.dicSetting[u'linestep']))
         self.dicSetting[u'rubiwidth'] = str(rubiwidth)
         self.dicSetting[u'linewidth'] = str(linewidth)
-        self.dicSetting[u'scrnwidth'] = self.dicScreen[u'%s_width' % self.dicSetting[u'resolution']]
-        self.dicSetting[u'scrnheight'] = self.dicScreen[u'%s_height' % self.dicSetting[u'resolution']]
-        self.dicSetting[u'column'] = str(int(-2 + round(((int(self.dicSetting[u'scrnheight']) - int(self.dicSetting[u'topmargin']) - int(self.dicSetting[u'bottommargin']))/ honbun) - 0.5)))
-        self.dicSetting[u'lines'] = str(int(round(((int(self.dicSetting[u'scrnwidth']) - int(self.dicSetting[u'leftmargin']) - int(self.dicSetting[u'rightmargin']))/ linewidth) - 0.5)))
+        self.dicSetting[u'scrnwidth'] = self.dicScreen[u'%s_width' %
+                                                self.dicSetting[u'resolution']]
+        self.dicSetting[u'scrnheight'] = self.dicScreen[u'%s_height' %
+                                                self.dicSetting[u'resolution']]
+        self.dicSetting[u'column'] = str(int(-2 + round(
+                                ((int(self.dicSetting[u'scrnheight']) - \
+                                    int(self.dicSetting[u'topmargin']) - \
+                                    int(self.dicSetting[u'bottommargin'])) / \
+                                                            honbun) - 0.5)))
+        self.dicSetting[u'lines'] = str(int(round(
+                                ((int(self.dicSetting[u'scrnwidth']) - \
+                                    int(self.dicSetting[u'leftmargin']) - \
+                                    int(self.dicSetting[u'rightmargin'])) / \
+                                                            linewidth) - 0.5)))
 
         with file( self.settingfile, 'w') as f0:
             for s in self.dicSetting:
@@ -276,7 +289,8 @@ class ReaderSetting():
                 os.mkdir(sCurrdir)
 
     def get_homedir(self):
-        """ ホームディレクトリを返す。存在しない場合はカレントディレクトリを返す。
+        """ ホームディレクトリを返す。存在しない場合は
+            カレントディレクトリを返す。
         """
         homedir = os.getenv('HOME')
         if homedir == None:

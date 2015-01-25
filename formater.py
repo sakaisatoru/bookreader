@@ -58,18 +58,28 @@ class AozoraAccent():
     """ アクセント分解による文字の置換
     """
     accenttable = {
-        u'!@':u'¡', u'?@':u'¿', u'A`':u'À', u"A'":u'Á', u'A^':u'Â', u'A~':u'Ã',
-        u'A':u'Ä',  u'A&':u'Å', u'AE&':u'Æ',u'C,':u'Ç', u'E`':u'È', u"E'":u'É',
-        u'E^':u'Ê', u'E':u'Ë',  u'I`':u'Ì', u"I'":u'Í', u'I^':u'Î', u'I':u'Ï',
-        u'N~':u'Ñ', u'O`':u'Ò', u"O'":u'Ó', u'O^':u'Ô', u'O~':u'Õ',
-        u'O':u'Ö',  u'O/':u'Ø', u'U`':u'Ù', u"U'":u'Ú', u'U^':u'Û', u'U':u'Ü',
-        u"Y'":u'Ý', u's&':u'ß', u'a`':u'à', u"a'":u'á', u'a^':u'â',
-        u'a~':u'ã', u'a':u'ä',  u'a&':u'å', u'ae&':u'æ',u'c,':u'ç', u'e`':u'è',
-        u"e'":u'é', u'e^':u'ê', u'e':u'ë',  u'i`':u'ì', u"i'":u'í', u'i^':u'î',
-        u'i':u'ï',  u'n~':u'ñ', u'o`':u'ò', u"o'":u'ó', u'o^':u'ô',
-        u'o~':u'õ', u'o':u'ö',  u'o/':u'ø', u'u`':u'ù', u"u'":u'ú', u'u^':u'û',
-        u'u':u'ü',  u"y'":u'ý', u'y':u'ÿ',  u'A_':u'Ā', u'a_':u'ā',
-        u'E_':u'Ē', u'e_':u'ē', u'I_':u'Ī', u'i_':u'ī', u'O_':u'Ō', u'o_':u'ō',
+        u'!@':u'¡', u'?@':u'¿',
+        u'A`':u'À', u"A'":u'Á', u'A^':u'Â', u'A~':u'Ã', u'A:':u'Ä', u'A&':u'Å',
+        u'AE&':u'Æ',
+        u'C,':u'Ç',
+        u'E`':u'È', u"E'":u'É', u'E^':u'Ê', u'E:':u'Ë',
+        u'I`':u'Ì', u"I'":u'Í', u'I^':u'Î', u'I:':u'Ï',
+        u'N~':u'Ñ',
+        u'O`':u'Ò', u"O'":u'Ó', u'O^':u'Ô', u'O~':u'Õ',u'O:':u'Ö', u'O/':u'Ø',
+        u'U`':u'Ù', u"U'":u'Ú', u'U^':u'Û', u'U:':u'Ü',
+        u"Y'":u'Ý', u's&':u'ß',
+        u'a`':u'à', u"a'":u'á', u'a^':u'â', u'a~':u'ã', u'a:':u'ä', u'a&':u'å',
+        u'ae&':u'æ',u'c,':u'ç',
+        u'e`':u'è', u"e'":u'é', u'e^':u'ê', u'e:':u'ë',
+        u'i`':u'ì', u"i'":u'í', u'i^':u'î', u'i:':u'ï',
+        u'n~':u'ñ',
+        u'o`':u'ò', u"o'":u'ó', u'o^':u'ô', u'o~':u'õ', u'o:':u'ö', u'o/':u'ø',
+        u'u`':u'ù', u"u'":u'ú', u'u^':u'û', u'u:':u'ü',
+        u"y'":u'ý', u'y:':u'ÿ',
+        u'A_':u'Ā', u'a_':u'ā',
+        u'E_':u'Ē', u'e_':u'ē',
+        u'I_':u'Ī', u'i_':u'ī',
+        u'O_':u'Ō', u'o_':u'ō',
         u'OE&':u'Œ',u'oe&':u'œ',u'U_':u'Ū', u'u_':u'ū' }
 
         # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
@@ -1666,7 +1676,6 @@ class Aozora(ReaderSetting):
 
         fd.write(rubiline)  # 右ルビ行
         fd.write(s)         # 本文
-        fd.flush()
         if self.countpage:
             self.linecounter += 1
             if self.linecounter >= self.pagelines:
@@ -1674,6 +1683,7 @@ class Aozora(ReaderSetting):
                 self.pagecounter += 1
                 self.pageposition.append(fd.tell())
                 self.linecounter = 0
+                fd.flush()
                 rv = True
         return rv
 

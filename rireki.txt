@@ -113,6 +113,7 @@
         ・hogehoge［＃「hogehoge」はホニャララ］形式のタグ処理にて、hogehoge
         　の前方参照に失敗することがあるバグを修正。
         　前方の hogehoge が hogehoge foo の場合、無限ループに陥っていました。
+        ・アクセント分解（リガチャ）の定義漏れを修正。
 
     ２０１５年１月２２日
         ・文字描画の設定をcairo.ANTIALIAS_DEFAULTに変更。

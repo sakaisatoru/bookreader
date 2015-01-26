@@ -84,7 +84,6 @@ class AozoraAccent():
 
         # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
 
-
     def __init__(self):
         pass
 
@@ -177,47 +176,52 @@ class AozoraTag():
 class Aozora(ReaderSetting):
     """
     """
+    # ヘッダ・フッタ境界
     sHeader = u'-------------------------------------------------------'
-    reFooter = re.compile( ur'(?P<type>(^(翻訳の)?底本：)|(［＃本文終わり］))' )
-
-    reGaiji = re.compile( ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)' )
-    reGaiji2 = re.compile( ur'※［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］' )
-
-    reKunoji = re.compile( ur'(／＼)' )
-    reGunoji = re.compile( ur'(／″＼)' )
-    reCTRL = re.compile( ur'(?P<aozoratag>［＃.*?］)' )
+    reFooter = re.compile(ur'(?P<type>(^(翻訳の)?底本：)|(［＃本文終わり］))')
+    # 外字置換
+    reGaiji3 = re.compile(ur'(［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)')
+    reGaiji4 = re.compile(ur'(［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］)')
+    reGaiji5 = re.compile(ur'(［＃(?P<name>「.+?」)、.+?］)' )
+    # 役物置換
+    reKunoji = re.compile(ur'(／＼)')
+    reGunoji = re.compile(ur'(／″＼)')
+    reNonokagi = re.compile(ur'(“(?P<name>.+?)”)')
+    # 青空文庫タグ抽出
+    reCTRL = re.compile(ur'(?P<aozoratag>［＃.*?］)')
     reCTRL2 = AozoraTag(ur'(?P<aozoratag>［＃.*?］)') # ネスティング対応
-    reNonokagi = re.compile( ur'(“(?P<name>.+?)”)' )
-
+    reCTRL3 = re.compile(ur'(［＃(?P<name>.*?)］)')
     # 傍線・傍点
-    reBouten = re.compile( ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)(?P<type3>傍|波)(?P<type2>(点)|(線))］)' )
-    reBouten2 = re.compile( ur'［＃(?P<type>(ばつ)|(蛇の目)|(二重丸)|(白三角)|(黒三角)|(白丸)|(丸)|(白ゴマ)|(二重))?(?P<type3>傍|波)(?P<type2>(線)|(点))］' )
-    reBouten2owari = re.compile( ur'((?P<name>.*?)［＃(?P<type>.+?)?(?P<type3>傍|波)(?P<type2>(線)|(点))終わり］)' )
+    reBouten = re.compile(ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)' + \
+                        ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))］)')
+    reBouten2 = re.compile(ur'［＃(?P<type>.*?)' + \
+                        ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))］')
+    reBouten2owari = re.compile(ur'［＃(?P<type>.*?)' + \
+                        ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))' + \
+                        ur'終わり］' )
 
-    reGyomigikogaki = re.compile( ur'(［＃「(?P<name>.+?)」は' +
+    reGyomigikogaki = re.compile(ur'(［＃「(?P<name>.+?)」は' +
                         ur'(?P<type>(行右小書き)|(上付き小文字)|' +
-                        ur'(行左小書き)|(下付き小文字))］)' )
+                        ur'(行左小書き)|(下付き小文字))］)')
 
-    reMama = re.compile( ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)' )
-    reMama2 = re.compile( ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)' )
-    reKogakiKatakana = re.compile( ur'(［＃小書(き)?片仮名(?P<name>.+?)、.+?］)' )
+    reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)')
+    reMama2 = re.compile(ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)')
+    reKogakiKatakana = re.compile(ur'(［＃小書(き)?片仮名(?P<name>.+?)、.+?］)')
 
-    reRubi = re.compile( ur'《.*?》' )
-    reRubiclr = re.compile( ur'＃' )
-    reRubimama = re.compile( ur'(［＃ルビの「(?P<name>.+?)」はママ］)' )
+    reRubi = re.compile(ur'《.*?》')
+    reRubiclr = re.compile(ur'＃')
+    reRubimama = re.compile(ur'(［＃ルビの「(?P<name>.+?)」はママ］)')
 
-    reLeftBousen = re.compile( ur'［＃「(?P<name>.+?)」の左に(?P<type>二重)?傍線］' )
+    reLeftBousen = re.compile(ur'［＃「(?P<name>.+?)」の左に(?P<type>二重)?傍線］')
 
-    reFutoji = re.compile( ur'［＃「(?P<name>.+?)」は太字］' )
-    reFutoji2 = re.compile( ur'［＃(ここから)?太字］' )
-    reSyatai = re.compile( ur'［＃「(?P<name>.+?)」は斜体］' )
-    reSyatai2 = re.compile( ur'［＃(ここから)?斜体］' )
+    reFutoji = re.compile(ur'［＃「(?P<name>.+?)」は太字］')
+    reSyatai = re.compile(ur'［＃「(?P<name>.+?)」は斜体］')
 
     # キャプション
-    reCaption = re.compile( ur'(［＃「(?P<name>.*?)」はキャプション］)' )
+    reCaption = re.compile(ur'(［＃「(?P<name>.*?)」はキャプション］)')
     # 文字サイズ
-    reMojisize = re.compile( ur'(［＃「(?P<name2>.+?)」は(?P<size>.+?)段階(?P<name>.+?)な文字］)')
-    reMojisize2 = re.compile( ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
+    reMojisize = re.compile(ur'(［＃「(?P<name2>.+?)」は(?P<size>.+?)段階(?P<name>.+?)な文字］)')
+    reMojisize2 = re.compile(ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
 
     # 処理共通タグ ( </span>生成 )
     reOwari = re.compile(
@@ -232,53 +236,53 @@ class Aozora(ReaderSetting):
                 ur'(［＃「.+?」は縦中横］)|' +
                 ur'(［＃割り注.*?］)|' +
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
-                ur'(［＃ルビの「.+?」は底本では「.+?」］)' )
+                ur'(［＃ルビの「.+?」は底本では「.+?」］)')
 
     # 字下げ、字詰、地付き、地寄せ（地上げ）
-    reIndent = re.compile( ur'［＃(天から)??(?P<number>[０-９]+?)字下げ］' )
-    reIndentStart = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ］' )
-    reKaigyoTentsuki = re.compile( ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］' )
-    reKokokaraSage = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］' )
-    reIndentEnd = re.compile( ur'［＃(ここで)?字下げ終わり］|［＃(ここで)?字下げおわり］')
+    reIndent = re.compile(ur'［＃(天から)??(?P<number>[０-９]+?)字下げ］')
+    reIndentStart = re.compile(ur'［＃ここから(?P<number>[０-９]+?)字下げ］')
+    reKaigyoTentsuki = re.compile(ur'［＃ここから改行天付き、折り返して(?P<number>[０-９]+?)字下げ］')
+    reKokokaraSage = re.compile(ur'［＃ここから(?P<number>[０-９]+?)字下げ、折り返して(?P<number2>[０-９]+?)字下げ］')
+    reIndentEnd = re.compile(ur'［＃(ここで)?字下げ終わり］|［＃(ここで)?字下げおわり］')
 
-    reJiage = re.compile( ur'((?P<name2>.+?)??(?P<tag>(［＃地付き］)|(［＃地から(?P<number>[０-９]+?)字上げ］))(?P<name>.+?)??$)' )
-    reKokokaraJiage = re.compile( ur'［＃ここから地から(?P<number>[０-９]+?)字上げ］')
-    reJiageowari = re.compile( ur'［＃ここで字上げ終わり］' )
+    reJiage = re.compile(ur'((?P<name2>.+?)??(?P<tag>(［＃地付き］)|(［＃地から(?P<number>[０-９]+?)字上げ］))(?P<name>.+?)??$)')
+    reKokokaraJiage = re.compile(ur'［＃ここから地から(?P<number>[０-９]+?)字上げ］')
+    reJiageowari = re.compile(ur'［＃ここで字上げ終わり］')
 
-    reKokokaraJitsuki = re.compile( ur'［＃ここから地付き］' )
-    reJitsukiowari = re.compile( ur'［＃ここで地付き終わり］' )
+    reKokokaraJitsuki = re.compile(ur'［＃ここから地付き］')
+    reJitsukiowari = re.compile(ur'［＃ここで地付き終わり］')
 
-    reJizume = re.compile( ur'［＃ここから(?P<number>[０-９]+?)字詰め］' )
-    reJizumeowari = re.compile( ur'［＃ここで字詰め終わり］' )
+    reJizume = re.compile(ur'［＃ここから(?P<number>[０-９]+?)字詰め］')
+    reJizumeowari = re.compile(ur'［＃ここで字詰め終わり］')
 
     # 見出し
-    reMidashi = re.compile( ur'［＃「(?P<midashi>.+?)」は(同行)??(?P<midashisize>大|中|小)見出し］' )
-    reMidashi2name = re.compile( ur'((<.+?)??(?P<name>.+?)[<［\n]+?)' )
-    reMidashi2 = re.compile( ur'(［＃(ここから)?(?P<midashisize>大|中|小)見出し］)' )
-    reMidashi2owari = re.compile( ur'(［＃(ここで)??(?P<midashisize>大|中|小)見出し終わり］)' )
+    reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(同行)??(?P<midashisize>大|中|小)見出し］')
+    reMidashi2name = re.compile(ur'((<.+?)??(?P<name>.+?)[<［\n]+?)')
+    reMidashi2 = re.compile(ur'(［＃(ここから)?(?P<midashisize>大|中|小)見出し］)')
+    reMidashi2owari = re.compile(ur'(［＃(ここで)??(?P<midashisize>大|中|小)見出し終わり］)')
 
     # 改ページ・改丁・ページの左右中央
-    reKaipage = re.compile( ur'［＃改ページ］|［＃改丁］|［＃改段］|［＃改見開き］' )
+    reKaipage = re.compile(ur'［＃改ページ］|［＃改丁］|［＃改段］|［＃改見開き］')
 
     # 挿図
-    #reFig = re.compile( ur'(［＃(?P<name>.+?)）入る］)' )
+    #reFig = re.compile(ur'(［＃(?P<name>.+?)）入る］)' )
     reFig = re.compile(
-        ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)' )
+        ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
 
     # 訓点・返り点
-    reKuntenOkuri = re.compile( ur'(［＃（(?P<name>.+?)）］)' )
+    reKuntenOkuri = re.compile(ur'(［＃（(?P<name>.+?)）］)')
     reKaeriten = re.compile(
-                ur'(［＃(?P<name>[レ一二三四五六七八九'+
-                        ur'上中下' + ur'甲乙丙丁戊己庚辛壬癸' + ur'天地人' +
-                        ur'元亨利貞' + ur'春夏秋冬'+ ur'木火土金水'+ ur']+?)］)' )
+                    ur'(［＃(?P<name>[レ一二三四五六七八九'+
+                    ur'上中下' + ur'甲乙丙丁戊己庚辛壬癸' + ur'天地人' +
+                    ur'元亨利貞' + ur'春夏秋冬'+ ur'木火土金水'+ ur']+?)］)')
 
     # フッターにおける年月日刷を漢数字に変換
-    reNenGetsuNichi = re.compile( ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>\d+?)）)??年)|'+
+    reNenGetsuNichi = re.compile(
+        ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>\d+?)）)??年)|'+
         ur'((?P<month>\d+?)月)|'+
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<ban>\d+?)版)|' +
-        ur'((?P<suri>\d+?)刷)' )
-
+        ur'((?P<suri>\d+?)刷)')
 
     # 禁則
     kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？'
@@ -296,18 +300,28 @@ class Aozora(ReaderSetting):
         u'［＃左に傍線］':u'<span underline="single">',
             u'［＃左に傍線終わり］':u'</span>',
         u'［＃左に二重傍線］':u'<span underline="double">',
-            u'［＃左に二重傍線終わり］':u'</span>'    }
+            u'［＃左に二重傍線終わり］':u'</span>',
+        u'［＃太字］':u'<span font_desc="Sans bold">',
+        u'［＃ここから太字］':u'<span font_desc="Sans bold">',
+        u'［＃斜体］':u'<span style="italic">',
+        u'［＃ここから斜体］':u'<span style="italic">' }
 
-    # 右側傍点
+    # 右側傍点及び傍線
     dicBouten = {
-        u'白ゴマ':u'﹆　',
-        u'丸':u'●　',     u'白丸':u'○　',        u'黒三角':u'▲　',
-        u'白三角':u'△　',   u'二重丸':u'◎　',   u'蛇の目':u'　◉',
-        u'ばつ':u'　×' }
-        # u'　﹅'
+        u'白ゴマ傍点':u'﹆　',
+        u'丸傍点':u'●　',      u'白丸傍点':u'○　',    u'黒三角傍点':u'▲　',
+        u'白三角傍点':u'△　',  u'二重丸傍点':u'◎　',  u'蛇の目傍点':u'　◉',
+        u'ばつ傍点':u'　×',    u'傍点':u'﹅　',
+        u'波線':u'〜〜',        u'二重傍線':u'━━',    u'鎖線':u'- - ',
+        u'破線':u'─　',        u'傍線':u'──'  }
+
+    # 文字の大きさ
+    dicMojisize = {
+        u'大き１':u'large',    u'大き２':u'x-large',
+        u'小さ１':u'small',    u'小さ２':u'x-small' }
 
     # Pangoタグを除去する
-    reTagRemove = re.compile( ur'<[^>]*?>' )
+    reTagRemove = re.compile(ur'<[^>]*?>')
 
     """ ソースに直書きしているタグ
         u'［＃ページの左右中央］'
@@ -370,7 +384,6 @@ class Aozora(ReaderSetting):
     def get_booktitle_sub( self, sourcefile=None ):
         """ 書名・著者名を取得する。
         """
-        reTranslatorName = re.compile( ur'.+?訳' )
         iCurrentReadline = 0
         sBookTitle = u''
         sBookTitle2 = u''
@@ -384,27 +397,19 @@ class Aozora(ReaderSetting):
             for line in f0:
                 iCurrentReadline += 1
                 lnbuf = line.rstrip('\r\n')
-                #
                 #   空行に出くわすか、説明が始まったら終わる
-                #
                 if lnbuf == Aozora.sHeader or len(lnbuf) == 0:
                     if sBookTranslator != u'':
                         sBookAuthor = u'%s / %s' % (sBookAuthor ,sBookTranslator)
                     break
-                #
                 #   書名、著者名を得る
-                #
                 if iCurrentReadline == 1:
                     sBookTitle = lnbuf
-                #
                 #   副題
-                #
                 if iCurrentReadline == 2:
                     sBookTitle2 = lnbuf
-                #
                 #   末尾に「訳」とあれば翻訳者扱い
-                #
-                if reTranslatorName.search(lnbuf) != None:
+                if lnbuf[-1] == u'訳':
                     sBookTranslator = lnbuf
                 else:
                     sBookAuthor = lnbuf
@@ -497,7 +502,7 @@ class Aozora(ReaderSetting):
                 lnbuf = Aozora.reGunoji.sub( u'〴〵', lnbuf )
 
                 """ ダブルクォーテーションの、ノノカギへの置換
-                    unicode のカテゴリを調べて、アルファベット以外及び記号以外の
+                    カテゴリを調べて、アルファベット以外及び記号以外の
                     何かが出現した場合に日本語とみなして置換する。
                 """
                 try:
@@ -512,310 +517,298 @@ class Aozora(ReaderSetting):
                 except:
                     pass
 
-                """ 外字(JIS面句点コード指定)
-                """
-                retline = u''
-                priortail = 0
-                for tmp in Aozora.reGaiji.finditer(lnbuf):
-                    retline += lnbuf[priortail:tmp.start()]
-                    k = gaijitest.sconv(tmp.group('number'))
-                    if k != None:
-                        retline += k
-                    else:
-                        retline += tmp.group()
-                        logging.info( u'未登録の外字を検出：%s' % tmp.group())
-                    priortail = tmp.end()
-                retline += lnbuf[priortail:]
-
-                """ 外字２(Unicode指定、但し漢字のみ)
-                """
-                lnbuf = u''
-                priortail = 0
-                for tmp in Aozora.reGaiji2.finditer(retline):
-                    lnbuf += retline[priortail:tmp.start()]
-                    logging.debug(tmp.group())
-
-                    try:
-                        k = unicodedata.lookup(
-                            u'CJK UNIFIED IDEOGRAPH-' + tmp.group('number'))
-                    except KeyError:
-                        k = tmp.group()
-                        logging.info( u'未定義の外字を検出：%s' % k )
-                    lnbuf += k
-                    priortail = tmp.end()
-                lnbuf += retline[priortail:]
-
                 """ ［＃　で始まるタグの処理
                 """
-                tmp = Aozora.reCTRL2.search(lnbuf)
+                isRetry = False # タグが閉じなかった場合の再処理フラグ
+                while True:
+                    tmp = Aozora.reCTRL2.search(lnbuf)
+                    while tmp != None:
+                        try:
+                            if lnbuf[tmp.start()-1] == u'※':
+                                tmp2 = Aozora.reGaiji3.match(tmp.group())
+                                if tmp2:
+                                    # 外字置換（JIS第3、第4水準）
+                                    k = gaijitest.sconv(tmp2.group('number'))
+                                    if k == None:
+                                        logging.info( u'未登録の外字を検出：%s' % tmp.group())
+                                        k = u'［'+tmp.group()[2:]
+                                    lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
+                                    tmp = Aozora.reCTRL2.search(lnbuf)
+                                    continue
 
-                while tmp != None:
-                    if tmp.group() in Aozora.dicAozoraTag:
-                        # 単純な Pango タグへの置換
-                        lnbuf = lnbuf[:tmp.start()] + \
-                                Aozora.dicAozoraTag[tmp.group()] + \
-                                lnbuf[tmp.end():]
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
+                                tmp2 = Aozora.reGaiji4.match(tmp.group())
+                                if tmp2:
+                                    # 外字置換（Unicode文字）
+                                    try:
+                                        k = unicodedata.lookup(
+                                            u'CJK UNIFIED IDEOGRAPH-' + tmp2.group('number'))
+                                    except KeyError:
+                                        k = u'［'+tmp.group()[2:]
+                                        logging.info( u'未定義の外字を検出：%s' % k )
+                                    lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
+                                    tmp = Aozora.reCTRL2.search(lnbuf)
+                                    continue
 
-                    if Aozora.reOmit.match(tmp.group()):
-                        # 未実装タグの除去
-                        logging.info( u'未実装タグを検出: %s' % tmp.group() )
-                        self.loggingflag = True
-                        lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
+                                tmp2 = Aozora.reKogakiKatakana.match(tmp.group())
+                                if tmp2:
+                                    #   小書き片仮名
+                                    #   ヱの小文字など、JISにフォントが無い場合
+                                    lnbuf = u'%s<span size="smaller">%s</span>%s' % (
+                                        lnbuf[:tmp.start()].rstrip(u'※'),
+                                        tmp2.group(u'name'),
+                                        lnbuf[tmp.end():] )
+                                    tmp = Aozora.reCTRL2.search(lnbuf)
+                                    continue
 
-                    tmp2 = Aozora.reCaption.match(tmp.group())
-                    if tmp2:
-                        #   キャプション
-                        #   暫定処理：小文字で表示
-                        tmpStart,tmpEnd = self.honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span size="smaller">%s</span>%s%s' % (
-                                    lnbuf[:tmpStart],
-                                    lnbuf[tmpStart:tmpEnd],
-                                    lnbuf[tmpEnd:tmp.start()],
+                                # JISにもUnicodeにも定義されていない文字の注釈
+                                # ※［＃「」、底本ページ-底本行］ -> ※「」
+                                tmp2 = Aozora.reGaiji5.match(tmp.group())
+                                if tmp2:
+                                    lnbuf = lnbuf[:tmp.start()] + \
+                                            tmp2.group(u'name') + lnbuf[tmp.end():]
+                                    tmp = Aozora.reCTRL2.search(lnbuf)
+                                    continue
+                        except IndexError:
+                            pass
+
+                        if tmp.group() in Aozora.dicAozoraTag:
+                            # 単純な Pango タグへの置換
+                            lnbuf = lnbuf[:tmp.start()] + \
+                                    Aozora.dicAozoraTag[tmp.group()] + \
+                                    lnbuf[tmp.end():]
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        if Aozora.reOmit.match(tmp.group()):
+                            # 未実装タグの除去
+                            logging.info( u'未実装タグを検出: %s' % tmp.group() )
+                            self.loggingflag = True
+                            lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reCaption.match(tmp.group())
+                        if tmp2:
+                            #   キャプション
+                            #   暫定処理：小文字で表示
+                            tmpStart,tmpEnd = self.honbunsearch(
+                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            lnbuf = u'%s<span size="smaller">%s</span>%s%s' % (
+                                        lnbuf[:tmpStart],
+                                        lnbuf[tmpStart:tmpEnd],
+                                        lnbuf[tmpEnd:tmp.start()],
+                                        lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf,tmpStart)
+                            continue
+
+                        tmp2 = Aozora.reMojisize.match(tmp.group())
+                        if tmp2:
+                            #   文字の大きさ
+                            #   文字の大きさ２　と互換性がないので、こちらを
+                            #   先に処理すること
+                            sNameTmp = tmp2.group(u'name') + tmp2.group(u'size')
+                            try:
+                                sSizeTmp = Aozora.dicMojisize[sNameTmp]
+                            except KeyError:
+                                sSizeTmp = u'xx-small' if sNameTmp[:2] == u'小さ' else u'xx-large'
+
+                            tmpStart,tmpEnd = self.honbunsearch(
+                                            lnbuf[:tmp.start()],tmp2.group(u'name2'))
+                            lnbuf = u'%s<span size="%s">%s</span>%s%s' % (
+                                        lnbuf[:tmpStart],
+                                            sSizeTmp,
+                                                lnbuf[tmpStart:tmpEnd],
+                                                lnbuf[tmpEnd:tmp.start()],
+                                                    lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reMojisize2.match(tmp.group())
+                        if tmp2:
+                            #   文字の大きさ２
+                            #   文字の大きさ　と互換性がない（誤検出する）ので、
+                            #   こちらを後に処理すること
+                            sNameTmp = tmp2.group(u'name') + tmp2.group(u'size')
+                            try:
+                                sSizeTmp = Aozora.dicMojisize[sNameTmp]
+                            except KeyError:
+                                sSizeTmp = u'xx-small' if sNameTmp[:2] == u'小さ' else u'xx-large'
+
+                            lnbuf = u'%s<span size="%s">%s' % (
+                                lnbuf[:tmp.start()], sSizeTmp, lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reLeftBousen.match(tmp.group())
+                        if tmp2:
+                            #   左に（二重）傍線
+                            tmpStart,tmpEnd = self.honbunsearch(
+                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            lnbuf = u'%s<span underline="%s">%s</span>%s%s' % (
+                                lnbuf[:tmpStart],
+                                'single' if tmp2.group('type') == None else 'double',
+                                lnbuf[tmpStart:tmpEnd],
+                                lnbuf[tmpEnd:tmp.start()],
+                                lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        if Aozora.reOwari.match(tmp.group()):
+                            #   </span>生成用共通処理
+                            lnbuf = u'%s</span>%s' % (
+                                lnbuf[:tmp.start()], lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reMama.match(tmp.group())
+                        if tmp2 == None:
+                            tmp2 = Aozora.reMama2.match(tmp.group())
+                        if tmp2:
+                            #   ママ注記
+                            sNameTmp = tmp2.group(u'name')
+                            reTmp = re.compile( ur'%s$' % sNameTmp )
+                            lnbuf = u'%s｜%s《%s》%s' % (
+                                reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                sNameTmp, tmp2.group(u'mama'), lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reRubimama.match(tmp.group())
+                        if tmp2:
+                            #   ルビのママ
+                            lnbuf = u'%s《%s》%s' % (
+                                    lnbuf[:tmp.start()],
+                                    u'(ルビママ)',
                                     lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf,tmpStart)
-                        continue
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
 
-                    tmp2 = Aozora.reKogakiKatakana.match(tmp.group())
-                    if tmp2:
-                        #   小書き片仮名
-                        #   ヱの小文字など、JISにフォントが無い場合
-                        lnbuf = u'%s<span size="smaller">%s</span>%s' % (
-                            lnbuf[:tmp.start()].rstrip(u'※'),
-                            tmp2.group(u'name'),
-                            lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
+                        tmp2 = Aozora.reBouten.match(tmp.group())
+                        if tmp2:
+                            #   傍点・傍線
+                            #   rstrip では必要以上に削除する場合があるので
+                            #   reのsubで消す
+                            reTmp = re.compile(ur'%s$' % tmp2.group('name'))
+                            try:
+                                sNameTmp = Aozora.dicBouten[tmp2.group('type') + \
+                                                            tmp2.group('type2')]
+                            except KeyError:
+                                sNameTmp = u''
+                            lnbuf = u'%s｜%s《%s》%s' % (
+                                reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                tmp2.group('name'),
+                                self.zenstring(sNameTmp, len(tmp2.group('name'))),
+                                        lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
 
-                    tmp2 = Aozora.reMojisize.match(tmp.group())
-                    if tmp2:
-                        #   文字の大きさ
-                        #   文字の大きさ２　と互換性がないので、こちらを
-                        #   先に処理すること
-                        if tmp2.group(u'name') == u'小さ':
-                            if tmp2.group(u'size') == u'１':
-                                sSizeTmp = u'small'
-                            elif tmp2.group(u'size') == u'２':
-                                sSizeTmp = u'x-small'
+                        if Aozora.reBouten2.match(tmp.group()):
+                            # ［＃傍点］
+                            aozorastack.append(tmp.group())
+                            lnbuf = lnbuf[:tmp.start()]+u'｜'+lnbuf[tmp.end():]
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reBouten2owari.match(tmp.group())
+                        if tmp2:
+                            # ［＃傍点終わり］
+                            if Aozora.reBouten2.match(aozorastack[-1]):
+                                aozorastack.pop()
+                                sNameTmp = tmp2.group('type')+tmp2.group('type2')
+                                lnbuf = u'%s《%s》%s' % (
+                                    lnbuf[:tmp.start()],
+                                    self.zenstring(Aozora.dicBouten[sNameTmp],
+                                        self.boutencount(lnbuf[:tmp.start()])),
+                                    lnbuf[tmp.end():] )
+                                tmp = Aozora.reCTRL2.search(lnbuf)
                             else:
-                                sSizeTmp = u'xx-small'
-                        elif tmp2.group( u'size' ) == u'１':
-                            sSizeTmp = u'large'
-                        elif tmp2.group( u'size' ) == u'２':
-                            sSizeTmp = u'x-large'
-                        else:
-                            sSizeTmp = u'xx-large'
+                                # mismatch
+                                lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                            continue
 
-                        tmpStart,tmpEnd = self.honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name2'))
-                        lnbuf = u'%s<span size="%s">%s</span>%s%s' % (
-                                    lnbuf[:tmpStart],
-                                        sSizeTmp,
+                        tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
+                        if tmp2:
+                            #   行右小書き・上付き小文字、行左小書き・下付き小文字
+                            #   pango のタグを流用
+                            sNameTmp = tmp2.group(u'name')
+                            reTmp = re.compile( ur'%s$' % sNameTmp )
+                            lnbuf = u'%s%s%s' % (
+                                reTmp.sub( u'', lnbuf[:tmp.start()] ),
+                                u'<sup>%s</sup>' % tmp2.group(u'name') if tmp2.group(u'type') == u'行右小書き' or \
+                                    tmp2.group('type') == u'(上付き小文字)' else u'<sub>%s</sub>' % tmp2.group(u'name'),
+                                lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reFutoji.match(tmp.group())
+                        if tmp2:
+                            #   太字
+                            #   pango のタグを流用
+                            tmpStart,tmpEnd = self.honbunsearch(
+                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            lnbuf = u'%s<span font_desc="Sans bold">%s</span>%s%s' % (
+                                        lnbuf[:tmpStart],
                                             lnbuf[tmpStart:tmpEnd],
                                             lnbuf[tmpEnd:tmp.start()],
                                                 lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
 
-                    tmp2 = Aozora.reMojisize2.match(tmp.group())
-                    if tmp2:
-                        #   文字の大きさ２
-                        #   文字の大きさ　と互換性がない（誤検出する）ので、
-                        #   こちらを後に処理すること
-                        if tmp2.group(u'name') == u'小さ':
-                            if tmp2.group(u'size') == u'１':
-                                sSizeTmp = u'small'
-                            elif tmp2.group(u'size') == u'２':
-                                sSizeTmp = u'x-small'
-                            else:
-                                sSizeTmp = u'xx-small'
-                        elif tmp2.group( u'size' ) == u'１':
-                            sSizeTmp = u'large'
-                        elif tmp2.group( u'size' ) == u'２':
-                            sSizeTmp = u'x-large'
-                        else:
-                            sSizeTmp = u'xx-large'
-                        lnbuf = u'%s<span size="%s">%s' % (
-                            lnbuf[:tmp.start()], sSizeTmp, lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
+                        tmp2 = Aozora.reSyatai.match(tmp.group())
+                        if tmp2:
+                            #   斜体
+                            #   pango のタグを流用
+                            tmpStart,tmpEnd = self.honbunsearch(
+                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            lnbuf = u'%s<span style="italic">%s</span>%s%s' % (
+                                        lnbuf[:tmpStart],
+                                            lnbuf[tmpStart:tmpEnd],
+                                            lnbuf[tmpEnd:tmp.start()],
+                                                lnbuf[tmp.end():] )
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
 
-                    tmp2 = Aozora.reLeftBousen.match(tmp.group())
-                    if tmp2:
-                        #   左に（二重）傍線
-                        tmpStart,tmpEnd = self.honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span underline="%s">%s</span>%s%s' % (
-                            lnbuf[:tmpStart],
-                            'single' if tmp2.group('type') == None else 'double',
-                            lnbuf[tmpStart:tmpEnd],
-                            lnbuf[tmpEnd:tmp.start()],
-                            lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    if Aozora.reOwari.match(tmp.group()):
-                        #   </span>生成用共通処理
-                        lnbuf = u'%s</span>%s' % (
-                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reMama.match(tmp.group())
-                    if tmp2 == None:
-                        tmp2 = Aozora.reMama2.match(tmp.group())
-                    if tmp2:
-                        #   ママ注記
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        lnbuf = u'%s｜%s《%s》%s' % (
-                            reTmp.sub( u'', lnbuf[:tmp.start()]),
-                            sNameTmp, tmp2.group(u'mama'), lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reRubimama.match(tmp.group())
-                    if tmp2:
-                        #   ルビのママ
-                        lnbuf = u'%s《%s》%s' % (
+                        tmp2 = Aozora.reKuntenOkuri.match(tmp.group())
+                        if tmp2:
+                            #   訓点送り仮名
+                            #   pango のタグを流用
+                            lnbuf = u'%s<sup>%s</sup>%s' % (
                                 lnbuf[:tmp.start()],
-                                u'(ルビママ)',
-                                lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
+                                    tmp2.group(u'name'),
+                                        lnbuf[tmp.end():])
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = Aozora.reKaeriten.match(tmp.group())
+                        if tmp2:
+                            #   返り点
+                            #   pango のタグを流用
+                            lnbuf = u'%s<sub>%s</sub>%s' % (
+                                lnbuf[:tmp.start()],
+                                    tmp2.group(u'name'),
+                                        lnbuf[tmp.end():])
+                            tmp = Aozora.reCTRL2.search(lnbuf)
+                            continue
+
+                        #   上記以外のタグは後続処理に引き渡す
+                        tmp = Aozora.reCTRL2.search(lnbuf,tmp.end())
+
+                    if not isRetry and len(aozorastack) > 0:
+                        # タグ処理で同一行にて閉じていないものがある場合
+                        # 一旦閉じてタグ処理を完結させる。
+                        # スタックに捨てタグを積むことに注意
+                        try:
+                            aozorastack.append(aozorastack[-1])
+                            tmp2 = Aozora.reCTRL3.match(aozorastack[-1])
+                            sNameTmp = tmp2.group('name')
+                        except:
+                            sNameTmp = u''
+                        lnbuf += u'［＃%s終わり］' % sNameTmp
+                        isRetry = True # フラグで1回だけ実行させる
                         continue
 
-                    tmp2 = Aozora.reBouten.match(tmp.group())
-                    if tmp2:
-                        #   傍点・傍線
-                        #   rstrip では必要以上に削除する場合があるので
-                        #   reのsubで消す
-                        sNameTmp = tmp2.group('name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        lnbuf = u'%s｜%s《%s》%s' % (
-                            reTmp.sub( u'', lnbuf[:tmp.start()]),
-                            sNameTmp,
-                            self.zenstring(self.boutentype(
-                                            tmp2.group('type'),
-                                                tmp2.group('type2'),
-                                                    tmp2.group('type3') ),
-                                                len(sNameTmp)),
-                                    lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    if Aozora.reBouten2.match(tmp.group()):
-                        #   傍点・傍線 形式2
-                        tmp2 = Aozora.reBouten2owari.search(lnbuf, tmp.end())
-                        if tmp2 == None:
-                            tmp2 = Aozora.reBouten2.match(tmp.group())
-                            # 1行中に閉じられていない場合は一旦閉じる
-                            sNameTmp = tmp2.group(u'type3') + tmp2.group(u'type2')
-                            try:
-                                sNameTmp += tmp2.group(u'type')
-                            except TypeError:
-                                pass
-                            lnbuf += u'［＃%s終わり］' % sNameTmp
-                            aozorastack.append(u'［＃%s］' % sNameTmp)
-                            tmp2 = Aozora.reBouten2owari.search(lnbuf, tmp.end())
-                        sNameTmp = tmp2.group('name')
-                        lnbuf = u'%s｜%s《%s》%s' % (
-                            lnbuf[:tmp.start()],
-                            sNameTmp,
-                            self.zenstring(self.boutentype(
-                                            tmp2.group(u'type'),
-                                                tmp2.group(u'type2'),
-                                                    tmp2.group(u'type3')),
-                                        len(sNameTmp)),
-                            lnbuf[tmp2.end():] )
-
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reGyomigikogaki.match(tmp.group())
-                    if tmp2:
-                        #   行右小書き・上付き小文字、行左小書き・下付き小文字
-                        #   pango のタグを流用
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        lnbuf = u'%s%s%s' % (
-                            reTmp.sub( u'', lnbuf[:tmp.start()] ),
-                            u'<sup>%s</sup>' % tmp2.group(u'name') if tmp2.group(u'type') == u'行右小書き' or \
-                                tmp2.group('type') == u'(上付き小文字)' else u'<sub>%s</sub>' % tmp2.group(u'name'),
-                            lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reFutoji.match(tmp.group())
-                    if tmp2:
-                        #   太字
-                        #   pango のタグを流用
-                        tmpStart,tmpEnd = self.honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span font_desc="Sans bold">%s</span>%s%s' % (
-                                    lnbuf[:tmpStart],
-                                        lnbuf[tmpStart:tmpEnd],
-                                        lnbuf[tmpEnd:tmp.start()],
-                                            lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    if Aozora.reFutoji2.match(tmp.group()):
-                        #   太字  形式2
-                        lnbuf = u'%s<span font_desc="Sans bold">%s' % (
-                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-
-                    tmp2 = Aozora.reSyatai.match(tmp.group())
-                    if tmp2:
-                        #   斜体
-                        #   pango のタグを流用
-                        tmpStart,tmpEnd = self.honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        lnbuf = u'%s<span style="italic">%s</span>%s%s' % (
-                                    lnbuf[:tmpStart],
-                                        lnbuf[tmpStart:tmpEnd],
-                                        lnbuf[tmpEnd:tmp.start()],
-                                            lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    if Aozora.reSyatai2.match(tmp.group()):
-                        #   斜体  形式2
-                        lnbuf = u'%s<span style="italic">%s' % (
-                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reKuntenOkuri.match(tmp.group())
-                    if tmp2:
-                        #   訓点送り仮名
-                        #   pango のタグを流用
-                        lnbuf = u'%s<sup>%s</sup>%s' % (
-                            lnbuf[:tmp.start()],
-                                tmp2.group(u'name'),
-                                    lnbuf[tmp.end():])
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    tmp2 = Aozora.reKaeriten.match(tmp.group())
-                    if tmp2:
-                        #   返り点
-                        #   pango のタグを流用
-                        lnbuf = u'%s<sub>%s</sub>%s' % (
-                            lnbuf[:tmp.start()],
-                                tmp2.group(u'name'),
-                                    lnbuf[tmp.end():])
-                        tmp = Aozora.reCTRL2.search(lnbuf)
-                        continue
-
-                    #   上記以外のタグは後続処理に引き渡す
-                    tmp = Aozora.reCTRL2.search(lnbuf,tmp.end())
+                    # ［＃　で始まるタグの処理 終わり
+                    break
 
                 if footerflag:
                     """ フッタにおける年月日を漢数字に置換
@@ -823,19 +816,20 @@ class Aozora(ReaderSetting):
                     ln = u''
                     priortail = 0
                     for tmp in Aozora.reNenGetsuNichi.finditer(lnbuf):
-                        ln += retline[priortail:tmp.start()]
+                        ln += lnbuf[priortail:tmp.start()]
                         priortail = tmp.end()
                         for s in tmp.group():
                             try:
                                 ln += u'〇一二三四五六七八九'[eval(s)]
                             except:
                                 ln += s
-
                     ln += lnbuf[priortail:]
                     lnbuf = ln
+
                 """ 処理の終わった行を返す
                 """
-                yield u'%s\n' % lnbuf
+                yield lnbuf + u'\n'
+
         """ 最初の1ページ目に作品名・著者名を左右中央で表示するため、
             最初に［＃ページの左右中央］を出力している。最初の空行出現時に
             これを閉じている。
@@ -846,24 +840,45 @@ class Aozora(ReaderSetting):
         if boutoudone == False:
             yield u'［＃改ページ］'
 
-    def boutentype(self, t, t2, t3):
-        """ ルビ行に格納する側線の代替文字を返す
+    def boutencount(self, honbun):
+        """ 本文を遡って傍点の打込位置を探し、キャラクタ数を返す
         """
-        if t2 == u'点':
-            rv = Aozora.dicBouten[t] if t in Aozora.dicBouten else u'　﹅'
-        elif t2 == u'線':
-            if t3 == u'波':
-                rv = u'〜〜'
-            elif t == u'二重':
-                rv = u'━━'
-            else:
-                rv = u'──'
-        else:
-            rv = u''
-        return rv
+        c = 0
+        pos = len(honbun) - 1
+        if pos > 0:
+            inRubi = False
+            inTag = False
+            inAtag = False
+            try:
+                while honbun[pos] != u'｜':
+                    if honbun[pos] == u'［':
+                        inAtag = False
+                    elif honbun[pos] == u'］':
+                        inAtag = True
+                    elif inAtag:
+                        pass
+                    elif honbun[pos] == u'<':
+                        inTag = False
+                    elif honbun[pos] == u'>':
+                        inTag = True
+                    elif inTag:
+                        pass
+                    elif honbun[pos] == u'《':
+                        inRubi = False
+                    elif honbun[pos] == u'》':
+                        inRubi = True
+                    elif inRubi:
+                        pass
+                    else:
+                        c += 1
+                    pos -= 1
+            except IndexError:
+                pass
+        return c
+
 
     def honbunsearch(self, honbun, name):
-        """ 本文中に出現する name を検索し、その出現範囲を返す。
+        """ 本文を遡って name を検索し、その出現範囲を返す。
             name との比較に際して
                 ルビ、<tag></tag>、［］は無視される。
             比較は行末から行頭に向かって行われることに注意。
@@ -1722,15 +1737,15 @@ class CairoCanvas(Aozora):
                                                 self.get_value(u'fontcolor'))
 
     def resize(self):
-        self.canvas_width = int(self.get_value( u'scrnwidth' ))
-        self.canvas_height = int(self.get_value( u'scrnheight'))
-        self.canvas_topmargin = int(self.get_value( u'topmargin'))
+        self.canvas_width       = int(self.get_value( u'scrnwidth' ))
+        self.canvas_height      = int(self.get_value( u'scrnheight'))
+        self.canvas_topmargin   = int(self.get_value( u'topmargin'))
         self.canvas_rightmargin = int(self.get_value( u'rightmargin' ))
-        self.canvas_fontsize = float(self.get_value( u'fontsize' ))
-        self.canvas_rubisize = float(self.get_value( u'rubifontsize' ))
-        self.canvas_linewidth = int(self.get_value(u'linewidth'))
-        self.canvas_rubispan = int(self.get_value(u'rubiwidth'))
-        self.canvas_fontname = self.get_value(u'fontname')
+        self.canvas_fontsize    = float(self.get_value( u'fontsize' ))
+        self.canvas_rubisize    = float(self.get_value( u'rubifontsize' ))
+        self.canvas_linewidth   = int(self.get_value(u'linewidth'))
+        self.canvas_rubispan    = int(self.get_value(u'rubiwidth'))
+        self.canvas_fontname    = self.get_value(u'fontname')
 
     def writepage(self, pagenum, buffname=None):
         """ 指定したページを表示する

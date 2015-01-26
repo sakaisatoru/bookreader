@@ -60,8 +60,7 @@ import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
-"""
-    UI
+""" UI
 """
 class BookMarkInfo(ReaderSetting):
     """ しおり情報の管理
@@ -254,8 +253,8 @@ class BookmarkUI(gtk.Window):
         (c,d) = self.bookmark_bv.get_selection().get_selected_rows()  # 選択された行
         if len(d) > 1:
             dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
-                                        gtk.MESSAGE_ERROR, gtk.BUTTONS_OK,
-                                        u'ページを開く時は、しおりを一つしか選べません。' )
+                            gtk.MESSAGE_ERROR, gtk.BUTTONS_OK,
+                            u'ページを開く時は、しおりを一つしか選べません。' )
             dlg.run()
             dlg.destroy()
         else:
@@ -263,7 +262,8 @@ class BookmarkUI(gtk.Window):
                 iters = [c.get_iter(p) for p in d]
                 for i in iters:
                     self.rv = ( c.get_value(i, 0), c.get_value(i, 1),
-                            c.get_value(i, 2), c.get_value(i, 3), c.get_value(i, 4) )
+                                c.get_value(i, 2), c.get_value(i, 3),
+                                c.get_value(i, 4) )
                 f = True
             except:
                 pass
@@ -324,8 +324,8 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         # 1行目 -- 本文フォントセレクタ行 --
         self.fontlabel = gtk.Label( u'本文表示フォント' )
-        self.fontsel = gtk.FontButton( u'%s %s' % (self.get_value( u'fontname' ),
-                                    self.get_value( u'fontsize' )))
+        self.fontsel = gtk.FontButton( u'%s %s' % (self.get_value(u'fontname'),
+                                    self.get_value(u'fontsize')))
         self.fontsel.set_use_font(True)
         self.fontsel.set_show_size(True)
         self.fontsel.connect( "font-set", self.fontsel_cb )
@@ -335,8 +335,8 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         # 2行目 -- ルビフォントセレクタ行 --
         self.rubifontlabel = gtk.Label( u'ルビ表示フォント' )
-        self.rubifontsel = gtk.FontButton( u'%s %s' % (self.get_value( u'fontname' ),
-                                    self.get_value( u'rubifontsize' )))
+        self.rubifontsel = gtk.FontButton( u'%s %s' % (self.get_value(u'fontname'),
+                                    self.get_value(u'rubifontsize')))
         self.rubifontsel.set_use_font(True)
         self.rubifontsel.set_show_size(True)
         self.rubifontsel.connect( "font-set", self.rubifontsel_cb )
@@ -857,19 +857,17 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             dlg.destroy()
 
     def bookopen(self, fn, pagenum=0):
-        if self.cc.get_source() == fn:
-            #   既にフォーマット済みのテキストを表示する場合
-            self.page_common( pagenum )
-        else:
+        if self.cc.get_source() != fn:
+            # 新規読み込み
             self.cc.set_source(fn)
             m = self.cc.countlines()
             c = 0
             for tmp in self.cc.formater():
                 c += 1
                 self.set_title2(None,u'読込中 %s / %s' % (c,m))
-            self.page_common(pagenum)
             self.mokuji_create()
             self.set_title2(None,'')
+        self.page_common(pagenum)
 
     def set_title2(self, t, s):
         """ ウインドウタイトルの設定の拡張
@@ -924,7 +922,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.currentpage = n
 
             self.cc.writepage(self.currentpage)
-            self.imagebuf.set_from_file(self.get_value(u'workingdir') + '/thisistest.png')
+            self.imagebuf.set_from_file(os.path.join(
+                            self.get_value(u'workingdir'), 'thisistest.png'))
             bookname,author = self.cc.get_booktitle()
             self.set_title2(u'【%s】 %s - %s / %s -' %
                 (bookname, author, self.currentpage+1,self.cc.pagecounter+1),

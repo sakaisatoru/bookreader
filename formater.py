@@ -398,7 +398,7 @@ class Aozora(ReaderSetting):
                 iCurrentReadline += 1
                 lnbuf = line.rstrip('\r\n')
                 #   空行に出くわすか、説明が始まったら終わる
-                if lnbuf == Aozora.sHeader or len(lnbuf) == 0:
+                if not lnbuf or lnbuf == Aozora.sHeader:
                     if sBookTranslator != u'':
                         sBookAuthor = u'%s / %s' % (sBookAuthor ,sBookTranslator)
                     break
@@ -471,7 +471,7 @@ class Aozora(ReaderSetting):
 
                 """ 空行及び冒頭の処理
                 """
-                if len(lnbuf) == 0:
+                if not lnbuf:  # len(lnbuf) == 0 よりわずかに速い
                     if boutoudone:
                         yield u'\n'
                     else:
@@ -505,17 +505,14 @@ class Aozora(ReaderSetting):
                     カテゴリを調べて、アルファベット以外及び記号以外の
                     何かが出現した場合に日本語とみなして置換する。
                 """
-                try:
-                    for tmp in Aozora.reNonokagi.finditer( lnbuf ):
-                        for s in tmp.group('name'):
-                            if unicodedata.category(s) == 'Lo':
-                                lnbuf = '%s〝%s〟%s' % (
-                                     lnbuf[:tmp.start()],
-                                    tmp.group('name'),
-                                    lnbuf[tmp.end():] )
-                                break
-                except:
-                    pass
+                for tmp in Aozora.reNonokagi.finditer( lnbuf ):
+                    for s in tmp.group('name'):
+                        if unicodedata.category(s) == 'Lo':
+                            lnbuf = '%s〝%s〟%s' % (
+                                 lnbuf[:tmp.start()],
+                                tmp.group('name'),
+                                lnbuf[tmp.end():] )
+                            break
 
                 """ ［＃　で始まるタグの処理
                 """
@@ -745,7 +742,7 @@ class Aozora(ReaderSetting):
                             #   太字
                             #   pango のタグを流用
                             tmpStart,tmpEnd = self.honbunsearch(
-                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span font_desc="Sans bold">%s</span>%s%s' % (
                                         lnbuf[:tmpStart],
                                             lnbuf[tmpStart:tmpEnd],
@@ -759,7 +756,7 @@ class Aozora(ReaderSetting):
                             #   斜体
                             #   pango のタグを流用
                             tmpStart,tmpEnd = self.honbunsearch(
-                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+                                    lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span style="italic">%s</span>%s%s' % (
                                         lnbuf[:tmpStart],
                                             lnbuf[tmpStart:tmpEnd],
@@ -793,7 +790,7 @@ class Aozora(ReaderSetting):
                         #   上記以外のタグは後続処理に引き渡す
                         tmp = Aozora.reCTRL2.search(lnbuf,tmp.end())
 
-                    if not isRetry and len(aozorastack) > 0:
+                    if not isRetry and aozorastack:
                         # タグ処理で同一行にて閉じていないものがある場合
                         # 一旦閉じてタグ処理を完結させる。
                         # スタックに捨てタグを積むことに注意
@@ -875,7 +872,6 @@ class Aozora(ReaderSetting):
             except IndexError:
                 pass
         return c
-
 
     def honbunsearch(self, honbun, name):
         """ 本文を遡って name を検索し、その出現範囲を返す。
@@ -989,7 +985,7 @@ class Aozora(ReaderSetting):
                     yield
                     """ 空行の処理
                     """
-                    if len(lnbuf) == 0:
+                    if not lnbuf: #len(lnbuf) == 0:
                         self.write2file( dfile, '\n' )
                         continue
                     """ 制御文字列の処理
@@ -1086,7 +1082,7 @@ class Aozora(ReaderSetting):
                                 self.countpage = False
                             except:
                                 logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
-                                pass
+
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
                             continue
@@ -1351,7 +1347,7 @@ class Aozora(ReaderSetting):
                                     # 非漢字でも漢字扱いとする文字
                                     # http://www.aozora.gr.jp/KOSAKU/MANUAL_2.html#ruby
                                     if tp != 'CJK':
-                                        if u'仝〆〇ヶ〻々'.find(s) != -1:
+                                        if s in u'仝〆〇ヶ〻々':
                                             tp = 'CJK'
 
                                     if tplast != tp:
@@ -1502,10 +1498,10 @@ class Aozora(ReaderSetting):
                 l += 1
         return l
 
-    def linesplit(self, sline, rline, smax=0):
+    def linesplit(self, sline, rline, smax=0.0):
         """ 文字列を分割する
             <tag></tag> はカウントしない。
-            半角文字は0.5文字として数え、合計時に切り上げる。
+            半角文字は1文字未満として数え、合計時に切り上げる。
             カウント数が smax に達したらそこで文字列を分割して終了する。
             sline : 本文
             rline : ルビ
@@ -1519,6 +1515,16 @@ class Aozora(ReaderSetting):
         inTag = False       # <tag>処理のフラグ
         inCloseTag = False  # </tag>処理のフラグ
         inSplit = False     # 行分割処理のフラグ
+        # 文字サイズ変更への暫定対応
+        fontsizefactor = {
+                            u'normal':1.0,
+                            u'<span size="small">':0.813,
+                            u'<span size="x-small">':0.694,
+                            u'<span size="large">':1.1875,
+                            u'<span size="x-large">':1.4375,
+                            u'<sup>':0.800,
+                            u'<sub>':0.800 }
+        fontsizename = u'normal'
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
@@ -1531,7 +1537,7 @@ class Aozora(ReaderSetting):
                 honbun2 += lsc
                 continue
 
-            if smax > 0:
+            if smax:
                 if lcc >= smax:
                     inSplit = True
                     honbun2 += lsc
@@ -1550,11 +1556,15 @@ class Aozora(ReaderSetting):
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     try:
-                        self.tagstack.pop()
-                    except:
+                        if self.tagstack.pop() in fontsizefactor:
+                            # 文字サイズの復旧
+                            fontsizename = u'normal'
+                    except IndexError:
                         pass
                 else:
                     self.tagstack.append(tagname)
+                    if tagname in fontsizefactor:
+                        fontsizename = tagname # 文字サイズ変更への暫定対応
                     tagname = u''
                 inTag = False
             elif lsc == u'<':
@@ -1569,27 +1579,39 @@ class Aozora(ReaderSetting):
                 # 画面上における全長を計算 (ifの条件式に注意)
                 if unicodedata.category(lsc) == 'Lu':
                     # ラテン大文字(A-Z等)
-                    lcc += 1
+                    if lsc == u'I':
+                        lcc += (6./15.)*fontsizefactor[fontsizename]
+                    elif lsc == u'J':
+                        lcc += (7./15.)*fontsizefactor[fontsizename]
+                    elif lsc in u'TLSZ':
+                        lcc += (3./5.)*fontsizefactor[fontsizename]
+                    elif lsc in u'EFPRY':
+                        lcc += (2./3.)*fontsizefactor[fontsizename]
+                    elif lsc in u'KVXABC':
+                        lcc += (11./15.)*fontsizefactor[fontsizename]
+                    elif lsc in u'DGHNOQU':
+                        lcc += (4./5.)*fontsizefactor[fontsizename]
+                    elif lsc in u'MW':
+                        lcc += (14./15.)*fontsizefactor[fontsizename]
+                    else:
+                        lcc += fontsizefactor[fontsizename]
                 elif unicodedata.east_asian_width(lsc) == 'Na':
                     # 非全角文字
-                    lcc += 0.5
+                    lcc += 0.5 * fontsizefactor[fontsizename]
                 else:
                     # 全角文字
-                    lcc += 1
+                    lcc += fontsizefactor[fontsizename]
 
         """ 行末禁則処理
             次行先頭へ追い出す
             禁則文字が続く場合は全て追い出す
         """
-        while Aozora.kinsoku2.find(honbun[-1]) != -1:
+        while honbun[-1] in Aozora.kinsoku2:
             honbun2 = honbun[-1] + honbun2
             honbun = honbun[:-1] + u'　'
-            try:
-                # ルビも同様に処理
-                rubi2 = rubi[-2:]+rubi2
-                rubi = rubi[:-2] + u'　　'#u'＊＊'
-            except:
-                pass
+            # ルビも同様に処理
+            rubi2 = rubi[-2:]+rubi2
+            rubi = rubi[:-2] + u'　　'#u'＊＊'
 
         """ 行頭禁則処理 ver 2
             前行末にぶら下げる。
@@ -1598,52 +1620,70 @@ class Aozora(ReaderSetting):
             行頭へ追い込む。
             例）シ　(改行) ャーロック・ホームズ ->
                 (改行)シャーロック・ホームズ
+            前行の閉じタグが行頭に回り込んでいる場合は、前行末へ
+            ぶら下げる
         """
-        if len(honbun2) > 0:
-            if Aozora.kinsoku.find(honbun2[0]) != -1:
-                honbun += honbun2[0]
-                honbun2 = honbun2[1:]
-                try:
-                    # ルビも同様に処理
-                    rubi = rubi + rubi2[:2]
-                    rubi2 = rubi2[2:]
-                except:
-                    pass
+        if honbun2: # len(honbun2)>0 よりわずかに速い
+            pos = 0
+            if honbun2[0:2] == u'</':
+                # 閉じタグなら前行へぶら下げる
+                pos += 2
+                while honbun2[pos] != u'>':
+                    pos += 1
+                pos += 1
+                self.tagstack.pop()
+                honbun += honbun2[:pos]
+                honbun2 = honbun2[pos:]
+                pos = 0
 
-                if len(honbun2) > 0:
-                    if Aozora.kinsoku.find(honbun2[0]) != -1:
-                        if Aozora.kinsoku4.find(honbun2[0]) != -1:
-                            # ２文字目もぶら下げ
-                            honbun += honbun2[0]
-                            honbun2 = honbun2[1:]
-                            try:
-                                # ルビも同様に処理
-                                rubi = rubi + rubi2[:2]
-                                rubi2 = rubi2[2:]
-                            except:
-                                pass
+            while honbun2[pos] == u'<':
+                # タグをスキップ
+                pos += 1
+                while honbun2[pos] != u'>':
+                    pos += 1
+                pos += 1
+
+            if honbun2[pos] in Aozora.kinsoku:
+                honbun += honbun2[pos]
+                honbun2 = honbun2[:pos]+honbun2[pos+1:]
+                # ルビも同様に処理
+                rubi = rubi + rubi2[:2]
+                rubi2 = rubi2[2:]
+
+                if honbun2[pos:]:
+                    # ２文字目チェック
+                    while honbun2[pos] == u'<':
+                        # タグをスキップする
+                        pos += 1
+                        while honbun2[pos] != u'>':
+                            pos += 1
+                        pos += 1
+                    if honbun2[pos] in Aozora.kinsoku:
+                        if honbun2[pos] in Aozora.kinsoku4:
+                            honbun += honbun2[pos]
+                            honbun2 = honbun2[:pos]+honbun2[pos+1:]
+                            # ルビも同様に処理
+                            rubi = rubi + rubi2[:2]
+                            rubi2 = rubi2[2:]
                         else:
                             # 括弧類以外（もっぱら人名対策）
-                            if Aozora.kinsoku.find(honbun[-2]) == -1:
+                            if not (honbun[-2] in Aozora.kinsoku):
                                 honbun2 = honbun[-2:] + honbun2
                                 honbun = honbun[:-2] + u'　　'
                                 # ルビも同様に処理
-                                try:
-                                    rubi2 = rubi[-4:]+rubi2
-                                    rubi = rubi[:-4] + u'　　　　'
-                                except:
-                                    pass
+                                rubi2 = rubi[-4:]+rubi2
+                                rubi = rubi[:-4] + u'　　　　'
 
         """ tag の処理
             閉じていなければ一旦閉じ、次回の呼び出しに備えて
             スタックに積み直す
         """
         substack = []
-        while self.tagstack != []:
+        while self.tagstack:
             s = self.tagstack.pop()
             substack.append(s)
             honbun += u'</%s>' % s.split()[0].rstrip(u'>').lstrip(u'<')
-        while substack != []:
+        while substack:
             self.tagstack.append(substack.pop())
 
         return ( honbun,  honbun2, rubi, rubi2 )

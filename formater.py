@@ -255,6 +255,10 @@ class Aozora(ReaderSetting):
     reJizume = re.compile(ur'［＃ここから(?P<number>[０-９]+?)字詰め］')
     reJizumeowari = re.compile(ur'［＃ここで字詰め終わり］')
 
+    # 罫囲み
+    reKeikakomi = re.compile(ur'［＃ここから罫囲み］')
+    reKeikakomiowari = re.compile(ur'［＃ここで罫囲み終わり］')
+
     # 見出し
     reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(同行)??(?P<midashisize>大|中|小)見出し］')
     reMidashi2name = re.compile(ur'((<.+?)??(?P<name>.+?)[<［\n]+?)')
@@ -978,6 +982,9 @@ class Aozora(ReaderSetting):
             inIndent = False                    # ブロックインデント
             inJizume = False                    # ブロック字詰
             inJiage = False                     # ブロック字上・地付き
+            inKeikakomi = False                 # 罫囲み
+
+            fpPage = None                       # センタリング他一時作業用
 
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
                 for lnbuf in self.formater_pass1():
@@ -1076,12 +1083,13 @@ class Aozora(ReaderSetting):
                         """
                         if tmp.group() == u'［＃ページの左右中央］':
                             self.pagecenterflag = True
-                            try:
-                                fpPage = open( self.pagefile, 'w+' )
-                                dfile = fpPage # 出力先つなぎかえ
-                                self.countpage = False
-                            except:
-                                logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
+                            if fpPage == None:
+                                try:
+                                    fpPage = open( self.pagefile, 'w+' )
+                                    dfile = fpPage # 出力先つなぎかえ
+                                    self.countpage = False
+                                except:
+                                    logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
 
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
@@ -1116,6 +1124,7 @@ class Aozora(ReaderSetting):
                                         self.write2file( dfile, sCenter,sRubi )
                                         iCenter = 0
                                 fpPage.close()
+                                fpPage = None
 
                             if self.linecounter != 0:
                                 # ページ先頭に出現した場合は改ページしない
@@ -1276,6 +1285,55 @@ class Aozora(ReaderSetting):
                             inJiage = False
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
+                            continue
+
+                        """ 罫囲み
+                            天と地に罫線描画用に1文字の空きが必要に
+                            なるのでインデント処理を勘案してここで
+                            準備する。
+                        """
+                        if Aozora.reKeikakomi.match(tmp.group()):
+                            inKeikakomi = True
+                            if fpPage == None:
+                                try:
+                                    fpPage = open( self.pagefile, 'w+' )
+                                    dfile = fpPage # 出力先つなぎかえ
+                                    self.countpage = False
+                                except:
+                                    logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
+                            continue
+
+                        if Aozora.reKeikakomiowari.match(tmp.group()):
+                            inKeikakomi = False
+                            # テンポラリ内に掃き出された行数を数えて
+                            # ページ中央にくるようにパディングする
+                            # ルビ行が含まれていることに留意
+                            fpPage.seek(0)
+                            iCenter = 0
+                            for sCenter in fpPage:
+                                iCenter += 1
+                            iCenter /= 2
+                            dfile = fpMain # 出力先を戻す
+                            self.countpage = True
+                            if iCenter < self.pagelines:
+                                # 罫囲みが次ページへまたがる場合は改ページする。
+                                # 但し、１ページを越える場合は無視する。
+                                if self.linecounter + iCenter >= self.pagelines:
+                                    while self.write2file( dfile, '\n' ) != True:
+                                        pass
+
+                            # 一時ファイルからコピー
+                            fpPage.seek(0)
+                            iCenter = 0
+                            for sCenter in fpPage:
+                                if iCenter == 0:
+                                    sRubi = sCenter
+                                    iCenter += 1
+                                else:
+                                    self.write2file( dfile, sCenter,sRubi )
+                                    iCenter = 0
+                            fpPage.close()
+                            fpPage = None
                             continue
 
                         """ 未定義のタグ
@@ -1623,6 +1681,7 @@ class Aozora(ReaderSetting):
             前行の閉じタグが行頭に回り込んでいる場合は、前行末へ
             ぶら下げる
         """
+
         if honbun2: # len(honbun2)>0 よりわずかに速い
             pos = 0
             if honbun2[0:2] == u'</':
@@ -1636,43 +1695,46 @@ class Aozora(ReaderSetting):
                 honbun2 = honbun2[pos:]
                 pos = 0
 
-            while honbun2[pos] == u'<':
-                # タグをスキップ
-                pos += 1
-                while honbun2[pos] != u'>':
+            try:
+                while honbun2[pos] == u'<':
+                    # タグをスキップ
                     pos += 1
-                pos += 1
-
-            if honbun2[pos] in Aozora.kinsoku:
-                honbun += honbun2[pos]
-                honbun2 = honbun2[:pos]+honbun2[pos+1:]
-                # ルビも同様に処理
-                rubi = rubi + rubi2[:2]
-                rubi2 = rubi2[2:]
-
-                if honbun2[pos:]:
-                    # ２文字目チェック
-                    while honbun2[pos] == u'<':
-                        # タグをスキップする
+                    while honbun2[pos] != u'>':
                         pos += 1
-                        while honbun2[pos] != u'>':
+                    pos += 1
+
+                if honbun2[pos] in Aozora.kinsoku:
+                    honbun += honbun2[pos]
+                    honbun2 = honbun2[:pos]+honbun2[pos+1:]
+                    # ルビも同様に処理
+                    rubi = rubi + rubi2[:2]
+                    rubi2 = rubi2[2:]
+
+                    if honbun2[pos:]:
+                        # ２文字目チェック
+                        while honbun2[pos] == u'<':
+                            # タグをスキップする
                             pos += 1
-                        pos += 1
-                    if honbun2[pos] in Aozora.kinsoku:
-                        if honbun2[pos] in Aozora.kinsoku4:
-                            honbun += honbun2[pos]
-                            honbun2 = honbun2[:pos]+honbun2[pos+1:]
-                            # ルビも同様に処理
-                            rubi = rubi + rubi2[:2]
-                            rubi2 = rubi2[2:]
-                        else:
-                            # 括弧類以外（もっぱら人名対策）
-                            if not (honbun[-2] in Aozora.kinsoku):
-                                honbun2 = honbun[-2:] + honbun2
-                                honbun = honbun[:-2] + u'　　'
+                            while honbun2[pos] != u'>':
+                                pos += 1
+                            pos += 1
+                        if honbun2[pos] in Aozora.kinsoku:
+                            if honbun2[pos] in Aozora.kinsoku4:
+                                honbun += honbun2[pos]
+                                honbun2 = honbun2[:pos]+honbun2[pos+1:]
                                 # ルビも同様に処理
-                                rubi2 = rubi[-4:]+rubi2
-                                rubi = rubi[:-4] + u'　　　　'
+                                rubi = rubi + rubi2[:2]
+                                rubi2 = rubi2[2:]
+                            else:
+                                # 括弧類以外（もっぱら人名対策）
+                                if not (honbun[-2] in Aozora.kinsoku):
+                                    honbun2 = honbun[-2:] + honbun2
+                                    honbun = honbun[:-2] + u'　　'
+                                    # ルビも同様に処理
+                                    rubi2 = rubi[-4:]+rubi2
+                                    rubi = rubi[:-4] + u'　　　　'
+            except IndexError:
+                pass
 
         """ tag の処理
             閉じていなければ一旦閉じ、次回の呼び出しに備えて
@@ -1796,8 +1858,14 @@ class CairoCanvas(Aozora):
 
         xpos = self.canvas_width - self.canvas_rightmargin
 
+        inKeikakomi = False # 罫囲み
+        KeikakomiXendpos = xpos
+        KeikakomiYendpos =  self.canvas_height - self.canvas_topmargin - int(self.get_value(u'bottommargin'))
+        tmpwidth = 0
+        tmpheight = 0
+
         self.pageinit()
-        with file(buffname, 'r') as f0:
+        with codecs.open(buffname, 'r', 'UTF-8') as f0:
             try:
                 f0.seek(self.pageposition[pagenum])
             except:
@@ -1806,6 +1874,30 @@ class CairoCanvas(Aozora):
                 for i in xrange(self.pagelines):
                     sRubiline = f0.readline()
                     s0 = f0.readline()
+                    #tmp = Aozora.reKeikakomi.match(s0)
+                    tmpxpos = s0.find(u'［＃ここから罫囲み］')
+                    if tmpxpos != -1:
+                        # 罫囲み開始
+                        s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここから罫囲み］'):]
+                        KeikakomiXendpos = xpos + (self.canvas_linewidth/2)
+                        #KeikakomiYendpos = 0
+
+                    tmpxpos = s0.find(u'［＃ここで罫囲み終わり］')
+                    if tmpxpos != -1:
+                        # 罫囲み終わり
+                        s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここで罫囲み終わり］'):]
+                        tmpwidth = KeikakomiXendpos - xpos - (self.canvas_linewidth/2)
+                        context = cairo.Context(self.sf)
+                        context.new_path()
+                        context.set_line_width(1)
+                        context.move_to(xpos - (self.canvas_linewidth/2),
+                                                    self.canvas_topmargin)
+                        context.rel_line_to(tmpwidth,0)
+                        context.rel_line_to(0,KeikakomiYendpos)
+                        context.rel_line_to(-tmpwidth,0)
+                        context.close_path()
+                        context.stroke()
+
                     matchFig = reFig.search(s0)
                     if matchFig != None:
                         # 挿図処理
@@ -1840,6 +1932,7 @@ class CairoCanvas(Aozora):
                                     self.get_value(u'fontname'),
                                     self.canvas_fontsize, s0 ) )
                     xpos -= self.canvas_linewidth
+
         self.pagefinish()
 
     def pageinit(self):
@@ -1902,6 +1995,21 @@ class CairoCanvas(Aozora):
         layout.set_markup(s)
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
+
+        # 矩形描画テスト
+        """
+        for i in xrange(5):
+            context.new_path()
+            context.move_to(i*50,i*50)
+            context.rel_line_to(100,0)
+            context.rel_line_to(0,100)
+            context.rel_line_to(-100,0)
+            context.close_path()
+            context.stroke()
+        """
+
+
+
 
     def pagefinish(self):
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),

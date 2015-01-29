@@ -669,9 +669,9 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.vbox.pack_end(self.ebox)
         self.add(self.vbox)
 
-        self.scount = 0
-        self.ecount = 0
-        self.mousecount = 0
+        #self.scount = 0
+        #self.ecount = 0
+        #self.mousecount = 0
         self.connect('delete_event', self.delete_event_cb)
         self.connect('size-allocate', self.size_allocate_event_cb)
         self.connect('realize', self.realize_event_cb)
@@ -957,6 +957,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ エントリー
             再起動フラグ及びテキストを開いていたかどうかを返す
         """
+        self.currentpage = 0
         self.set_title2(u'', u'')
         while restart:
             """ 再起動時の処理
@@ -972,7 +973,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'<span font_desc="Sans bold 6">あおぞらぶんこ</span>\n' +
                     u'<span font_desc="Sans bold 12">青空文庫リーダー</span>')
             self.cc.pagefinish()
-            self.currentpage = 0
             self.imagebuf.set_from_file(
                 os.path.join(self.get_value(u'workingdir'), 'thisistest.png' ))
         self.show_all()

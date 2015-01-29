@@ -45,6 +45,7 @@ import datetime
 import unicodedata
 import logging
 import xml.sax.saxutils
+import tempfile
 
 import gtk
 import cairo
@@ -238,6 +239,10 @@ class Aozora(ReaderSetting):
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
                 ur'(［＃ルビの「.+?」は底本では「.+?」］)')
 
+    """ ソースに直書きしているタグ
+        u'［＃ページの左右中央］'
+    """
+
     # 字下げ、字詰、地付き、地寄せ（地上げ）
     reIndent = re.compile(ur'［＃(天から)??(?P<number>[０-９]+?)字下げ］')
     reIndentStart = re.compile(ur'［＃ここから(?P<number>[０-９]+?)字下げ］')
@@ -327,15 +332,47 @@ class Aozora(ReaderSetting):
     # Pangoタグを除去する
     reTagRemove = re.compile(ur'<[^>]*?>')
 
-    """ ソースに直書きしているタグ
-        u'［＃ページの左右中央］'
-    """
+    # Serif(TakaoEx明朝)における、対全角文字比
+    charwidth_serif = {
+            u' ':0.312500,  u'!':0.312500,  u'"':0.375000,  u'#':0.625000,
+            u'$':0.625000,  u'&':0.750000,  u'%':0.812500,  u"'":0.200000,
+            u'(':0.375000,  u')':0.375000,  u'*':0.250000,  u'+':0.687500,
+            u',':0.250000,  u'-':0.315000,  u'.':0.250000,  u'/':0.500000,
+            u'0':0.500000,  u'1':0.500000,  u'2':0.500000,  u'3':0.500000,
+            u'4':0.500000,  u'5':0.500000,  u'6':0.500000,  u'7':0.500000,
+            u'8':0.500000,  u'9':0.500000,  u':':0.250000,  u';':0.250000,
+            u'<':0.687500,  u'=':0.687500,  u'>':0.687500,  u'?':0.500000,
+            u'@':0.875000,  u'A':0.733333,  u'B':0.733333,  u'C':0.733333,
+            u'D':0.800000,  u'E':0.666667,  u'F':0.666667,  u'G':0.800000,
+            u'H':0.800000,  u'I':0.400000,  u'J':0.466667,  u'K':0.733333,
+            u'L':0.600000,  u'M':0.933333,  u'N':0.800000,  u'O':0.800000,
+            u'P':0.666667,  u'Q':0.800000,  u'R':0.666667,  u'S':0.600000,
+            u'T':0.600000,  u'U':0.800000,  u'V':0.733333,  u'W':0.933333,
+            u'X':0.733333,  u'Y':0.666667,  u'Z':0.600000,  u'[':0.312500,
+            u'\\':0.500000, u']':0.312500,  u'^':0.500000,  u'_':0.500000,
+            u'`':0.500000,  u'a':0.562500,  u'b':0.625000,  u'c':0.562500,
+            u'd':0.625000,  u'e':0.562500,  u'f':0.312500,  u'g':0.562500,
+            u'h':0.625000,  u'i':0.312500,  u'j':0.312500,  u'k':0.562500,
+            u'l':0.312500,  u'm':0.875000,  u'n':0.625000,  u'o':0.562500,
+            u'p':0.625000,  u'q':0.625000,  u'r':0.375000,  u's':0.500000,
+            u't':0.312500,  u'u':0.625000,  u'v':0.562500,  u'w':0.750000,
+            u'x':0.562500,  u'y':0.562500,  u'z':0.437500,  u'{':0.312500,
+            u'|':0.187500,  u'}':0.312500,  u'~':0.500000   }
+
+    # 文字サイズ変更への暫定対応
+    fontsizefactor = {
+            u'normal':1.0,
+            u'size="smaller"':0.813,        u'size="larger"':1.2000,
+            u'size="small"':0.813,          u'size="large"':1.2000,
+            u'size="x-small"':0.694,        u'size="x-large"':1.4375,
+            u'size="xx-small"':0.555,       u'size="xx-large"':1.7500,
+            u'<sup>':0.800,                 u'<sub>':0.800 }
+    reFontsizefactor = re.compile( ur'(?P<name>size=".+?")' )
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
-        self.destfile = os.path.join(self.get_value( u'workingdir'), 'view.txt')    # フォーマッタ出力先
+        self.destfile = os.path.join(self.get_value(u'workingdir'), 'view.txt')    # フォーマッタ出力先
         self.mokujifile = os.path.join(self.get_value( u'workingdir'), 'mokuji.txt')    # 目次ファイル
-        self.pagefile = os.path.join(self.get_value( u'workingdir'), 'page.txt') # 作業用一時ファイル
         self.readcodecs = 'shift_jis'
         self.pagelines = int(self.get_value(u'lines'))  # 1頁の行数
         self.chars = int(self.get_value(u'column'))     # 1行の最大文字数
@@ -984,7 +1021,7 @@ class Aozora(ReaderSetting):
             inJiage = False                     # ブロック字上・地付き
             inKeikakomi = False                 # 罫囲み
 
-            fpPage = None                       # センタリング他一時作業用
+            workfilestack = []                  # 作業用一時ファイル
 
             with file( self.mokujifile, 'w' ) as self.mokuji_f:
                 for lnbuf in self.formater_pass1():
@@ -1083,13 +1120,12 @@ class Aozora(ReaderSetting):
                         """
                         if tmp.group() == u'［＃ページの左右中央］':
                             self.pagecenterflag = True
-                            if fpPage == None:
-                                try:
-                                    fpPage = open( self.pagefile, 'w+' )
-                                    dfile = fpPage # 出力先つなぎかえ
-                                    self.countpage = False
-                                except:
-                                    logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
+                            # カレントハンドルを退避して、一時ファイルを
+                            # 作成して出力先を切り替える。
+                            workfilestack.append(dfile)
+                            dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
+                            # 一時ファイル使用中はページカウントしない
+                            self.countpage = False
 
                             retline += lnbuf[priortail:tmp.start()]
                             priortail = tmp.end()
@@ -1101,30 +1137,35 @@ class Aozora(ReaderSetting):
                             if self.pagecenterflag:
                                 # ページの左右中央の処理
                                 self.pagecenterflag = False
-                                # テンポラリ内に掃き出された行数を数えて
+                                if len(workfilestack) == 1:
+                                    # 退避してあるハンドルをフォーマット出力先
+                                    # と見てページカウントを再開する。
+                                    self.countpage = True
+
+                                # 一時ファイルに掃き出された行数を数えて
                                 # ページ中央にくるようにパディングする
                                 # ルビ行が含まれていることに留意
-                                fpPage.seek(0)
+                                dfile.seek(0)
                                 iCenter = 0
-                                for sCenter in fpPage:
+                                for sCenter in dfile:
                                     iCenter += 1
-                                iCenter = int(round((self.pagelines - iCenter/2)/2))
-                                dfile = fpMain
-                                self.countpage = True
+                                iCenter = int(round((float(self.pagelines) - float(iCenter)/2.)/2.))
                                 while iCenter > 0:
-                                    self.write2file( dfile, '\n' )
+                                    self.write2file( workfilestack[-1], '\n' )
                                     iCenter -= 1
-                                fpPage.seek(0)
+                                # 一時ファイルの内容を退避してあるハンドル先へ
+                                # コピーする
+                                dfile.seek(0)
                                 iCenter = 0
-                                for sCenter in fpPage:
+                                for sCenter in dfile:
                                     if iCenter == 0:
                                         sRubi = sCenter
                                         iCenter += 1
                                     else:
-                                        self.write2file( dfile, sCenter,sRubi )
+                                        self.write2file( workfilestack[-1], sCenter,sRubi )
                                         iCenter = 0
-                                fpPage.close()
-                                fpPage = None
+                                dfile.close()
+                                dfile = workfilestack.pop()
 
                             if self.linecounter != 0:
                                 # ページ先頭に出現した場合は改ページしない
@@ -1294,46 +1335,47 @@ class Aozora(ReaderSetting):
                         """
                         if Aozora.reKeikakomi.match(tmp.group()):
                             inKeikakomi = True
-                            if fpPage == None:
-                                try:
-                                    fpPage = open( self.pagefile, 'w+' )
-                                    dfile = fpPage # 出力先つなぎかえ
-                                    self.countpage = False
-                                except:
-                                    logging.error( u'作業ファイル %s が作成できません。' % self.pagefile)
+                            # カレントハンドルを退避して、一時ファイルを
+                            # 作成して出力先を切り替える。
+                            workfilestack.append(dfile)
+                            dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
+                            # 一時ファイル使用中はページカウントしない
+                            self.countpage = False
                             continue
 
                         if Aozora.reKeikakomiowari.match(tmp.group()):
                             inKeikakomi = False
-                            # テンポラリ内に掃き出された行数を数えて
-                            # ページ中央にくるようにパディングする
-                            # ルビ行が含まれていることに留意
-                            fpPage.seek(0)
+                            if len(workfilestack) == 1:
+                                # 退避してあるハンドルをフォーマット出力先と
+                                # 見てページカウントを再開
+                                self.countpage = True
+
+                            # 一時ファイルに掃き出された行数を数える
+                            # ルビ行を含む点に留意。
+                            dfile.seek(0)
                             iCenter = 0
-                            for sCenter in fpPage:
+                            for sCenter in dfile:
                                 iCenter += 1
                             iCenter /= 2
-                            dfile = fpMain # 出力先を戻す
-                            self.countpage = True
                             if iCenter < self.pagelines:
                                 # 罫囲みが次ページへまたがる場合は改ページする。
                                 # 但し、１ページを越える場合は無視する。
                                 if self.linecounter + iCenter >= self.pagelines:
-                                    while self.write2file( dfile, '\n' ) != True:
+                                    while self.write2file(workfilestack[-1], '\n' ) != True:
                                         pass
 
                             # 一時ファイルからコピー
-                            fpPage.seek(0)
+                            dfile.seek(0)
                             iCenter = 0
-                            for sCenter in fpPage:
+                            for sCenter in dfile:
                                 if iCenter == 0:
                                     sRubi = sCenter
                                     iCenter += 1
                                 else:
-                                    self.write2file( dfile, sCenter,sRubi )
+                                    self.write2file(workfilestack[-1], sCenter,sRubi)
                                     iCenter = 0
-                            fpPage.close()
-                            fpPage = None
+                            dfile.close()
+                            dfile = workfilestack.pop()
                             continue
 
                         """ 未定義のタグ
@@ -1453,7 +1495,7 @@ class Aozora(ReaderSetting):
                         if inJiage == True:
                             # ブロック地付き及びブロック字上げ
                             # 字下げはキャンセルされる
-                            lenN = self.linecount(lnbuf)
+                            lenN = self.linelengthcount(lnbuf)
                             if jizume > 0 and lenN > jizume:
                                 lenN = jizume
                             if lenN < currchars:
@@ -1480,9 +1522,9 @@ class Aozora(ReaderSetting):
                             tmp2 = Aozora.reJiage.match(lnbuf)
                             if tmp2:
                                 sP = u'' if tmp2.group('name2') == None else tmp2.group('name2')
-                                lenP = self.linecount(sP)
+                                lenP = self.linelengthcount(sP)
                                 sN = u'' if tmp2.group('name') == None else tmp2.group('name')
-                                lenN = self.linecount(sN)
+                                lenN = self.linelengthcount(sN)
                                 try:
                                     # 字上げ n
                                     n = self.zentoi(tmp2.group('number'))
@@ -1539,22 +1581,69 @@ class Aozora(ReaderSetting):
                         if inJiage == False:
                             jiage = 0
 
-    def linecount(self, sline):
+    def linelengthcount(self, sline):
         """ 文字列の長さを数える
+            文字の大きさ変更等に対応
             <tag></tag> はカウントしない。
         """
-        l = 0
+        l = 0.0
         inTag = False
+        inCloseTag = False
+        tagname = u''
+        tagstack = []
+        fontsizename = u'normal'
+
         for s in sline:
-            if s == u'<':
-                inTag = True
-            elif s == u'>':
+            if s == u'>':
+                # tagスタックの操作
+                tagname += s
+                if inCloseTag:
+                    inCloseTag = False
+                    # </tag>の出現とみなしてスタックから取り除く
+                    # ペアマッチの処理は行わない
+                    try:
+                        if tagstack.pop() in self.fontsizefactor:
+                            # 文字サイズの復旧
+                            fontsizename = u'normal'
+                    except IndexError:
+                        pass
+                else:
+                    tagstack.append(tagname)
+                    tmp = Aozora.reFontsizefactor.search(tagname)
+                    if tmp:
+                        if tmp.group() in self.fontsizefactor:
+                            fontsizename = tmp.group() # 文字サイズ変更
+                    tagname = u''
                 inTag = False
+            elif s == u'<':
+                inTag = True
+                tagname = s
             elif inTag:
-                pass
+                if s == '/':
+                    inCloseTag = True
+                else:
+                    tagname += s
             else:
-                l += 1
-        return l
+                # 画面上における全長を計算
+                l += self.charwidth(s) * self.fontsizefactor[fontsizename]
+        return int(round(l+0.5,0))
+
+    def charwidth(self, lsc):
+        """ 文字の幅を返す
+            全角 を１とする
+        """
+        try:
+            # A-Z or a-z
+            lcc = Aozora.charwidth_serif[lsc]
+        except KeyError:
+            if unicodedata.east_asian_width(lsc) == 'Na':
+                # 非全角文字
+                lcc = 0.5
+            else:
+                # 全角文字
+                lcc = 1
+        return lcc
+
 
     def linesplit(self, sline, rline, smax=0.0):
         """ 文字列を分割する
@@ -1573,15 +1662,7 @@ class Aozora(ReaderSetting):
         inTag = False       # <tag>処理のフラグ
         inCloseTag = False  # </tag>処理のフラグ
         inSplit = False     # 行分割処理のフラグ
-        # 文字サイズ変更への暫定対応
-        fontsizefactor = {
-                            u'normal':1.0,
-                            u'<span size="small">':0.813,
-                            u'<span size="x-small">':0.694,
-                            u'<span size="large">':1.1875,
-                            u'<span size="x-large">':1.4375,
-                            u'<sup>':0.800,
-                            u'<sub>':0.800 }
+
         fontsizename = u'normal'
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
@@ -1614,15 +1695,17 @@ class Aozora(ReaderSetting):
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     try:
-                        if self.tagstack.pop() in fontsizefactor:
+                        if self.tagstack.pop() in self.fontsizefactor:
                             # 文字サイズの復旧
                             fontsizename = u'normal'
                     except IndexError:
                         pass
                 else:
                     self.tagstack.append(tagname)
-                    if tagname in fontsizefactor:
-                        fontsizename = tagname # 文字サイズ変更への暫定対応
+                    tmp = Aozora.reFontsizefactor.search(tagname)
+                    if tmp:
+                        if tmp.group() in self.fontsizefactor:
+                            fontsizename = tmp.group() # 文字サイズ変更
                     tagname = u''
                 inTag = False
             elif lsc == u'<':
@@ -1634,31 +1717,8 @@ class Aozora(ReaderSetting):
                 else:
                     tagname += lsc
             else:
-                # 画面上における全長を計算 (ifの条件式に注意)
-                if unicodedata.category(lsc) == 'Lu':
-                    # ラテン大文字(A-Z等)
-                    if lsc == u'I':
-                        lcc += (6./15.)*fontsizefactor[fontsizename]
-                    elif lsc == u'J':
-                        lcc += (7./15.)*fontsizefactor[fontsizename]
-                    elif lsc in u'TLSZ':
-                        lcc += (3./5.)*fontsizefactor[fontsizename]
-                    elif lsc in u'EFPRY':
-                        lcc += (2./3.)*fontsizefactor[fontsizename]
-                    elif lsc in u'KVXABC':
-                        lcc += (11./15.)*fontsizefactor[fontsizename]
-                    elif lsc in u'DGHNOQU':
-                        lcc += (4./5.)*fontsizefactor[fontsizename]
-                    elif lsc in u'MW':
-                        lcc += (14./15.)*fontsizefactor[fontsizename]
-                    else:
-                        lcc += fontsizefactor[fontsizename]
-                elif unicodedata.east_asian_width(lsc) == 'Na':
-                    # 非全角文字
-                    lcc += 0.5 * fontsizefactor[fontsizename]
-                else:
-                    # 全角文字
-                    lcc += fontsizefactor[fontsizename]
+                # 画面上における全長を計算
+                lcc += self.charwidth(lsc) * self.fontsizefactor[fontsizename]
 
         """ 行末禁則処理
             次行先頭へ追い出す
@@ -1681,7 +1741,6 @@ class Aozora(ReaderSetting):
             前行の閉じタグが行頭に回り込んでいる場合は、前行末へ
             ぶら下げる
         """
-
         if honbun2: # len(honbun2)>0 よりわずかに速い
             pos = 0
             if honbun2[0:2] == u'</':
@@ -1861,8 +1920,11 @@ class CairoCanvas(Aozora):
         inKeikakomi = False # 罫囲み
         KeikakomiXendpos = xpos
         KeikakomiYendpos =  self.canvas_height - self.canvas_topmargin - int(self.get_value(u'bottommargin'))
+        maxchars = 0            # 囲み内に出現する文字列の最大長
+        offset_y = 0            # 文字列の書き出し位置
         tmpwidth = 0
         tmpheight = 0
+        fontheight = int(round(float(self.dicSetting[u'fontsize'])*1.24+0.5))
 
         self.pageinit()
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
@@ -1878,22 +1940,30 @@ class CairoCanvas(Aozora):
                     tmpxpos = s0.find(u'［＃ここから罫囲み］')
                     if tmpxpos != -1:
                         # 罫囲み開始
+                        inKeikakomi = True
+                        offset_y = self.chars
+                        maxchars = 0
                         s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここから罫囲み］'):]
                         KeikakomiXendpos = xpos + (self.canvas_linewidth/2)
-                        #KeikakomiYendpos = 0
 
                     tmpxpos = s0.find(u'［＃ここで罫囲み終わり］')
                     if tmpxpos != -1:
                         # 罫囲み終わり
+                        inKeikakomi = False
                         s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここで罫囲み終わり］'):]
+                        if offset_y > 0:
+                            offset_y -= 1
+                        maxchars -= offset_y
+                        if maxchars < self.chars:
+                            maxchars += 1
                         tmpwidth = KeikakomiXendpos - xpos - (self.canvas_linewidth/2)
                         context = cairo.Context(self.sf)
                         context.new_path()
                         context.set_line_width(1)
                         context.move_to(xpos - (self.canvas_linewidth/2),
-                                                    self.canvas_topmargin)
+                                self.canvas_topmargin + offset_y * fontheight)
                         context.rel_line_to(tmpwidth,0)
-                        context.rel_line_to(0,KeikakomiYendpos)
+                        context.rel_line_to(0, maxchars * fontheight)
                         context.rel_line_to(-tmpwidth,0)
                         context.close_path()
                         context.stroke()
@@ -1923,6 +1993,18 @@ class CairoCanvas(Aozora):
                                         self.canvas_topmargin)
                         context.paint()
                     else:
+                        if inKeikakomi:
+                            # 罫囲み時の最大高さを得る
+                            tmpheight = self.linelengthcount(s0)
+                            if  tmpheight > maxchars:
+                                maxchars = tmpheight
+                            # 文字列の最低書き出し位置を求める
+                            sTmp = s0.strip()
+                            if sTmp:
+                                tmpheight = s0.find(sTmp)
+                                if tmpheight < offset_y:
+                                    offset_y = tmpheight
+
                         self.writepageline(
                             xpos,
                             self.canvas_topmargin,
@@ -1995,21 +2077,6 @@ class CairoCanvas(Aozora):
         layout.set_markup(s)
         pangocairo_context.update_layout(layout)
         pangocairo_context.show_layout(layout)
-
-        # 矩形描画テスト
-        """
-        for i in xrange(5):
-            context.new_path()
-            context.move_to(i*50,i*50)
-            context.rel_line_to(100,0)
-            context.rel_line_to(0,100)
-            context.rel_line_to(-100,0)
-            context.close_path()
-            context.stroke()
-        """
-
-
-
 
     def pagefinish(self):
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),

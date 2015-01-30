@@ -40,14 +40,14 @@
 
 from __future__ import with_statement
 
-from jis3       import gaiji
+import jis3
 from readersub  import ReaderSetting, AozoraDialog, History
 from aozoracard import AuthorList
 from formater   import Aozora, CairoCanvas
 from whatsnew   import WhatsNewUI
 from logview    import Logviewer
 from booklist   import BookshelfUI
-#from threading  import Thread
+
 import sys
 import codecs
 import re

@@ -33,7 +33,7 @@
 
 from __future__ import with_statement
 
-from jis3 import gaiji
+import jis3
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorList
 
@@ -371,12 +371,12 @@ class Aozora(ReaderSetting):
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
-        self.destfile = os.path.join(self.get_value(u'workingdir'), 'view.txt')    # フォーマッタ出力先
-        self.mokujifile = os.path.join(self.get_value( u'workingdir'), 'mokuji.txt')    # 目次ファイル
-        self.readcodecs = 'shift_jis'
+        self.destfile = os.path.join(self.get_value(u'workingdir'), u'view.txt')
+        self.mokujifile = os.path.join(self.get_value(u'workingdir'),u'mokuji.txt')
+        self.readcodecs = u'shift_jis'
         self.pagelines = int(self.get_value(u'lines'))  # 1頁の行数
         self.chars = int(self.get_value(u'column'))     # 1行の最大文字数
-        self.charsmax = self.chars - 1                  # 最後の1文字は禁則処理用に確保
+        self.charsmax = self.chars - 1          # 最後の1文字は禁則処理用に確保
         self.pagecounter = 0
         self.set_source( None )
         self.BookTitle = u''
@@ -386,10 +386,7 @@ class Aozora(ReaderSetting):
     def set_source( self, s ):
         """ 青空文庫ファイルをセット
         """
-        if s != None:
-            self.sourcefile = s         # 青空文庫ファイル（ルビあり、shift-jis）
-        else:
-            self.sourcefile = u''
+        self.sourcefile = s if s != None else u''
         self.set_aozorabunkocurrent( self.sourcefile )
 
     def get_form( self ):
@@ -424,41 +421,60 @@ class Aozora(ReaderSetting):
 
     def get_booktitle_sub( self, sourcefile=None ):
         """ 書名・著者名を取得する。
+
+            青空文庫収録ファイルへの記載事項
+            http://www.aozora.gr.jp/guide/kisai.html
+                *作品の表題
+                 原作の表題（翻訳作品で、底本に記載のある場合）
+                 副題（副題がある場合）
+                 原作の副題（副題がある翻訳作品で、底本に記載のある場合）
+                *著者名
+                 翻訳者名（翻訳の場合）
         """
-        iCurrentReadline = 0
         sBookTitle = u''
-        sBookTitle2 = u''
-        sBookTranslator = u''
+        sOriginalTitle = u''
+        sSubTitle = u''
+        sOriginalsubTitle = u''
         sBookAuthor = u''
+        sBookTranslator = u''
+        sBuff = []
 
         if sourcefile == None:
             sourcefile = self.sourcefile
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
-            for line in f0:
-                iCurrentReadline += 1
-                lnbuf = line.rstrip('\r\n')
+            sBookTitle = f0.readline().rstrip('\r\n')
+            while len(sBuff) < 5:
+                lnbuf = f0.readline().rstrip('\r\n')
                 #   空行に出くわすか、説明が始まったら終わる
                 if not lnbuf or lnbuf == Aozora.sHeader:
-                    if sBookTranslator != u'':
-                        sBookAuthor = u'%s / %s' % (sBookAuthor ,sBookTranslator)
                     break
-                #   書名、著者名を得る
-                if iCurrentReadline == 1:
-                    sBookTitle = lnbuf
-                #   副題
-                if iCurrentReadline == 2:
-                    sBookTitle2 = lnbuf
-                #   末尾に「訳」とあれば翻訳者扱い
-                if lnbuf[-1] == u'訳':
-                    sBookTranslator = lnbuf
-                else:
-                    sBookAuthor = lnbuf
+                sBuff.append(lnbuf)
+        try:
+            sTmp = sBuff.pop()
+            if sTmp[-1] == u'訳':
+                sBookTranslator = sTmp
+                sTmp = sBuff.pop()
+                if sBookTranslator[-2:] == u'改訳':
+                    sBookTranslator = sTmp + u' / ' + sBookTranslator
+                    sTmp = sBuff.pop()
+            sBookAuthor = sTmp
+            sSubTitle = sBuff.pop()
+            if sBookTranslator != u'':
+                sOriginalTitle, sSubTitle = sSubTitle, sOriginalTitle
+            sSubTitle = sBuff.pop()
+            sOriginalsubTitle = sBuff.pop()
+            sOriginalsubTitle, sSubTitle = sSubTitle, sOriginalsubTitle
+        except IndexError:
+            pass
 
-        if sBookTitle2 == sBookAuthor:
-            sBookTitle2 = u''
-        sBookTitle = u'%s %s' % (sBookTitle, sBookTitle2 )
-        return (sBookTitle, sBookAuthor)
+        if sBookTranslator:
+            sBookAuthor = u'%s / %s' % (sBookAuthor ,sBookTranslator)
+
+        sBookTitle = u'%s %s %s %s' % (sBookTitle, sSubTitle,
+                                            sOriginalTitle, sOriginalsubTitle)
+
+        return (sBookTitle.rstrip(), sBookAuthor)
 
     def countlines(self, sourcefile=None ):
         """ ファイル中の行を数える
@@ -483,7 +499,6 @@ class Aozora(ReaderSetting):
         boutoudone = False      # ヘッダ処理が終わったことを示す
         footerflag = False
         aozorastack = []        # ［＃形式タグ用のスタック
-        gaijitest = gaiji()
         accenttest = AozoraAccent()
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
@@ -566,7 +581,7 @@ class Aozora(ReaderSetting):
                                 tmp2 = Aozora.reGaiji3.match(tmp.group())
                                 if tmp2:
                                     # 外字置換（JIS第3、第4水準）
-                                    k = gaijitest.sconv(tmp2.group('number'))
+                                    k = jis3.sconv(tmp2.group('number'))
                                     if k == None:
                                         logging.info( u'未登録の外字を検出：%s' % tmp.group())
                                         k = u'［'+tmp.group()[2:]
@@ -993,7 +1008,6 @@ class Aozora(ReaderSetting):
 
         (self.BookTitle, self.BookAuthor) = self.get_booktitle_sub()
         logging.info( u'****** %s ******' % self.sourcefile )
-
 
         with file( self.destfile, 'w' ) as fpMain:
             dfile = fpMain                      # フォーマット済出力先
@@ -1677,7 +1691,7 @@ class Aozora(ReaderSetting):
                 continue
 
             if smax:
-                if lcc >= smax:
+                if round(lcc) >= smax:
                     inSplit = True
                     honbun2 += lsc
                     # ルビの処理
@@ -1729,7 +1743,7 @@ class Aozora(ReaderSetting):
             honbun = honbun[:-1] + u'　'
             # ルビも同様に処理
             rubi2 = rubi[-2:]+rubi2
-            rubi = rubi[:-2] + u'　　'#u'＊＊'
+            rubi = rubi[:-2] + u'　　'
 
         """ 行頭禁則処理 ver 2
             前行末にぶら下げる。
@@ -1788,10 +1802,20 @@ class Aozora(ReaderSetting):
                                 # 括弧類以外（もっぱら人名対策）
                                 if not (honbun[-2] in Aozora.kinsoku):
                                     honbun2 = honbun[-2:] + honbun2
-                                    honbun = honbun[:-2] + u'　　'
+                                    honbun = honbun[:-2]
                                     # ルビも同様に処理
                                     rubi2 = rubi[-4:]+rubi2
-                                    rubi = rubi[:-4] + u'　　　　'
+                                    rubi = rubi[:-4]
+                                    # 前行末を変更したので行末禁則処理を
+                                    # 再度実施
+                                    while honbun[-1] in Aozora.kinsoku2:
+                                        honbun2 = honbun[-1] + honbun2
+                                        honbun = honbun[:-1] + u'　'
+                                        # ルビも同様に処理
+                                        rubi2 = rubi[-2:]+rubi2
+                                        rubi = rubi[:-2] + u'　　'
+                                    honbun += u'　　'
+                                    rubi += u'　　　　'
             except IndexError:
                 pass
 

@@ -72,7 +72,7 @@ from __future__ import with_statement
 
 from hypertext import HyperTextView
 
-from jis3 import gaiji
+import jis3
 from readersub import ReaderSetting, AozoraDialog, Download
 
 import sys

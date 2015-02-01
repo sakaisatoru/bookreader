@@ -24,7 +24,6 @@
         URLのリストを得る。
 """
 
-from __future__ import with_statement
 
 from readersub import ReaderSetting, AozoraDialog, Download
 from aozoracard import AuthorList
@@ -74,19 +73,19 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
             self.flagTD = True
             self.sData = u''
         elif tag == u'a':
-            if self.flagTD == True:
-                if self.nTdCount == 2 and self.flagListTable == True:
+            if self.flagTD:
+                if self.nTdCount == 2 and self.flagListTable:
                     self.record.append(attrs[0][1])
 
     def handle_data(self, data):
-        if self.flagListTable == True:
+        if self.flagListTable:
             if self.nTrCount >= 2:
                 if self.nTdCount < 4:
-                    if self.flagTD == True:
+                    if self.flagTD:
                         self.sData += data.lstrip().rstrip( u' \r\n' )
 
     def handle_endtag(self, tag):
-        if self.flagListTable == True:
+        if self.flagListTable:
             if tag == u'tr':
                 self.page.append(self.record)
                 self.record=[]
@@ -214,11 +213,9 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         a.gethtml( u'whatsnew1.html')
         for i in a.readrecord():
             try:
-                self.bl_data.get_model().append(
-                                (i[0],i[2],i[3],i[1]))
-            except:
+                self.bl_data.get_model().append((i[0],i[2],i[3],i[1]))
+            except IndexError:
                 pass
-
         self.lastselectfile = None
         self.ack = gtk.RESPONSE_NONE
 
@@ -227,7 +224,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         """ 作品リストをダブルクリックした時の処理
             ダイアログを開いたまま、青空文庫のダウンロードを行う
         """
-        if self.get_selected_book() == True:
+        if self.get_selected_book():
             self.msginfo( u'ダウンロードしました' )
             self.ack = gtk.RESPONSE_OK
         else:
@@ -237,7 +234,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         """ 開くボタンをクリックした時の処理
             ダウンロードして終わる
         """
-        if self.get_selected_book() == True:
+        if self.get_selected_book():
             self.exitall()
             self.ack = gtk.RESPONSE_OK
         else:
@@ -273,7 +270,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         for i in iters:
             (f, sMes) = self.selected_book( u'%s/%s' % (
                                 self.AOZORA_URL, c.get_value(i, 3)) )
-            if f == False:
+            if not f:
                 self.msgerrinfo( sMes )
             else:
                 self.lastselectfile = sMes

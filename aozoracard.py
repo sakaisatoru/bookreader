@@ -68,7 +68,6 @@
 """
 
 
-from __future__ import with_statement
 
 from hypertext import HyperTextView
 
@@ -315,7 +314,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
 
         url = u'%s/person_%s.html' % ( self.AOZORA_URL,  a )
         filename = os.path.join(self.get_value(u'workingdir'), u'person_%s.html' % a)
-        if os.path.exists(filename) == False:
+        if not os.path.exists(filename):
             try:
                 urllib.urlretrieve(url, filename)
             except IOError:
@@ -326,7 +325,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         with codecs.open( filename, 'r', readcodecs ) as f0:
             for line in f0:
                 mTmp = reAuthorList.search(line)
-                if mTmp != None:
+                if mTmp:
                     self.al_data.get_model().append(
                             (mTmp.group(u'AUTHOR') , mTmp.group(u'BOOKS'),
                                 mTmp.group(u'URL'))
@@ -346,7 +345,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         filename = a.split(u'#')[0]
         url = u'%s/%s' % (self.AOZORA_URL,filename)
         filename = os.path.join(self.get_value(u'workingdir'), filename)
-        if os.path.exists(filename) == False:
+        if not os.path.exists(filename):
             try:
                 urllib.urlretrieve(url, filename)
             except IOError:
@@ -361,18 +360,18 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
             for line in f0:
                 if line == u'<table summary="作家データ">\n':
                     flag = True
-                if flag == True:
+                if flag:
                     if line == u'</table>\n':
                         flag = False
                     else:
                         # 著者コメントを得る
                         mTmp = reAuthorComment.search(line)
-                        if mTmp != None:
+                        if mTmp:
                             sTmpInfo = u'%s:%s\n' % (
                                 mTmp.group(u'HEADER').lstrip().rstrip(u' :：'),
                                 reSub.sub(u'',mTmp.group(u'INFO')).lstrip().rstrip())
                             mWikitag = reWikipediaTag.search(mTmp.group(u'INFO'))
-                            if mWikitag != None:
+                            if mWikitag:
                                 # jp.wikipediaへのリンクがあればタグを生成する
                                 self.textview_authorinfo.insert(
                                     sTmpInfo.rstrip(u'「%s」\n' % mWikitag.group(u'AUTHOR')))
@@ -385,7 +384,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
                 else:
                     # 著作であれば一覧へ追加する
                     mTmp = reBookList.search(line)
-                    if mTmp != None:
+                    if mTmp:
                         self.bl_data.get_model().append(
                                 (mTmp.group(u'BOOKTITLE'),
                                     reSub.sub(u'',mTmp.group(u'REMARKS').lstrip().rstrip()),
@@ -405,7 +404,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         for i in iters:
             (f, sMes) = self.selected_book(u'%s/%s' %
                                         (self.AOZORA_URL, c.get_value(i, 2)) )
-            if f == False:
+            if not f:
                 self.msgerrinfo( sMes )
             else:
                 self.lastselectfile = sMes
@@ -416,7 +415,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         """ 作品リストをダブルクリックした時の処理
             ダイアログを開いたまま、青空文庫のダウンロードを行う
         """
-        if self.get_selected_book() == True:
+        if self.get_selected_book():
             self.msginfo( u'ダウンロードしました' )
             self.ack = gtk.RESPONSE_OK
         else:
@@ -426,7 +425,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         """ 開くボタンをクリックした時の処理
             ダウンロードして終わる
         """
-        if self.get_selected_book() == True:
+        if self.get_selected_book():
             self.ack = gtk.RESPONSE_OK
             self.exitall()
         else:
@@ -449,7 +448,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
                 ctx = self.sbStatus.get_context_id(u'')
                 self.sbStatus.push(ctx, u'%s   公開中の作品数:%s' % (c.get_value(i, 0), c.get_value(i, 1)))
             f = True
-        except:
+        except IndexError:
             pass
         return f
 
@@ -457,7 +456,7 @@ class AuthorList(gtk.Window, ReaderSetting, AozoraDialog, Download):
         """ 著者リストでカーソル移動した時の処理
             作品リストを取得する
         """
-        if self.get_selected_item() == True:
+        if self.get_selected_item():
             self.get_booklist( self.selectfile )
         else:
             pass

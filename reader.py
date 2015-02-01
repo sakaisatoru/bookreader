@@ -38,7 +38,6 @@
 
 """
 
-from __future__ import with_statement
 
 import jis3
 from readersub  import ReaderSetting, AozoraDialog, History
@@ -48,6 +47,7 @@ from whatsnew   import WhatsNewUI
 from logview    import Logviewer
 from booklist   import BookshelfUI
 
+import tempfile
 import sys
 import codecs
 import re
@@ -73,7 +73,7 @@ class BookMarkInfo(ReaderSetting):
         """
         ReaderSetting.__init__(self)
         self.shiorifile = self.get_value(u'workingdir') + '/shiori.txt'
-        if os.path.isfile(self.shiorifile) == True:
+        if os.path.isfile(self.shiorifile):
             self.rewind()
         else:
             self.remove_all()
@@ -241,7 +241,7 @@ class BookmarkUI(gtk.Window):
     def row_activated_treeview_cb(self, path, view_column, column ):
         """ しおりの上でダブルクリックした時の処理
         """
-        if self.get_selected_item() == True:
+        if self.get_selected_item():
             self.exitall()
 
     def get_selected_item(self):
@@ -265,12 +265,12 @@ class BookmarkUI(gtk.Window):
                                 c.get_value(i, 2), c.get_value(i, 3),
                                 c.get_value(i, 4) )
                 f = True
-            except:
+            except IndexError:
                 pass
         return f
 
     def clicked_btnOk_cb(self, widget):
-        if self.get_selected_item() == True:
+        if self.get_selected_item():
             self.exitall()
 
     def clicked_btnCancel_cb(self, widget):
@@ -492,7 +492,7 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         for bt in self.radiobtn:
             """ 解像度のラジオボタンの処理
             """
-            if bt.get_active() == True:
+            if bt.get_active():
                 self.set_value(u'resolution', bt.get_label())
                 break
 
@@ -771,14 +771,14 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         bi = BookmarkUI()
         s = bi.run()
         bi.destroy()
-        if s != None:
+        if s:
             self.bookopen(s[4], int(s[2])-1)
 
     def menu_fontselect_cb( self, widget ):
         """ 表示フォントを選択する
         """
         dlg = ScreenSetting()
-        if dlg.run() == True:
+        if dlg.run():
             if self.msgyesno( u'設定を反映するには再起動が必要です。' + \
                             u'今すぐ再起動しますか？' ) == gtk.RESPONSE_YES:
                 self.isRestart = True
@@ -871,6 +871,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
     def set_title2(self, t, s):
         """ ウインドウタイトルの設定の拡張
+            t, s は tristate(None, u'', any)
         """
         if t != None:
             self.t1 = t
@@ -912,14 +913,13 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.currentpage += 1
             self.page_common()
 
-    def page_common(self, n=None):
+    def page_common(self, n=-1):
         """ 指定されたページをUIへ表示する
             テキストが開かれていなければ何もしない
         """
         if self.cc.sourcefile != u'':
-            if n != None:
-                if n <= self.cc.pagecounter and n >= 0:
-                    self.currentpage = n
+            if n >= 0 and n <= self.cc.pagecounter:
+                self.currentpage = n
 
             self.cc.writepage(self.currentpage)
             self.imagebuf.set_from_file(os.path.join(
@@ -945,7 +945,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         logging.shutdown()
         #   現在読んでいる本を履歴に保存する
         bookname,author = self.cc.get_booktitle()
-        if bookname != u'':
+        if bookname != u'' and bookname != self.dummytitle:
             self.bookhistory.update( u'%s,%d,%s' %
                 (bookname, self.currentpage,self.cc.sourcefile) )
             self.isBookopened = True # テキストを開いていた場合
@@ -958,6 +958,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             再起動フラグ及びテキストを開いていたかどうかを返す
         """
         self.currentpage = 0
+        self.dummytitle = u'［＃３字下げ］［＃大見出し］青空文庫《あおぞらぶんこ》リーダー［＃大見出し終わり］'
         self.set_title2(u'', u'')
         while restart:
             """ 再起動時の処理
@@ -968,13 +969,35 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             else:
                 restart = False
         else:
-            self.cc.pageinit()
-            self.cc.writepageline(self.cc.canvas_width / 2, 48,
-                    u'<span font_desc="Sans bold 6">あおぞらぶんこ</span>\n' +
-                    u'<span font_desc="Sans bold 12">青空文庫リーダー</span>')
-            self.cc.pagefinish()
+            s = os.path.join(self.get_value(u'workingdir'), 'titlepage.txt' )
+            with codecs.open(s,'w', 'shift_jis') as f0:
+                f0.write(
+                    self.dummytitle+'\n'+
+                    u'\n'+
+                    u'［＃本文終わり］\n'+
+                    u'非安定版　2015年2月1日\n\n' +
+                    u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
+                    u'\n'+
+                    u'This program is free software; you can redistribute it and/or modify'+
+                    u'it under the terms of the GNU General Public License as published by'+
+                    u'the Free Software Foundation; either version 2 of the License, or'+
+                    u'(at your option) any later version.'+
+                    u'\n'+
+                    u'This program is distributed in the hope that it will be useful,'+
+                    u'but WITHOUT ANY WARRANTY; without even the implied warranty of'+
+                    u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the'+
+                    u'GNU General Public License for more details.'+
+                    u'\n'+
+                    u'You should have received a copy of the GNU General Public License'+
+                    u'along with this program; if not, write to the Free Software'+
+                    u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
+                    u'MA 02110-1301, USA.' )
+            self.cc.set_source(s)
+            for tmp in self.cc.formater():
+                pass
+            self.cc.writepage(0)
             self.imagebuf.set_from_file(
-                os.path.join(self.get_value(u'workingdir'), 'thisistest.png' ))
+                os.path.join(self.get_value(u'workingdir'), 'thisistest.png'))
         self.show_all()
         gtk.main()
         return self.isRestart, self.isBookopened

@@ -74,7 +74,7 @@ class Download():
         with codecs.open( sTmpfile, 'r', readcodecs ) as f0:
             for line in f0:
                 mTmp = reTarget.search(line)
-                if mTmp != None:
+                if mTmp:
                     flag = True
                     sTarget = mTmp.group( u'TARGETFILE' )
                     if sTarget.split(u':')[0].lower() == u'http':
@@ -112,12 +112,12 @@ class Download():
                             return (False, u'アーカイブを' + \
                                             u'展開しましたがテキスト' + \
                                             u'ファイルが含まれていません。')
-                    except:
+                    except RuntimeError:
                         return (False, u'ファイルの展開時にエラーが発生' + \
                                         u'しました。ディスク容量等を確認' + \
                                         u'してください。')
 
-        if flag != True:
+        if not flag:
             return (False, u'ダウンロードできません。この作品はルビあり' + \
                             u'テキストファイルで登録されていません。' )
 
@@ -214,14 +214,14 @@ class ReaderSetting():
                             }
         self.settingfile = os.path.join(self.dicSetting[u'settingdir'], 'aozora.conf')
         self.checkdir(self.dicSetting[u'settingdir'])
-        try:
+        if os.path.isfile(self.settingfile):
             # 既存設定ファイルの読み込み
             with file( self.settingfile, 'r' ) as f0:
                 for line in f0:
                     ln = line.split('=')
                     if len(ln) > 1:
                         self.dicSetting[ln[0]] = ln[1].rstrip('\n')
-        except:
+        else:
             # 設定ファイルの新規作成
             self.dicSetting[u'workingdir'] = os.path.join(homedir, u'.cache',
                                                                     u'aozora')
@@ -293,7 +293,7 @@ class ReaderSetting():
             カレントディレクトリを返す。
         """
         homedir = os.getenv('HOME')
-        if homedir == None:
+        if not homedir:
             homedir = u'.'
         return homedir
 

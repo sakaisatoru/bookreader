@@ -22,7 +22,6 @@
     ダウンロードされた青空文庫を開く
 """
 
-from __future__ import with_statement
 
 from readersub import ReaderSetting, AozoraDialog
 from aozoracard import AuthorListData, BookListData
@@ -180,7 +179,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
         self.bl_data.get_model().clear()
         for fn in os.listdir(dirname):
             fullpath = os.path.join(dirname,fn)
-            if os.path.isfile(fullpath) == True:
+            if os.path.isfile(fullpath):
                 if fn.split( '.' )[-1] == 'txt':
                     book, author = self.az.get_booktitle_sub(fullpath)
                     if filter != u'':
@@ -202,7 +201,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
             for i in iters:
                 self.lastselectfile = c.get_value(i, 2) # full path
                 f = True
-        except:
+        except IndexError:
             pass
         return f
 
@@ -217,7 +216,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
             for i in iters:
                 self.selectauthor = c.get_value(i, 0)
             f = True
-        except:
+        except IndexError:
             pass
         if f:
             self.get_booklist(self.enDirectry.get_text(), self.selectauthor)
@@ -250,7 +249,7 @@ class BookshelfUI(gtk.Window, ReaderSetting):
     def clicked_btnOk_cb(self, widget):
         """ 開くボタンをクリックした時の処理
         """
-        if self.get_selectbook() == False:
+        if not self.get_selectbook():
             # 作品が選択されていなければ戻る
             return False
         self.exitall()

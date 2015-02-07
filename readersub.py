@@ -31,6 +31,7 @@ import unicodedata
 import urllib
 import zipfile
 import logging
+import math
 import gtk
 import cairo
 import pango
@@ -198,6 +199,7 @@ class ReaderSetting():
                                 u'fontcolor':u'#514050800000',
                                 u'fontname':u'Serif',
                                 u'fontsize':u'12',
+                                u'fontheight':u'',
                                 u'leftmargin':u'10',
                                 u'lines':u'24',
                                 u'linestep':u'1.5',
@@ -209,8 +211,7 @@ class ReaderSetting():
                                 u'scrnheight':u'448',
                                 u'scrnwidth':u'740',
                                 u'topmargin':u'8',
-                                u'workingdir':u'',
-                                u'tmpdir':u'/tmp/aozora'
+                                u'workingdir':u''
                             }
         self.settingfile = os.path.join(self.dicSetting[u'settingdir'], 'aozora.conf')
         self.checkdir(self.dicSetting[u'settingdir'])
@@ -232,6 +233,7 @@ class ReaderSetting():
 
     def get_linedata(self, fsize, linestep):
         """ フォントサイズから行幅(ピクセル)を得る
+                12pt = 16px で計算
                 引数
                     fsize           フォントサイズ
                     linestep        行間
@@ -240,9 +242,9 @@ class ReaderSetting():
                     rubiwidth       ルビ幅（ピクセル）
                     linewidth       1行幅（ピクセル）
         """
-        honbunwidth = int(round(fsize *1.24+0.5))
-        rubiwidth = int(round(honbunwidth / 2 + 0.5))
-        linewidth = int(round((honbunwidth + rubiwidth) * (1 + linestep) + 0.5))
+        honbunwidth = int(round(fsize*(16./12.))) # 本来は 16/12
+        rubiwidth = int(math.ceil(honbunwidth/2))
+        linewidth = int(math.ceil((honbunwidth+rubiwidth)*linestep))
         return (honbunwidth, rubiwidth, linewidth)
 
     def update(self):
@@ -251,22 +253,23 @@ class ReaderSetting():
         (honbun, rubiwidth, linewidth) = self.get_linedata(
                                         float(self.dicSetting[u'fontsize']),
                                         float(self.dicSetting[u'linestep']))
+        self.dicSetting[u'fontheight'] = str(honbun)
         self.dicSetting[u'rubiwidth'] = str(rubiwidth)
         self.dicSetting[u'linewidth'] = str(linewidth)
         self.dicSetting[u'scrnwidth'] = self.dicScreen[u'%s_width' %
                                                 self.dicSetting[u'resolution']]
         self.dicSetting[u'scrnheight'] = self.dicScreen[u'%s_height' %
                                                 self.dicSetting[u'resolution']]
-        self.dicSetting[u'column'] = str(int(-2 + round(
-                                (float(int(self.dicSetting[u'scrnheight']) - \
-                                    int(self.dicSetting[u'topmargin']) - \
-                                    int(self.dicSetting[u'bottommargin'])) / \
-                                                        float(honbun)) - 0.5)))
-        self.dicSetting[u'lines'] = str(int(round(
-                                (float(int(self.dicSetting[u'scrnwidth']) - \
-                                    int(self.dicSetting[u'leftmargin']) - \
-                                    int(self.dicSetting[u'rightmargin'])) / \
-                                                    float(linewidth)) - 0.5)))
+        self.dicSetting[u'column'] = str(int(math.floor(
+                            (float(int(self.dicSetting[u'scrnheight']) -
+                                    int(self.dicSetting[u'topmargin']) -
+                                    int(self.dicSetting[u'bottommargin'])) /
+                                                        float(honbun)) )))
+        self.dicSetting[u'lines'] = str(int(math.floor(
+                                (float(int(self.dicSetting[u'scrnwidth']) -
+                                    int(self.dicSetting[u'leftmargin']) -
+                                    int(self.dicSetting[u'rightmargin'])) /
+                                                    float(linewidth)) )))
 
         with file( self.settingfile, 'w') as f0:
             for s in self.dicSetting:

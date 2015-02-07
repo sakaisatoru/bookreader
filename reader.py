@@ -422,7 +422,7 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.linesteplabel = gtk.Label( u'行間' )
         linestepadj = gtk.Adjustment(
                         value=float(self.get_value(u'linestep')),
-                            lower=0,upper=2.5,step_incr=0.5,page_incr=0.5)
+                            lower=1.5,upper=2.5,step_incr=0.5,page_incr=0.5)
         self.linestep = gtk.SpinButton(adjustment  = linestepadj,
                                         climb_rate = 0.5, digits = 1)
         self.hbox4 = gtk.HBox()
@@ -958,7 +958,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             再起動フラグ及びテキストを開いていたかどうかを返す
         """
         self.currentpage = 0
-        self.dummytitle = u'［＃３字下げ］［＃大見出し］青空文庫《あおぞらぶんこ》リーダー［＃大見出し終わり］'
+        self.dummytitle = u'［＃３字下げ］青空文庫《あおぞらぶんこ》リーダー［＃「青空文庫リーダー」は大見出し］［＃「青空文庫リーダー」に傍線］'
         self.set_title2(u'', u'')
         while restart:
             """ 再起動時の処理
@@ -975,7 +975,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.dummytitle+'\n'+
                     u'\n'+
                     u'［＃本文終わり］\n'+
-                    u'非安定版　2015年2月1日\n\n' +
+                    u'非安定版　2015年2月8日\n\n' +
                     u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
                     u'\n'+
                     u'This program is free software; you can redistribute it and/or modify'+
@@ -992,6 +992,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'along with this program; if not, write to the Free Software'+
                     u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
                     u'MA 02110-1301, USA.' )
+
             self.cc.set_source(s)
             for tmp in self.cc.formater():
                 pass
@@ -1013,7 +1014,3 @@ if __name__ == '__main__':
         del ui
         if not restart:
             break
-
-
-
-

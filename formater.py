@@ -47,6 +47,7 @@ import logging
 import xml.sax.saxutils
 import tempfile
 import math
+import copy
 from contextlib import contextmanager
 from HTMLParser import HTMLParser
 
@@ -71,7 +72,7 @@ class AozoraTag():
             見つからない場合は -1 を返す。
         """
         try:
-            while True:
+            while 1:
                 if s[pos:pos+2] == u'［＃':
                     index = self.sub_1(s, pos+2)
                     if index != -1:
@@ -149,7 +150,6 @@ class AozoraScale():
         """
         l = 0.0
         inTag = False
-        inCloseTag = False
         tagname = u''
         tagstack = []
         fontsizename = u'normal'
@@ -158,8 +158,7 @@ class AozoraScale():
             if s == u'>':
                 # tagスタックの操作
                 tagname += s
-                if inCloseTag:
-                    inCloseTag = False
+                if tagname[:2] == u'</':
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     tmp = self.reFontsizefactor.search(self.tagstack.pop())
@@ -178,10 +177,7 @@ class AozoraScale():
                 inTag = True
                 tagname = s
             elif inTag:
-                if s == '/':
-                    inCloseTag = True
-                else:
-                    tagname += s
+                tagname += s
             else:
                 # 画面上における全長を計算
                 l += self.charwidth(s) * self.fontsizefactor[fontsizename]
@@ -349,6 +345,8 @@ class Aozora(ReaderSetting, AozoraScale):
     #reFig = re.compile(ur'(［＃(?P<name>.+?)）入る］)' )
     reFig = re.compile(
         ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
+    reFig2 = re.compile(
+        ur'(［＃「(.+?)」のキャプション付きの(.+?)（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
 
     # 訓点・返り点
     reKuntenOkuri = re.compile(ur'(［＃（(?P<name>.+?)）］)')
@@ -386,8 +384,6 @@ class Aozora(ReaderSetting, AozoraScale):
         u'［＃ここから太字］':u'<span font_desc="Sans bold">',
         u'［＃斜体］':u'<span style="italic">',
         u'［＃ここから斜体］':u'<span style="italic">' }
-
-
 
     # 文字の大きさ
     dicMojisize = {
@@ -665,6 +661,57 @@ class Aozora(ReaderSetting, AozoraScale):
                             lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
+
+                        tmp2 = self.reFig2.match(tmp.group())
+                        if tmp2:
+                            # 挿図（キャプション付き他、独立段落）
+                            # 次段で処理する
+                            # reFigで分離できないのでここでトラップする
+                            tmp = self.reCTRL2.search(lnbuf,tmp.end())
+                            continue
+
+                        tmp2 = self.reFig.match(tmp.group())
+                        if tmp2:
+                            # 挿図（段落内挿入）
+                            # 拡大・縮小は行わない
+                            #print tmp.group()
+                            try:
+                                fname = tmp2.group(u'filename')
+                                tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
+                                    os.path.join(self.get_value(u'aozoradir'),
+                                        fname))
+                                figheight = tmpPixBuff.get_height()
+                                figwidth = tmpPixBuff.get_width()
+                                if figwidth > int(self.get_value('linewidth'))*2:
+                                    # 大きな挿図は独立表示へ変換する
+                                    sNameTmp = u'［＃「dummy」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
+                                            fname, figwidth, figheight)
+                                    del tmpPixBuff
+                                    lnbuf = lnbuf[:tmp.start()] + sNameTmp + lnbuf[tmp.end():]
+                                    tmp = self.reCTRL2.search(lnbuf)
+                                    continue
+
+                                # 図の高さに相当する文字列を得る
+                                sPad = self.zenstring(u'＃',int(math.ceil(
+                                    float(figheight)/float(self.get_value('fontheight')))))
+                                del tmpPixBuff
+                            except gobject.GError:
+                                # ファイルI/Oエラー
+                                self.loggingflag = True
+                                logging.info(
+                                    u'画像ファイル %s の読み出しに失敗しました。' % fname )
+                                lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
+                                tmp = self.reCTRL2.search(lnbuf)
+                                continue
+
+                            lnbuf = lnbuf[:tmp.start()] + \
+                                    u'<aozora img="%s" width="%s" height="%s">%s</aozora>' % (
+                                        fname, figwidth, figheight, sPad) + \
+                                    lnbuf[tmp.end():]
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+
 
                         tmp2 = self.reLeftrubi.match(tmp.group())
                         if tmp2:
@@ -1119,20 +1166,20 @@ class Aozora(ReaderSetting, AozoraScale):
                                     lnbuf[tmpEnd:tmp.start()])
                         priortail = tmp.end()
                         continue
+
                     matchFig = self.reFig.match(tmp.group())
                     if matchFig:
-                        """ 挿図
-                            キャンバスの大きさに合わせて画像を縮小する。
-                            幅　　上限　キャンバスの半分迄
-                            高さ　上限　キャンバスの高さ迄
-
-                            ページからはみ出るようであれば挿図前に
-                            改ページする。
-
-                            tmpRatio : 縮小倍率
-                            tmpWidth : 画像横幅
-                            figspan  : 画像幅の行数換算値
-                        """
+                        #挿図
+                        #    キャンバスの大きさに合わせて画像を縮小する。
+                        #    幅　　上限　キャンバスの半分迄
+                        #    高さ　上限　キャンバスの高さ迄
+                        #
+                        #    ページからはみ出るようであれば挿図前に
+                        #    改ページする。
+                        #
+                        #    tmpRatio : 縮小倍率
+                        #    tmpWidth : 画像横幅
+                        #    figspan  : 画像幅の行数換算値
                         tmpH = float(self.get_value(u'scrnheight')) - \
                                 float(self.get_value(u'bottommargin')) - \
                                         float(self.get_value(u'topmargin'))
@@ -1147,7 +1194,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             logging.debug( matchFig.group(u'filename'))
                             fname = matchFig.group(u'filename')
                             tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                os.path.join(self.get_value(u'aozoracurrent'),
+                                os.path.join(self.get_value(u'aozoradir'),
                                     fname))
                             figheight = float(tmpPixBuff.get_height())
                             figwidth = float(tmpPixBuff.get_width())
@@ -1624,7 +1671,6 @@ class Aozora(ReaderSetting, AozoraScale):
         honbun = u''        # 本文（カレント行）
         honbun2 = u''       # 本文（分割時の次行）
         inTag = False       # <tag>処理のフラグ
-        inCloseTag = False  # </tag>処理のフラグ
         inSplit = False     # 行分割処理のフラグ
 
         fontsizename = u'normal'
@@ -1650,8 +1696,7 @@ class Aozora(ReaderSetting, AozoraScale):
             if lsc == u'>':
                 # tagスタックの操作
                 tagname += lsc
-                if inCloseTag:
-                    inCloseTag = False
+                if tagname[:2] == u'</':
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     try:
@@ -1673,10 +1718,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 inTag = True
                 tagname = lsc
             elif inTag:
-                if lsc == '/':
-                    inCloseTag = True
-                else:
-                    tagname += lsc
+                tagname += lsc
             else:
                 # 画面上における全長を計算
                 lcc += self.charwidth(lsc) * self.fontsizefactor[fontsizename]
@@ -1757,20 +1799,20 @@ class Aozora(ReaderSetting, AozoraScale):
         substack = []
 
         # 行末のタグの分かち書き対策
-        # スタックトップにrubiがあるかチェック
         if self.tagstack != []:
             if self.tagstack[-1].find(u'<aozora ') != -1:
+                honbunpos = 0 if honbun[-1] == u'>' else honbun.rfind(u'>') + 1
+                hlen = len(honbun[honbunpos:]) # 本文側掛かり部分の長さ
                 tagname = self.tagstack[-1].split(u'=')[0].split()[1]
                 if tagname == u'rubi':
+                    # ルビの分かち書き
                     rubi = self.tagstack[-1].split(u'=')[1].strip(u'">')
                     rubiafter = u''
                     rubipos = honbun.rfind(u'%s">' % rubi)
-                    honbunpos = 0 if honbun[-1] == u'>' else honbun.rfind(u'>') + 1
                     if rubipos != -1 and honbunpos >0:
                         # 後続の本文が存在しない場合はそのまま次行に引き継ぐ
                         # (本文を伴わないルビタグは表示されないため)
 
-                        hlen = len(honbun[honbunpos:]) # 本文側掛かり部分の長さ
                         try:
                             # ルビを分割、本文1文字にルビ2文字を割り当て
                             rubiafter = rubi[hlen*2:]
@@ -1782,15 +1824,40 @@ class Aozora(ReaderSetting, AozoraScale):
                         if rubiafter:
                             honbun = u'%s%s">%s' % (
                                 honbun[:rubipos], rubi, honbun[honbunpos:] )
-                            substack.append(u'<aozora rubi="%s">' % rubiafter)
-                    honbun += u'</%s>' % s.split()[0].rstrip(u'>').lstrip(u'<')
 
+                            # 次行の先頭に字下げ用の空白などが連なる場合は、飛ばして
+                            # ルビタグを打つ
+                            pos = 0
+                            while honbun2[pos] == u'　':
+                                pos += 1
+                            honbun2 = honbun2[:pos] + \
+                                    u'<aozora rubi="%s">' % rubiafter + \
+                                    honbun2[pos:]
+                    honbun += u'</aozora>'
+
+                elif tagname == u'img':
+                    # 埋め込み画像 <aozora img="" width="" height="">
+                    # 行末に充分な表示領域が見込めれば次行へ引き継がない
+                    # でなければ、行末側を削除して次行行頭のみ表示する
+                    s = self.tagstack.pop()
+                    h = int(s.split()[3].split(u'=')[1].strip('">'))
+                    if hlen * int(self.get_value('fontheight')) < h:
+                        # 行末の画像表示域が見込めなければ次行行頭へ移動
+                        pos = 0
+                        while honbun2[pos] == u'　':
+                            pos += 1
+                        honbun2 = honbun2[:pos] + s + \
+                                self.zenstring(u'＃',hlen) + honbun2[pos:]
+                        # 本文側のタグを削除
+                        while honbun[honbunpos] != u'<':
+                            honbunpos -= 1
+                        honbun = honbun[:honbunpos]
+
+        substack = copy.copy(self.tagstack)
         while self.tagstack:
             s = self.tagstack.pop()
-            substack.append(s)
             honbun += u'</%s>' % s.split()[0].rstrip(u'>').lstrip(u'<')
-        while substack:
-            self.tagstack.append(substack.pop())
+        self.tagstack = copy.copy(substack)
 
         return (honbun, honbun2)
 
@@ -1864,7 +1931,7 @@ def pangocairocontext(cairoctx):
     finally:
         del pangoctx
 
-class expango(HTMLParser, AozoraScale):
+class expango(HTMLParser, AozoraScale, ReaderSetting):
      # 右側傍点及び傍線
     dicBouten = {
         u'白ゴマ傍点':u'﹆',
@@ -1876,6 +1943,7 @@ class expango(HTMLParser, AozoraScale):
     def __init__(self, canvas):
         HTMLParser.__init__(self)
         AozoraScale.__init__(self)
+        ReaderSetting.__init__(self)
         self.tagstack = []
         self.attrstack = []
         self.sf = canvas
@@ -1938,9 +2006,7 @@ class expango(HTMLParser, AozoraScale):
         vector = 0
         fontspan = 1
         xposoffset = 0
-        leftrubi = u''
-        rubi = u''
-        bousentype = u''
+        dicArg = {}
         sTmp = data
         try:
             # タグスタックに積まれている書式指定を全て付す
@@ -1950,22 +2016,17 @@ class expango(HTMLParser, AozoraScale):
                 if s == u'aozora':
                     # 拡張したタグは必ず引数をとる
                     for i in self.attrstack[pos]:
-                        if i[0] == u'yoko':
-                            vector = 1
-                            sTmp = i[1]
-                        elif i[0] == u'leftrubi':
-                            leftrubi = i[1]
-                        elif i[0] == u'rubi':
-                            rubi = i[1]
-                        elif i[0] == u'bousen':
-                            bousentype = i[1]
+                        dicArg[i[0]] = i[1]
+                    # 一部のタグは本文を引数で置換する
+                    if u'yoko' in dicArg:
+                        sTmp = dicArg[u'yoko']
                     pos -= 1
                     continue
-                elif s ==u'sup':
+                elif s == u'sup':
                     #<sup>単独ではベースラインがリセットされる為、外部で指定する
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
                     fontspan = self.fontmagnification(u'<%s>' % s)
-                elif s ==u'sub':
+                elif s == u'sub':
                     #<sub>単独ではベースラインがリセットされる為、外部で指定する
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
                     fontspan = self.fontmagnification(u'<%s>' % s)
@@ -1980,6 +2041,7 @@ class expango(HTMLParser, AozoraScale):
         except IndexError:
             pass
         #print sTmp
+        #print dicArg
 
         # 表示
         with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
@@ -1987,35 +2049,69 @@ class expango(HTMLParser, AozoraScale):
             ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
             layout = pangoctx.create_layout()
             layout.set_font_description(self.font)
-            layout.set_markup(sTmp)
-            if vector == 0:
+
+            if u'img' in dicArg:
+                sTmp = sTmp.replace(u'＃',u'　')
+                layout.set_markup(sTmp)
+                # 段落埋め込みの画像
+                try:
+                    # 描画位置の調整
+                    length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+                    imgtmpx = int(
+                                math.ceil((float(self.fontwidth) -
+                                    float(dicArg[u'width']))/2. -
+                                                    float(self.fontwidth)))
+                    imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
+                    pangoctx.translate(self.xpos + xposoffset + imgtmpx,
+                                            self.ypos+imgtmpy)
+                    pangoctx.rotate(0)
+                    img = cairo.ImageSurface.create_from_png(
+                            os.path.join(self.get_value(u'aozoradir'),
+                            dicArg[u'img']))
+                    ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
+                    ctx.paint()
+                except cairo.Error, m:
+                    logging.error( u'挿図処理中 %s %s' % (
+                        m,
+                        os.path.join(self.get_value(u'aozoradir'),
+                            dicArg[u'img']) ))
+
+            elif u'yoko' in dicArg:
+                # 縦中横 直前の表示位置を元にセンタリングする
+                layout.set_markup(sTmp)
+                (x,y)=layout.get_pixel_size()
+                pangoctx.translate(
+                    self.xpos + self.xposoffsetold -
+                        int(math.ceil(self.fontheight/2.)) - int(math.ceil(x/2.)),
+                                        self.ypos-1)
+                pangoctx.rotate(0)
+                y, length = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+                pc = layout.get_context() # Pango を得る
+                pc.set_base_gravity('auto')
+                pangoctx.update_layout(layout)
+                pangoctx.show_layout(layout)
+                del pc
+            else:
+                layout.set_markup(sTmp)
                 pangoctx.translate(self.xpos + xposoffset, self.ypos)  # 描画位置
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
                 self.xposoffsetold = xposoffset
                 length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
-            else:
-                # 縦中横 直前の表示位置を元にセンタリングする
-                (x,y)=layout.get_pixel_size()
-                pangoctx.translate(
-                    self.xpos + self.xposoffsetold - int(math.ceil(self.fontheight/2.)) - int(math.ceil(x/2.)),
-                                        self.ypos-1)  # 描画位置
-                pangoctx.rotate(0)
-                y, length = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+                pc = layout.get_context() # Pango を得る
+                pc.set_base_gravity('auto')
+                pangoctx.update_layout(layout)
+                pangoctx.show_layout(layout)
+                del pc
 
-            pc = layout.get_context() # Pango を得る
-            pc.set_base_gravity('auto')
-            pangoctx.update_layout(layout)
-            pangoctx.show_layout(layout)
-            del pc
             del layout
 
-        if rubi != u'':
+        if u'rubi' in dicArg:
             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                 # ルビ
                 layout = pangoctx.create_layout()
                 layout.set_font_description(self.font_rubi)
                 #layout.set_markup(u'<span size="xx-small">' + rubi + u'</span>')
-                layout.set_markup(rubi)
+                layout.set_markup(dicArg[u'rubi'])
                 rubilength,y = layout.get_pixel_size()
                 # 表示位置センタリング
                 y = self.ypos + int(math.floor((length-rubilength)/2.))
@@ -2031,22 +2127,22 @@ class expango(HTMLParser, AozoraScale):
                 del pc
                 del layout
 
-        if bousentype != u'':
+        if u'bousen' in dicArg:
             # 傍線 但し波線を実装していません
             with cairocontext(self.sf) as ctx:
                 ctx.set_antialias(cairo.ANTIALIAS_NONE)
-                if bousentype[-1] == u'線':
+                if dicArg[u'bousen'][-1] == u'線':
                     ctx.new_path()
                     ctx.set_line_width(1)
-                    if bousentype == u'破線':
+                    if dicArg[u'bousen'] == u'破線':
                         ctx.set_dash((3.5,3.5,3.5,3.5))
-                    elif bousentype == u'鎖線':
+                    elif dicArg[u'bousen'] == u'鎖線':
                         ctx.set_dash((1.5,1.5,1.5,1.5))
-                    elif bousentype == u'二重傍線':
+                    elif dicArg[u'bousen'] == u'二重傍線':
                         ctx.move_to(self.xpos + xposoffset+2, self.ypos)
                         ctx.rel_line_to(0, length)
                         ctx.stroke()
-                    elif bousentype == u'波線':
+                    elif dicArg[u'bousen'] == u'波線':
                         pass
                     ctx.move_to(self.xpos + xposoffset, self.ypos)
                     ctx.rel_line_to(0, length)
@@ -2055,7 +2151,7 @@ class expango(HTMLParser, AozoraScale):
                     # 傍点 但し本文をトレースしない
                     sB = u''
                     for s in data:
-                        sB += self.dicBouten[bousentype]
+                        sB += self.dicBouten[dicArg[u'bousen']]
                     with pangocairocontext(ctx) as pangoctx:
                         layout = pangoctx.create_layout()
                         layout.set_font_description(self.font)
@@ -2071,12 +2167,12 @@ class expango(HTMLParser, AozoraScale):
                         del pc
                         del layout
 
-        if leftrubi != u'':
+        if u'leftrubi' in dicArg:
             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                 # 左ルビ
                 layout = pangoctx.create_layout()
                 layout.set_font_description(self.font)
-                layout.set_markup(u'<span size="small">' + leftrubi + u'</span>')
+                layout.set_markup(u'<span size="small">' + dicArg[u'leftrubi'] + u'</span>')
                 pangoctx.translate(self.xpos - self.fontwidth-1,self.ypos)  # 描画位置
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
                 pc = layout.get_context() # Pango を得る
@@ -2188,12 +2284,12 @@ class CairoCanvas(Aozora):
                         # 挿図処理
                         try:
                             img = cairo.ImageSurface.create_from_png(
-                                    os.path.join(self.get_value(u'aozoracurrent'),
+                                    os.path.join(self.get_value(u'aozoradir'),
                                     matchFig.group('filename')) )
                         except cairo.Error, m:
                             logging.error( u'挿図処理中 %s %s' % (
                                 m,
-                                os.path.joiin(self.get_value(u'aozoracurrent'),
+                                os.path.joiin(self.get_value(u'aozoradir'),
                                                 matchFig.group('filename')) ))
 
                         with cairocontext(self.sf) as ctx:

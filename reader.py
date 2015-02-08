@@ -649,6 +649,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.pmenu_book_do.connect('activate', self.shiori_here_cb )
         self.pmenu_book_list = gtk.MenuItem( u'しおりの管理(_L)', True)
         self.pmenu_book_list.connect('activate', self.shiori_list_cb )
+
         self.popupmenu_bookmark = gtk.Menu()
         self.popupmenu_bookmark.append(self.pmenu_book_do)
         self.popupmenu_bookmark.append(self.pmenu_book_list)
@@ -975,7 +976,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.dummytitle+'\n'+
                     u'\n'+
                     u'［＃本文終わり］\n'+
-                    u'非安定版　2015年2月8日\n\n' +
+                    u'非安定版　2015年2月9日\n\n' +
                     u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
                     u'\n'+
                     u'This program is free software; you can redistribute it and/or modify'+
@@ -991,7 +992,18 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'You should have received a copy of the GNU General Public License'+
                     u'along with this program; if not, write to the Free Software'+
                     u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
-                    u'MA 02110-1301, USA.' )
+                    u'MA 02110-1301, USA.\n'+
+                    u'\n'+
+                    u'既知の問題点\n'+
+                    u'［＃ここから１字下げ、折り返して２字下げ］'+
+                    u'・設定ファイルが非互換になってしまいました。起動に失敗'+
+                    u'する場合は、~/.config/aozora/aozora.conf を削除して再度'+
+                    u'起動してください。\n'+
+                    u'・傍線の描画方法をフォントからcairoでの線引きに変更。'+
+                    u'但し、波線を実装していません。\n'+
+                    u'・傍点の描画については本文をトレースしません。\n'+
+                    u'・画像表示が一部うまくいきません。\n'+
+                    u'［＃字下げ終わり］')
 
             self.cc.set_source(s)
             for tmp in self.cc.formater():

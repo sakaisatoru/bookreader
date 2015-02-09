@@ -976,7 +976,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.dummytitle+'\n'+
                     u'\n'+
                     u'［＃本文終わり］\n'+
-                    u'非安定版　2015年2月9日\n\n' +
+                    u'［＃小見出し］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月10［＃「10」は縦中横］日［＃小見出し終わり］\n'+
+                    u'\n' +
                     u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
                     u'\n'+
                     u'This program is free software; you can redistribute it and/or modify'+
@@ -996,13 +997,12 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'\n'+
                     u'既知の問題点\n'+
                     u'［＃ここから１字下げ、折り返して２字下げ］'+
-                    u'・設定ファイルが非互換になってしまいました。起動に失敗'+
+                    u'・設定《せってい》［＃「設定」の左に「青空文庫リーダ」の注記］ファイルが非互換になってしまいました。起動に失敗'+
                     u'する場合は、~/.config/aozora/aozora.conf を削除して再度'+
                     u'起動してください。\n'+
-                    u'・傍線の描画方法をフォントからcairoでの線引きに変更。'+
-                    u'但し、波線を実装していません。\n'+
+                    u'・波線を実装していません。\n'+
+                    u'・行末のルビの分かち書きについて左右同時に出現すると動作しません。\n'+
                     u'・傍点の描画については本文をトレースしません。\n'+
-                    u'・画像表示が一部うまくいきません。\n'+
                     u'［＃字下げ終わり］')
 
             self.cc.set_source(s)

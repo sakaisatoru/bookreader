@@ -861,7 +861,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         if self.cc.get_source() != fn:
             # 新規読み込み
             self.cc.set_source(fn)
-            m = self.cc.countlines()
+            m = sum(1 for line in codecs.open(fn))
             c = 0
             for tmp in self.cc.formater():
                 c += 1
@@ -976,7 +976,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.dummytitle+'\n'+
                     u'\n'+
                     u'［＃本文終わり］\n'+
-                    u'［＃小見出し］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月10［＃「10」は縦中横］日［＃小見出し終わり］\n'+
+                    u'［＃小見出し］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月11［＃「11」は縦中横］日［＃小見出し終わり］\n'+
                     u'\n' +
                     u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
                     u'\n'+
@@ -999,10 +999,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'［＃ここから１字下げ、折り返して２字下げ］'+
                     u'・設定《せってい》［＃「設定」の左に「青空文庫リーダ」の注記］ファイルが非互換になってしまいました。起動に失敗'+
                     u'する場合は、~/.config/aozora/aozora.conf を削除して再度'+
-                    u'起動してください。\n'+
+                    u'起動［＃「再度」に傍点］してください。\n'+
                     u'・波線を実装していません。\n'+
-                    u'・行末のルビの分かち書きについて左右同時に出現すると動作しません。\n'+
-                    u'・傍点の描画については本文をトレースしません。\n'+
+                    u'・注記が重複すると正しく表示されない場合があります。\n'+
+                    u'・傍点《ぼうてん》の描画《びょうが》［＃「傍点の描画」は太字］［＃「傍点の描画」の左に「ぼうてんのびょうが」の注記］については本文をトレースしません。\n'+
                     u'［＃字下げ終わり］')
 
             self.cc.set_source(s)

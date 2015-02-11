@@ -260,16 +260,16 @@ class ReaderSetting():
                                                 self.dicSetting[u'resolution']]
         self.dicSetting[u'scrnheight'] = self.dicScreen[u'%s_height' %
                                                 self.dicSetting[u'resolution']]
-        self.dicSetting[u'column'] = str(int(math.floor(
+        self.dicSetting[u'column'] = str(int(
                             (float(int(self.dicSetting[u'scrnheight']) -
                                     int(self.dicSetting[u'topmargin']) -
-                                    int(self.dicSetting[u'bottommargin'])) /
-                                                        float(honbun)) )))
-        self.dicSetting[u'lines'] = str(int(math.floor(
+                                    int(self.dicSetting[u'bottommargin'])) //
+                                                        float(honbun)) ))
+        self.dicSetting[u'lines'] = str(int(
                                 (float(int(self.dicSetting[u'scrnwidth']) -
                                     int(self.dicSetting[u'leftmargin']) -
-                                    int(self.dicSetting[u'rightmargin'])) /
-                                                    float(linewidth)) )))
+                                    int(self.dicSetting[u'rightmargin'])) //
+                                                    float(linewidth)) ))
 
         with file( self.settingfile, 'w') as f0:
             for s in self.dicSetting:

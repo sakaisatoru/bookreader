@@ -128,16 +128,18 @@ class AozoraScale():
             u'x':0.562500,  u'y':0.562500,  u'z':0.437500,  u'{':0.312500,
             u'|':0.187500,  u'}':0.312500,  u'~':0.500000   }
 
-    # 文字サイズ変更への暫定対応
+    # 文字サイズ変更への暫定対応(公比1.2、端数切り上げ、一部調整)
     fontsizefactor = {
             u'normal':1.0,
-            #u'size="smaller"':0.8130,       u'size="larger"':1.2000,
-            u'size="smaller"':0.8000,       u'size="larger"':1.2000,
-            u'size="small"':0.8000,         u'size="large"':1.2000,
-            #u'size="small"':0.8130,         u'size="large"':1.2000,
-            u'size="x-small"':0.694,        u'size="x-large"':1.4375,
-            u'size="xx-small"':0.555,       u'size="xx-large"':1.7500,
-            u'<sup>':0.800,                 u'<sub>':0.800 }
+            #u'size="smaller"':0.8333333333333334,   u'size="larger"':1.2000,
+            u'size="smaller"':0.82,   u'size="larger"':1.2000,
+            #u'size="small"':0.8333333333333334,     u'size="large"':1.2000,
+            u'size="small"':0.82,     u'size="large"':1.2000,
+            u'size="x-small"':0.6944444444444445,   u'size="x-large"':1.4400,
+            u'size="xx-small"':0.578703703703703,   u'size="xx-large"':1.7280,
+            u'<sup>':0.82,          u'<sub>':0.82 }
+            #u'<sup>':0.8333333333333334,          u'<sub>':0.8333333333333334 }
+
     reFontsizefactor = re.compile( ur'(?P<name>size=".+?")' )
 
     def __init__(self):
@@ -181,8 +183,8 @@ class AozoraScale():
             else:
                 # 画面上における全長を計算
                 l += self.charwidth(s) * self.fontsizefactor[fontsizename]
-        #return int(math.ceil(l))
-        return int(math.floor(l))
+        return int(math.ceil(l))
+        #return int(math.floor(l))
         #return int(round(l))
 
     def charwidth(self, lsc):
@@ -225,7 +227,6 @@ class AozoraScale():
             else:
                 break
         return n
-
 
 
 
@@ -1716,9 +1717,10 @@ class Aozora(ReaderSetting, AozoraScale):
             pos = 0
             if honbun2[0:2] == u'</':
                 # 閉じタグなら前行へぶら下げる
-                pos += 2
-                while honbun2[pos] != u'>':
-                    pos += 1
+                pos = honbun2.find(u'>',pos+2)
+                #pos += 2
+                #while honbun2[pos] != u'>':
+                #    pos += 1
                 pos += 1
                 self.tagstack.pop()
                 honbun += honbun2[:pos]
@@ -1728,9 +1730,10 @@ class Aozora(ReaderSetting, AozoraScale):
             try:
                 while honbun2[pos] == u'<':
                     # タグをスキップ
-                    pos += 1
-                    while honbun2[pos] != u'>':
-                        pos += 1
+                    pos = honbun2.find(u'>',pos+1)
+                    #pos += 1
+                    #while honbun2[pos] != u'>':
+                    #    pos += 1
                     pos += 1
 
                 if honbun2[pos] in self.kinsoku:
@@ -1741,9 +1744,10 @@ class Aozora(ReaderSetting, AozoraScale):
                         # ２文字目チェック
                         while honbun2[pos] == u'<':
                             # タグをスキップする
-                            pos += 1
-                            while honbun2[pos] != u'>':
-                                pos += 1
+                            pos = honbun2.find(u'>',pos+1)
+                            #pos += 1
+                            #while honbun2[pos] != u'>':
+                            #    pos += 1
                             pos += 1
                         if honbun2[pos] in self.kinsoku:
                             if honbun2[pos] in self.kinsoku4:
@@ -2108,7 +2112,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 layout.set_markup(dicArg[u'rubi'])
                 rubilength,rubispan = layout.get_pixel_size()
                 # 表示位置センタリング
-                y = self.ypos + int(math.floor((length-rubilength)/2.))
+                y = self.ypos + int((length-rubilength) // 2.)
                 if y < 0:
                     y = 0
                 pangoctx.translate(self.xpos + honbunxpos + rubispan,y)
@@ -2168,7 +2172,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 layout.set_markup(dicArg[u'leftrubi'])
                 rubilength,rubispan = layout.get_pixel_size()
                 # 表示位置センタリング
-                y = self.ypos + int(math.floor((length-rubilength)/2.))
+                y = self.ypos + int((length-rubilength) // 2.)
                 if y < 0:
                     y = 0
                 pangoctx.translate(self.xpos - honbunxpos ,y)
@@ -2235,6 +2239,25 @@ class CairoCanvas(Aozora):
             r,g,b = self.drawstring.getbackgroundcolour()
             ctx.set_source_rgb(r, g, b)
             ctx.fill()
+
+        # マージンに境界線を引く（デバッグ用）
+            r,g,b = self.drawstring.getforegroundcolour()
+            ctx.set_source_rgb(r, g, b)
+            ctx.set_antialias(cairo.ANTIALIAS_NONE)
+            ctx.new_path()
+            ctx.set_line_width(1)
+            ctx.set_dash((3.5,3.5,3.5,3.5))
+            tmpwidth = self.canvas_width - int(self.get_value('leftmargin')) - self.canvas_rightmargin
+            tmpheight = self.canvas_height - self.canvas_rightmargin - int(self.get_value('bottommargin'))
+            ctx.move_to(self.canvas_width - self.canvas_rightmargin, self.canvas_topmargin)
+            ctx.rel_line_to(0, tmpheight)
+            ctx.rel_line_to(-tmpwidth, 0)
+            ctx.rel_line_to(0, -tmpheight)
+            ctx.rel_line_to(tmpwidth, 0)
+            ctx.stroke()
+
+            tmpwidth = 0
+            tmpheight = 0
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
             try:

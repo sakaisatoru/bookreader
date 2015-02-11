@@ -50,51 +50,71 @@ accenttable = {
 
     # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
 
-def replace_sub(src, pos=0):
+def replace(src):
     """ アクセント変換文字列〔〕を渡して定義済み文字があれば変換して返す。
-        〔〕は閉じていること。
-        前後の括弧は取り除かれる。
-        無ければ source をそのまま返す。
-        ネスティング対応あり。
+        〔〕は取り除かれる。
+        無ければ src をそのまま返す。
     """
-    try:
-        while src[pos] != u'〕':
+    pos = src.find(u'〔')
+    if pos == -1:
+        rv = src
+    else:
+        rv = u''
+        nv = u''
+        prior = pos
+        pos += 1
+        ln = len(src)
+        cnt = 1 # 〔〕のバランス用（未変換の場合、復元するため）
+        changed = False
+        while pos < ln:
+            if src[pos] == u'〕':
+                cnt -= 1
+                if not changed and cnt > 0:
+                    rv += src[pos]
+
+                if cnt == 0:
+                    if not changed:
+                        rv = u'〔%s〕' % rv
+                    if pos >= ln:
+                        # 終了
+                        break
+                    # 残っているので継続
+                    nv += rv
+                    rv = u''
+
+                pos += 1
+                continue
+
             if src[pos] == u'〔':
-                tmpSrc, tmpEnd = replace_sub( src[pos+1:] )
-                curr = pos
-                pos = len(src[:curr]+tmpSrc)
-                src = src[:curr] + tmpSrc + tmpEnd
+                if not changed and cnt > 0:
+                    nv += u'〔' + rv
+                    rv = u''
+                cnt += 1
+                pos += 1
                 continue
 
             sTmp = src[pos:pos+2]
             if sTmp in accenttable:
-                # match
-                src = src[:pos] + \
-                        accenttable[sTmp] + \
-                        src[pos+2:]
-                pos += len(accenttable[sTmp])
-            else:
-                sTmp = src[pos:pos+3]
-                if sTmp in accenttable:
-                    # match
-                    src = src[:pos] + \
-                            accenttable[sTmp] + \
-                            src[pos+3:]
-                    pos += len(accenttable[sTmp])
-                else:
-                    pos += 1
-    except IndexError:
-        pass
+                rv += accenttable[sTmp]
+                pos += 2
+                changed = True
+                continue
 
-    return src[:pos], src[pos+1:]
+            sTmp = src[pos:pos+3]
+            if sTmp in accenttable:
+                rv += accenttable[sTmp]
+                pos += 3
+                changed = True
+                continue
 
-def replace(src):
-    """ 呼び出し
-    """
-    r = src.find( u'〔' )
-    if r != -1:
-        src, src1 = replace_sub(src, r)
-        src = src + src1
-    return src
+            rv += src[pos]
+            pos += 1
+        else:
+            if not changed:
+                if cnt >0:
+                    rv = u'〔' + rv
+                elif cnt <0:
+                    rv = rv + u'〕'
 
-
+        rv = src[:prior] + nv + rv
+    return rv

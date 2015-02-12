@@ -339,7 +339,7 @@ class Aozora(ReaderSetting, AozoraScale):
     reFig = re.compile(
         ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
     reFig2 = re.compile(
-        ur'(［＃「(.+?)」のキャプション付きの(.+?)（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
+        ur'(［＃「(?P<caption>.+?)」のキャプション付きの(.+?)（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
 
     # 訓点・返り点
     reKuntenOkuri = re.compile(ur'(［＃（(?P<name>.+?)）］)')
@@ -389,11 +389,13 @@ class Aozora(ReaderSetting, AozoraScale):
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
+        AozoraScale.__init__(self)
         self.destfile = os.path.join(self.get_value(u'workingdir'), u'view.txt')
         self.mokujifile = os.path.join(self.get_value(u'workingdir'),u'mokuji.txt')
         self.readcodecs = u'shift_jis'
         self.pagelines = int(self.get_value(u'lines'))  # 1頁の行数
         self.chars = int(self.get_value(u'column'))     # 1行の最大文字数
+        self.linewidth = int(self.get_value(u'linewidth')) # 1行の幅
         self.charsmax = self.chars - 1          # 最後の1文字は禁則処理用に確保
         self.pagecounter = 0
         self.set_source( None )
@@ -663,9 +665,9 @@ class Aozora(ReaderSetting, AozoraScale):
                                         fname))
                                 figheight = tmpPixBuff.get_height()
                                 figwidth = tmpPixBuff.get_width()
-                                if figwidth > int(self.get_value('linewidth'))*2:
+                                if figwidth > self.linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
-                                    sNameTmp = u'［＃「dummy」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
+                                    sNameTmp = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
                                             fname, figwidth, figheight)
                                     del tmpPixBuff
                                     lnbuf = lnbuf[:tmp.start()] + sNameTmp + lnbuf[tmp.end():]
@@ -713,9 +715,18 @@ class Aozora(ReaderSetting, AozoraScale):
                             #   暫定処理：小文字で表示
                             tmpStart,tmpEnd = self.honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            lnbuf = u'%s<span size="smaller">%s</span>%s%s' % (
+                            #lnbuf = u'%s<span size="smaller">%s</span>%s%s' % (
+
+                            # 横書きにするので内容への修飾を外す
+                            sTmp = lnbuf[tmpStart:tmpEnd]
+                            postmp = sTmp.find(u'［＃')
+                            if postmp != -1:
+                                postmp2 = sTmp.rfind(u'］')
+                                if postmp2 != -1:
+                                    sTmp = sTmp[:postmp]+sTmp[postmp2+1:]
+                            lnbuf = u'%s<aozora caption="%s" size="smaller">　</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
-                                        lnbuf[tmpStart:tmpEnd],
+                                        sTmp,
                                         lnbuf[tmpEnd:tmp.start()],
                                         lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf,tmpStart)
@@ -1165,32 +1176,14 @@ class Aozora(ReaderSetting, AozoraScale):
                             #
                             #    ページからはみ出るようであれば挿図前に
                             #    改ページする。
-                            #
-                            #    tmpRatio : 縮小倍率
-                            #    tmpWidth : 画像横幅
-                            #    figspan  : 画像幅の行数換算値
-                            tmpH = float(self.get_value(u'scrnheight')) - \
-                                    float(self.get_value(u'bottommargin')) - \
-                                            float(self.get_value(u'topmargin'))
-                            tmpW = float(self.get_value(u'scrnwidth')) - \
-                                    float(self.get_value(u'rightmargin')) - \
-                                            float(self.get_value(u'leftmargin'))
-                            tmpW /= 2 # 許可される最大幅
-
-                            #   タグに図のピクセルサイズが正しく登録されていない
-                            #   場合があるので、画像ファイルを開いてチェックする
                             try:
-                                logging.debug( matchFig.group(u'filename'))
                                 fname = matchFig.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
                                     os.path.join(self.get_value(u'aozoradir'),
                                         fname))
-                                figheight = float(tmpPixBuff.get_height())
-                                figwidth = float(tmpPixBuff.get_width())
-                                tmpRasio = round(tmpH / figheight,4)
-                                tmpRasioW = round(tmpW / figwidth,4)
-
-                                del tmpPixBuff
+                                figheight = tmpPixBuff.get_height()
+                                figwidth = tmpPixBuff.get_width()
+                                #del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
                                 self.loggingflag = True
@@ -1199,35 +1192,47 @@ class Aozora(ReaderSetting, AozoraScale):
                                 lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                                 tmp = self.reCTRL2.search(lnbuf)
                                 continue
-                            if tmpRasioW > 1.0:
-                                tmpRasioW = 1.0
+
+                            tmpH = float(self.get_value(u'scrnheight')) - \
+                                    float(self.get_value(u'bottommargin')) - \
+                                            float(self.get_value(u'topmargin')) - \
+                                            float(self.get_value(u'fontheight'))*5
+                            tmpW = float(self.get_value(u'scrnwidth')) - \
+                                    float(self.get_value(u'rightmargin')) - \
+                                            float(self.get_value(u'leftmargin'))
+                            tmpW //= 2. # 許可される最大幅
+                            # 表示領域に収まるような倍率を求める
+                            tmpRasio = min((tmpH / figheight),(tmpW / figwidth))
                             if tmpRasio > 1.0:
                                 tmpRasio = 1.0
-                            if tmpRasioW < tmpRasio:
-                                tmpRasio = tmpRasioW
-                            if tmpRasioW > tmpRasio:
-                                tmpRasioW = tmpRasio
 
-                            tmpWidth = int(round(figwidth * tmpRasioW,0))
+                            """
+                            tmpH -= float(self.get_value(u'fontheight'))*5
+                            if figheight * tmpRasio >= tmpH:
+                                # 画像下にキャプション表示域、
+                                # 上に2文字分を確保する為、さらに縮める
+                                tmpRasio = tmpH / figheight
+                            """
 
-                            figspan = int(round(float(tmpWidth) / \
-                                    float(self.get_value(u'linewidth'))+0.5,0))
-                            if self.linecounter + figspan >= \
-                                                int(self.get_value(u'lines')):
+                            # 画像幅をピクセルから行数に換算する
+                            figspan = int(round(figwidth*tmpRasio / float(self.linewidth)))
+
+                            if self.linecounter + figspan >= self.pagelines:
                                 # 画像がはみ出すようなら改ページする
                                 while not self.write2file(dfile, '\n'):
                                     pass
-                            self.write2file( dfile,
-                                    '%s,%s,%s,%d,%f\n' %
-                                        (fname,
-                                            tmpWidth,
-                                            int(round(figheight * tmpRasio,0)),
-                                            figspan,
-                                            tmpRasio ) )
-                            figspan -= 1
                             while figspan > 0:
                                 self.write2file(dfile, '\n')
                                 figspan -= 1
+                            self.write2file( dfile,
+                                u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f">　</aozora>\n' % (
+                                    fname, figwidth, figheight, tmpRasio ))
+                            """
+                            if self.reFig2.match(tmp.group()):
+                                if tmp.group().find(u'＃＃＃＃＃') != -1:
+                                    # キャプションが続かない場合は改行する
+                                    self.write2file(dfile, u'\n')
+                            """
                             lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
@@ -1942,6 +1947,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.attrstack = []
         self.sf = canvas
         self.xposoffsetold = 0
+        self.oldlength = 0
+
 
     def settext(self, s, xpos, ypos):
         self.source = s
@@ -2035,19 +2042,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             pass
 
         # 表示
-
-        # レイアウト確認用補助線
-        """
-        with cairocontext(self.sf) as ctx:
-            ctx.set_antialias(cairo.ANTIALIAS_NONE)
-            ctx.new_path()
-            ctx.set_line_width(1)
-            ctx.set_dash((3.5,3.5,3.5,3.5))
-            ctx.move_to(self.xpos, self.ypos)
-            ctx.rel_line_to(0, int(self.get_value('scrnheight')))
-            ctx.stroke()
-            """
-
         with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
             ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
             ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
@@ -2058,24 +2052,54 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 sTmp = sTmp.replace(u'＃',u'　')
                 layout.set_markup(sTmp)
                 # 段落埋め込みの画像
-                try:
-                    # 描画位置の調整
-                    length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
-                    imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
-                    imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
-                    pangoctx.translate(self.xpos + xposoffset - imgtmpx,
-                                            self.ypos+imgtmpy)
-                    pangoctx.rotate(0)
-                    img = cairo.ImageSurface.create_from_png(
-                            os.path.join(self.get_value(u'aozoradir'),
-                            dicArg[u'img']))
-                    ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
-                    ctx.paint()
-                except cairo.Error, m:
-                    logging.error( u'挿図処理中 %s %s' % (
-                        m,
+                # 描画位置の調整
+                length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+                imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
+                imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
+                pangoctx.translate(self.xpos + xposoffset - imgtmpx,
+                                        self.ypos+imgtmpy)
+                pangoctx.rotate(0)
+                img = cairo.ImageSurface.create_from_png(
                         os.path.join(self.get_value(u'aozoradir'),
-                            dicArg[u'img']) ))
+                        dicArg[u'img']))
+                ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
+                ctx.paint()
+
+            elif u'img2' in dicArg:
+                # 画像
+                pangoctx.translate(self.xpos + xposoffset,
+                    self.ypos + int(self.get_value(u'fontheight'))*2)
+                pangoctx.rotate(0)
+                img = cairo.ImageSurface.create_from_png(
+                            os.path.join(self.get_value(u'aozoradir'),
+                            dicArg[u'img2']))
+
+                ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
+                # scaleで画像を縮小すると座標系全てが影響を受ける為、
+                # translate で指定したものを活かす
+                sp = cairo.SurfacePattern(self.sf)
+                sp.set_filter( cairo.FILTER_BEST )#FILTER_GAUSSIAN )#FILTER_NEAREST)
+                ctx.set_source_surface(img,0,0)
+                ctx.paint()
+                length = int(float(self.get_value(u'fontheight'))*2 +
+                    math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
+                self.oldlength = length
+
+            elif u'caption' in dicArg:
+                # キャプション
+                # 直前に画像がなかったり改ページされている場合は失敗する
+                sTmp = u'<span size="%s">%s</span>' % (dicArg[u'size'], dicArg[u'caption'])
+                layout.set_markup(sTmp)
+                length, y = layout.get_pixel_size() #x,yを入れ替えることに注意
+                pangoctx.translate(self.xpos + int(self.get_value(u'linewidth')),
+                                            self.ypos + y/2. + self.oldlength)
+                pangoctx.rotate(0)
+                pc = layout.get_context() # Pango を得る
+                pc.set_base_gravity('auto')
+                pangoctx.update_layout(layout)
+                pangoctx.show_layout(layout)
+                del pc
+                length = y
 
             elif u'tatenakayoko' in dicArg:
                 # 縦中横 直前の表示位置を元にセンタリングする
@@ -2089,6 +2113,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
                 del pc
+
             else:
                 layout.set_markup(sTmp)
                 length, span = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
@@ -2203,10 +2228,10 @@ class CairoCanvas(Aozora):
         self.canvas_rubispan    = int(self.get_value(u'rubiwidth'))
         self.canvas_fontname    = self.get_value(u'fontname')
 
+        self.BEDEBUG = False #True
     def writepage(self, pagenum, buffname=u''):
         """ 指定したページを描画する
         """
-        reFig = re.compile( ur'^(?P<filename>.+?),(?P<width>[0-9]+?),(?P<height>[0-9]+?),(?P<lines>[0-9]+?),(?P<rasio>[0-9]+?\.[0-9]+?)$' )
         if not buffname:
             buffname = self.get_outputname()
 
@@ -2240,24 +2265,64 @@ class CairoCanvas(Aozora):
             ctx.set_source_rgb(r, g, b)
             ctx.fill()
 
-        # マージンに境界線を引く（デバッグ用）
-            r,g,b = self.drawstring.getforegroundcolour()
-            ctx.set_source_rgb(r, g, b)
-            ctx.set_antialias(cairo.ANTIALIAS_NONE)
-            ctx.new_path()
-            ctx.set_line_width(1)
-            ctx.set_dash((3.5,3.5,3.5,3.5))
-            tmpwidth = self.canvas_width - int(self.get_value('leftmargin')) - self.canvas_rightmargin
-            tmpheight = self.canvas_height - self.canvas_rightmargin - int(self.get_value('bottommargin'))
-            ctx.move_to(self.canvas_width - self.canvas_rightmargin, self.canvas_topmargin)
-            ctx.rel_line_to(0, tmpheight)
-            ctx.rel_line_to(-tmpwidth, 0)
-            ctx.rel_line_to(0, -tmpheight)
-            ctx.rel_line_to(tmpwidth, 0)
-            ctx.stroke()
+            if self.BEDEBUG:
+            # マージンに境界線を引く（デバッグ用）
+                r,g,b = self.drawstring.getforegroundcolour()
+                ctx.set_source_rgb(r, g, b)
+                ctx.set_antialias(cairo.ANTIALIAS_NONE)
+                ctx.new_path()
+                ctx.set_line_width(1)
+                ctx.set_dash((3.5,3.5,3.5,3.5))
+                tmpwidth = self.canvas_width - int(self.get_value('leftmargin')) - self.canvas_rightmargin
+                tmpheight = self.canvas_height - self.canvas_rightmargin - int(self.get_value('bottommargin'))
+                ctx.move_to(self.canvas_width - self.canvas_rightmargin, self.canvas_topmargin)
+                ctx.rel_line_to(0, tmpheight)
+                ctx.rel_line_to(-tmpwidth, 0)
+                ctx.rel_line_to(0, -tmpheight)
+                ctx.rel_line_to(tmpwidth, 0)
+                ctx.stroke()
 
-            tmpwidth = 0
-            tmpheight = 0
+                tmpwidth = 0
+                tmpheight = 0
+
+        if self.BEDEBUG:
+            # 行番号の表示（デバッグ用）
+            tmpxpos = self.canvas_width - self.canvas_rightmargin - int(math.ceil(self.canvas_linewidth/2.))
+            n = 1
+            while tmpxpos > 0:
+                with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                    sTmp = u'<span size="xx-small">%d</span>' % n
+                    layout = pangoctx.create_layout()
+                    layout.set_markup(sTmp)
+                    length,y = layout.get_pixel_size()
+                    pangoctx.translate(tmpxpos - int(math.ceil(length/2.)),0)
+                    pangoctx.rotate(0)
+                    pc = layout.get_context() # Pango を得る
+                    pc.set_base_gravity('auto')
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del pc
+                    tmpxpos -= self.canvas_linewidth
+                    n += 1
+
+            tmpxpos = self.canvas_topmargin
+            n = 1
+            while tmpxpos < self.canvas_height:
+                with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                    sTmp = u'<span size="xx-small">%d</span>' % n
+                    layout = pangoctx.create_layout()
+                    layout.set_markup(sTmp)
+                    length,y = layout.get_pixel_size()
+                    pangoctx.translate(0, tmpxpos )
+                    pangoctx.rotate(0)
+                    pc = layout.get_context() # Pango を得る
+                    pc.set_base_gravity('auto')
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del pc
+                    tmpxpos += int(self.get_value('fontheight'))
+                    n += 1
+
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
             try:
@@ -2301,44 +2366,20 @@ class CairoCanvas(Aozora):
                             ctx.rel_line_to(-tmpwidth,0)
                             ctx.close_path()
                             ctx.stroke()
-                    matchFig = reFig.search(s0)
-                    if matchFig:
-                        # 挿図処理
-                        try:
-                            img = cairo.ImageSurface.create_from_png(
-                                    os.path.join(self.get_value(u'aozoradir'),
-                                    matchFig.group('filename')) )
-                        except cairo.Error, m:
-                            logging.error( u'挿図処理中 %s %s' % (
-                                m,
-                                os.path.joiin(self.get_value(u'aozoradir'),
-                                                matchFig.group('filename')) ))
 
-                        with cairocontext(self.sf) as ctx:
-                            # 単にscaleで画像を縮小すると座標系全てが影響を受ける
-                            ctx.scale(float(matchFig.group('rasio')),
-                                                    float(matchFig.group('rasio')) )
-                            ctx.set_source_surface(img,
-                                    round((xpos + int(matchFig.group('lines'))/2 -
-                                       ((int(matchFig.group('lines')) *
-                                       self.canvas_linewidth))) /
-                                       float(matchFig.group('rasio'))+0.5,0),
-                                            self.canvas_topmargin)
-                            ctx.paint()
-                    else:
-                        if inKeikakomi:
-                            # 罫囲み時の最大高さを得る
-                            tmpheight = self.linelengthcount(s0)
-                            if  tmpheight > maxchars:
-                                maxchars = tmpheight
-                            # 文字列の最低書き出し位置を求める
-                            sTmp = s0.strip()
-                            if sTmp:
-                                tmpheight = s0.find(sTmp)
-                                if tmpheight < offset_y:
-                                    offset_y = tmpheight
+                    if inKeikakomi:
+                        # 罫囲み時の最大高さを得る
+                        tmpheight = self.linelengthcount(s0)
+                        if  tmpheight > maxchars:
+                            maxchars = tmpheight
+                        # 文字列の最低書き出し位置を求める
+                        sTmp = s0.strip()
+                        if sTmp:
+                            tmpheight = s0.find(sTmp)
+                            if tmpheight < offset_y:
+                                offset_y = tmpheight
 
-                        self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                    self.drawstring.settext(s0, xpos, self.canvas_topmargin)
                     xpos -= self.canvas_linewidth
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),

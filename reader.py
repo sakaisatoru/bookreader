@@ -46,6 +46,7 @@ from formater   import Aozora, CairoCanvas
 from whatsnew   import WhatsNewUI
 from logview    import Logviewer
 from booklist   import BookshelfUI
+from bunko      import BunkoUI
 
 import tempfile
 import sys
@@ -848,14 +849,20 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     def menu_fileopen(self):
         """ ローカルにある青空文庫ファイルを開く
         """
-        dlg = BookshelfUI()
-        res = dlg.run()
-        if res == gtk.RESPONSE_OK:
-            fn = dlg.get_filename()
-            dlg.destroy()
+        #dlg = BookshelfUI()
+        #res = dlg.run()
+        #if res == gtk.RESPONSE_OK:
+        #    fn = dlg.get_filename()
+        #    dlg.destroy()
+        #    self.bookopen(fn)
+        #else:
+        #    dlg.destroy()
+        dlg = BunkoUI()
+        dlg.run()
+        fn = dlg.get_filename()
+        if fn != u'':
+            print fn
             self.bookopen(fn)
-        else:
-            dlg.destroy()
 
     def bookopen(self, fn, pagenum=0):
         if self.cc.get_source() != fn:
@@ -976,7 +983,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.dummytitle+'\n'+
                     u'\n'+
                     u'［＃本文終わり］\n'+
-                    u'［＃小見出し］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月11［＃「11」は縦中横］日［＃小見出し終わり］\n'+
+                    u'［＃小見出し］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月13［＃「13」は縦中横］日［＃小見出し終わり］\n'+
                     u'\n' +
                     u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
                     u'\n'+

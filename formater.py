@@ -1206,14 +1206,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             if tmpRasio > 1.0:
                                 tmpRasio = 1.0
 
-                            """
-                            tmpH -= float(self.get_value(u'fontheight'))*5
-                            if figheight * tmpRasio >= tmpH:
-                                # 画像下にキャプション表示域、
-                                # 上に2文字分を確保する為、さらに縮める
-                                tmpRasio = tmpH / figheight
-                            """
-
                             # 画像幅をピクセルから行数に換算する
                             figspan = int(round(figwidth*tmpRasio / float(self.linewidth)))
 
@@ -1227,12 +1219,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.write2file( dfile,
                                 u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f">　</aozora>\n' % (
                                     fname, figwidth, figheight, tmpRasio ))
-                            """
-                            if self.reFig2.match(tmp.group()):
-                                if tmp.group().find(u'＃＃＃＃＃') != -1:
-                                    # キャプションが続かない場合は改行する
-                                    self.write2file(dfile, u'\n')
-                            """
+
                             lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                             tmp = self.reCTRL2.search(lnbuf)
                             continue

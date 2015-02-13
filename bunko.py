@@ -710,10 +710,10 @@ class BunkoUI(gtk.Window, ReaderSetting):
 
         # 全体
         ntb = gtk.Notebook()
-        ntb.append_page(vhNDCsakuhin, gtk.Label(u'NDC'))
         ntb.append_page(vbGojuonauthor, gtk.Label(u'五十音別'))
+        ntb.append_page(vhNDCsakuhin, gtk.Label(u'NDC'))
 
-        btnIdxDL = gtk.Button(u'インデックスファイルを新規ダウンロード')
+        btnIdxDL = gtk.Button(u'インデックスを新規ダウンロード')
         btnIdxDL.connect('clicked', self.btnIdxDL_clicked_cb)
         btnDL = gtk.Button(u'一括ダウンロード')
         btnDL.connect('clicked', self.btnDL_clicked_cb)
@@ -723,7 +723,8 @@ class BunkoUI(gtk.Window, ReaderSetting):
         btnOpen.connect('clicked', self.btnOpen_clicked_cb)
 
         btnbox = gtk.HButtonBox()
-        btnbox.set_layout(gtk.BUTTONBOX_END)
+        btnbox.set_size_request(740,24)
+        btnbox.set_layout(gtk.BUTTONBOX_EDGE)
         btnbox.pack_start(btnIdxDL)
         btnbox.pack_start(btnDL)
         btnbox.pack_start(btnOpen)
@@ -739,6 +740,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
         self.set_title(u'インデックスによる検索')
 
         self.connect('delete_event', self.delete_event_cb )
+        self.connect("key-press-event", self.key_press_event_cb )
         # 検索キー値
         self.curr_ndc = u''
         self.curr_yomi = u''
@@ -769,6 +771,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
 
     def sakuhin_row_activated_treeview_cb(self, path, view_column, column):
         self.selected_value()
+        print self.get_filename()
         self.exitall()
 
     def set_sakuhinlist(self, k):
@@ -877,10 +880,9 @@ class BunkoUI(gtk.Window, ReaderSetting):
         if not ow and os.path.isfile(localfile):
             """ ファイルがあればダウンロードしない
             """
-            print localfile
+            pass
         else:
             try:
-                print u'Download : ' , url
                 urllib.urlretrieve(url, localfile)
             except IOError:
                 # ダウンロードに失敗
@@ -902,9 +904,8 @@ class BunkoUI(gtk.Window, ReaderSetting):
                 if r[0]:
                     a = zipfile.ZipFile(r[1], u'r' )
                     a.extractall(self.get_value(u'aozoradir'))
-
                     for b in a.namelist():
-                        if os.path.split(b)[1].split(u'.')[1] == 'txt':
+                        if os.path.basename(b)[-4:] == '.txt':
                             self.selectfile = os.path.join(
                                 self.get_value(u'aozoradir'), b )
                             break
@@ -913,6 +914,17 @@ class BunkoUI(gtk.Window, ReaderSetting):
 
     def get_filename(self):
         return self.selectfile
+
+    def key_press_event_cb( self, widget, event ):
+        """ キー入力のトラップ
+        """
+        key = event.keyval
+        if key == 0xff1b:
+            # ESC
+            self.exitall()
+            self.selectfile = ''
+        # デフォルトルーチンに繋ぐため False を返すこと
+        return False
 
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()

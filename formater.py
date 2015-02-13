@@ -131,14 +131,11 @@ class AozoraScale():
     # 文字サイズ変更への暫定対応(公比1.2、端数切り上げ、一部調整)
     fontsizefactor = {
             u'normal':1.0,
-            #u'size="smaller"':0.8333333333333334,   u'size="larger"':1.2000,
-            u'size="smaller"':0.82,   u'size="larger"':1.2000,
-            #u'size="small"':0.8333333333333334,     u'size="large"':1.2000,
-            u'size="small"':0.82,     u'size="large"':1.2000,
+            u'size="smaller"':0.82,                 u'size="larger"':1.2000,
+            u'size="small"':0.82,                   u'size="large"':1.2000,
             u'size="x-small"':0.6944444444444445,   u'size="x-large"':1.4400,
             u'size="xx-small"':0.578703703703703,   u'size="xx-large"':1.7280,
-            u'<sup>':0.82,          u'<sub>':0.82 }
-            #u'<sup>':0.8333333333333334,          u'<sub>':0.8333333333333334 }
+            u'<sup>':0.82,                          u'<sub>':0.82 }
 
     reFontsizefactor = re.compile( ur'(?P<name>size=".+?")' )
 
@@ -367,8 +364,8 @@ class Aozora(ReaderSetting, AozoraScale):
         u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
         u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
         u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
-        u'［＃ここからキャプション］':u'<span size="smaller">',
-            u'［＃ここでキャプション終わり］':u'</span>',
+        #u'［＃ここからキャプション］':u'<span size="smaller">',
+        #    u'［＃ここでキャプション終わり］':u'</span>',
         u'［＃左に傍線］':u'<span underline="single">',
             u'［＃左に傍線終わり］':u'</span>',
         u'［＃左に二重傍線］':u'<span underline="double">',
@@ -538,7 +535,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         yield u'\n'
                     else:
                         boutoudone = True
-                        yield u'［＃改ページ］\n'
+                        yield u'［＃改ページ］'
                     continue
 
                 """ アクセント分解 & を処理するので xml.sax より前に呼ぶこと
@@ -1135,6 +1132,7 @@ class Aozora(ReaderSetting, AozoraScale):
             inKeikakomi = False                 # 罫囲み
 
             workfilestack = []                  # 作業用一時ファイル
+            isNoForming = False                 # 行の整形を抑止する
 
             for lnbuf in self.formater_pass1():
                 lnbuf = lnbuf.rstrip('\n')
@@ -1224,6 +1222,47 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 複数行に及ぶキャプション
+                        """
+                        if tmp.group() == u'［＃ここからキャプション］':
+                            # カレントハンドルを退避して、一時ファイルを
+                            # 作成して出力先を切り替える。
+                            workfilestack.append(dfile)
+                            dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
+                            # 一時ファイル使用中はページカウントしない
+                            self.countpage = False
+                            # 行の整形を抑止
+                            isNoForming = True
+                            lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+                        if tmp.group() == u'［＃ここでキャプション終わり］':
+                            # ページの左右中央の処理
+                            #self.pagecenterflag = False
+                            if len(workfilestack) == 1:
+                                # 退避してあるハンドルをフォーマット出力先
+                                # と見てページカウントを再開する。
+                                self.countpage = True
+
+                            # 一時ファイルに掃き出されたキャプションを結合
+                            sTmp = u''
+                            dfile.seek(0)
+                            for sCenter in dfile:
+                                sTmp += sCenter.rstrip(u'\n')+u'\\n'
+                            # 出力先を復元
+                            dfile.close()
+                            dfile = workfilestack.pop()
+                            # 行の整形を再開
+                            isNoForming = False
+                            # キャプション
+                            lnbuf = u'%s<aozora caption="%s" size="smaller">　</aozora>%s' % (
+                                        lnbuf[:tmp.start()],
+                                        sTmp,
+                                        lnbuf[tmp.end():] )
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
                         """ ページの左右中央
                         """
                         if tmp.group() == u'［＃ページの左右中央］':
@@ -1259,7 +1298,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                 while iCenter > 1:
                                     self.write2file(workfilestack[-1], '\n')
                                     iCenter -= 2
-                                # 一時ファイルの内容を退避してあるハンドル先へ
+                                # 一時ファイルの内容を、退避してあるハンドル先へ
                                 # コピーする
                                 dfile.seek(0)
                                 iCenter = 0
@@ -1518,6 +1557,12 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 retline += lnbuf[anchor:pos]
                 lnbuf = retline
+
+                """ 行の折り返し・分割処理を無視してファイルに出力する
+                """
+                if isNoForming:
+                    self.write2file(dfile, "%s\n" % lnbuf)
+                    continue
 
                 """ インデント一式 (字下げ、字詰、字上げ、地付き)
                             |<---------- self.chars ------------>|
@@ -1935,7 +1980,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.sf = canvas
         self.xposoffsetold = 0
         self.oldlength = 0
-
+        self.oldwidth = 0
 
     def settext(self, s, xpos, ypos):
         self.source = s
@@ -1943,7 +1988,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.ypos = ypos
 
         self.feed('<span font_desc="%s %s">%s</span>' % (
-                        self.fontname, self.fontsize, s))
+                            self.fontname, self.fontsize, s))
+
     def convcolor(self, s):
         """ カラーコードを16進文字列からRGB(0..1)に変換して返す
         """
@@ -1993,6 +2039,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         vector = 0
         fontspan = 1
         xposoffset = 0
+        rubispan = 0
         dicArg = {}
         sTmp = data
         try:
@@ -2065,28 +2112,46 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # scaleで画像を縮小すると座標系全てが影響を受ける為、
                 # translate で指定したものを活かす
                 sp = cairo.SurfacePattern(self.sf)
-                sp.set_filter( cairo.FILTER_BEST )#FILTER_GAUSSIAN )#FILTER_NEAREST)
+                sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                 ctx.set_source_surface(img,0,0)
                 ctx.paint()
                 length = int(float(self.get_value(u'fontheight'))*2 +
                     math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
+                # 後続のキャプション用に退避
                 self.oldlength = length
+                self.oldwidth = int(round(float(dicArg[u'width']) *
+                                                    float(dicArg[u'rasio'])))
 
             elif u'caption' in dicArg:
                 # キャプション
-                # 直前に画像がなかったり改ページされている場合は失敗する
-                sTmp = u'<span size="%s">%s</span>' % (dicArg[u'size'], dicArg[u'caption'])
-                layout.set_markup(sTmp)
-                length, y = layout.get_pixel_size() #x,yを入れ替えることに注意
-                pangoctx.translate(self.xpos + int(self.get_value(u'linewidth')),
-                                            self.ypos + y/2. + self.oldlength)
-                pangoctx.rotate(0)
-                pc = layout.get_context() # Pango を得る
-                pc.set_base_gravity('auto')
-                pangoctx.update_layout(layout)
-                pangoctx.show_layout(layout)
-                del pc
-                length = y
+                # 直前に画像がなかったり改ページされている場合は失敗するので、
+                # 処理そのものをキャンセルする
+                #
+                # set_widthが思うようにいかないので手動で改行位置を求める
+                # ch : １行あたりの文字数
+                if self.oldwidth > 0:
+                    ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
+                            self.fontmagnification( u'size="%s"' % dicArg[u'size'] )) ))
+                    sTmp = u''
+                    for s0 in dicArg[u'caption'].split(u'\\n'):
+                        while len(s0) > ch:
+                            sTmp += s0[:ch] + u'\n'
+                            s0 = s0[ch:]
+                        sTmp += s0[:ch] + u'\n'
+                    sTmp = u'<span size="%s">%s</span>' % (dicArg[u'size'], sTmp.rstrip(u'\n'))
+                    layout.set_markup(sTmp)
+                    length, y = layout.get_pixel_size() #x,yを入れ替えることに注意
+                    pangoctx.translate(self.xpos + int(self.get_value(u'linewidth')),
+                                                self.ypos + 5 + self.oldlength)
+                    pangoctx.rotate(0)
+                    pc = layout.get_context() # Pango を得る
+                    pc.set_base_gravity('auto')
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del pc
+                    length = y
+                else:
+                    length = 0
 
             elif u'tatenakayoko' in dicArg:
                 # 縦中横 直前の表示位置を元にセンタリングする
@@ -2157,22 +2222,28 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     ctx.rel_line_to(0, length)
                     ctx.stroke()
                 else:
-                    # 傍点 但し本文をトレースしない
+                    # 傍点
+                    # 本文表示長さ(ピクセル長)を文字数で割ったステップに
+                    # 1文字づつ描画する。このためかなりメモリを費消する。
                     sB = u''
+                    step = int(round(length / float(len(data))))
+                    offset = step - int(self.get_value('fontheight'))
+                    offset = -1 if offset <= 0 else offset // 2
+                    tmpypos = self.ypos
                     for s in data:
-                        sB += self.dicBouten[dicArg[u'bousen']]
-                    with pangocairocontext(ctx) as pangoctx:
-                        layout = pangoctx.create_layout()
-                        layout.set_font_description(self.font)
-                        layout.set_text(sB)
-                        pangoctx.translate(
-                            self.xpos + honbunxpos + int(round(honbunxpos*1.4)),
-                            self.ypos)
-                        pangoctx.rotate(3.1515/2.)
-                        pc = layout.get_context()
-                        pc.set_base_gravity('auto')
-                        pangoctx.update_layout(layout)
-                        pangoctx.show_layout(layout)
+                        with cairocontext(self.sf) as ctx2, pangocairocontext(ctx2) as panctx:
+                            layout = pangoctx.create_layout()
+                            layout.set_font_description(self.font)
+                            layout.set_text(self.dicBouten[dicArg[u'bousen']])
+                            panctx.translate(
+                                self.xpos + honbunxpos + rubispan + int(round(honbunxpos*1.2)),
+                                tmpypos + offset)
+                            tmpypos += step
+                            panctx.rotate(3.1515/2.)
+                            pc = layout.get_context()
+                            pc.set_base_gravity('auto')
+                            panctx.update_layout(layout)
+                            panctx.show_layout(layout)
                         del pc
                         del layout
 

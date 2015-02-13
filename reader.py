@@ -41,11 +41,11 @@
 
 import jis3
 from readersub  import ReaderSetting, AozoraDialog, History
-from aozoracard import AuthorList
+#from aozoracard import AuthorList
 from formater   import Aozora, CairoCanvas
 from whatsnew   import WhatsNewUI
 from logview    import Logviewer
-from booklist   import BookshelfUI
+#from booklist   import BookshelfUI
 from bunko      import BunkoUI
 
 import tempfile
@@ -571,15 +571,15 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menuitem_file = gtk.MenuItem(u'ファイル(_F)', True )
         self.menuitem_open = gtk.ImageMenuItem(gtk.STOCK_OPEN, self.accelgroup)
         self.menuitem_open.connect('activate', self.menu_fileopen_cb )
-        self.menuitem_download = gtk.MenuItem(u'青空文庫へアクセス(_D)', True )
-        self.menuitem_download.connect('activate', self.online_access_cb )
+        #self.menuitem_download = gtk.MenuItem(u'青空文庫へアクセス(_D)', True )
+        #self.menuitem_download.connect('activate', self.online_access_cb )
         self.menuitem_whatsnew = gtk.MenuItem(u'青空文庫新着情報(_N)', True )
         self.menuitem_whatsnew.connect('activate', self.whatsnew_cb )
         self.menuitem_quit = gtk.ImageMenuItem(gtk.STOCK_QUIT, self.accelgroup)
         self.menuitem_quit.connect('activate', self.menu_quit )
         self.menu_file = gtk.Menu()
         self.menu_file.add(self.menuitem_open)
-        self.menu_file.add(self.menuitem_download)
+        #self.menu_file.add(self.menuitem_download)
         self.menu_file.add(self.menuitem_whatsnew)
         self.menu_file.add(gtk.SeparatorMenuItem())
         for item in self.menuitem_history:
@@ -691,7 +691,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                 self.whatsnew_cb( widget )
             elif key == 41:
                 # CTRL_F
-                self.online_access_cb( widget )
+                #self.online_access_cb( widget )
+                self.menu_fileopen_cb(widget)
             elif key == 46:
                 # CTRL_L
                 self.shiori_list_cb( widget )
@@ -718,14 +719,16 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         # デフォルトルーチンに繋ぐため False を返すこと
         return False
 
+    """
     def online_access_cb(self, widget):
-        """ インターネット上の青空文庫にアクセス
-        """
+    """ #インターネット上の青空文庫にアクセス
+    """
         dlg = AuthorList()
         res,fn = dlg.run()
         dlg.destroy()
         if res == gtk.RESPONSE_OK:
             self.bookopen(fn)
+    """
 
     def whatsnew_cb(self, widget):
         """ 青空文庫新着情報
@@ -1004,12 +1007,22 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'\n'+
                     u'既知の問題点\n'+
                     u'［＃ここから１字下げ、折り返して２字下げ］'+
-                    u'・設定《せってい》［＃「設定」の左に「青空文庫リーダ」の注記］ファイルが非互換になってしまいました。起動に失敗'+
+                    u'・［＃太字］プログラム内で使用する作業領域の解放を'+
+                    u' Python まかせにしています。このためメモリを相当無駄使い'+
+                    u'します。メモリの少ない環境で動かす場合は念のため注意願'+
+                    u'います。［＃太字終わり］\n'+
+                    u'・設定ファイルが非互換になってしまいました。起動に失敗'+
                     u'する場合は、~/.config/aozora/aozora.conf を削除して再度'+
-                    u'起動［＃「再度」に傍点］してください。\n'+
-                    u'・波線を実装していません。\n'+
+                    u'起動してください。\n'+
+                    u'・傍線における波線を実装していません。\n'+
                     u'・注記が重複すると正しく表示されない場合があります。\n'+
-                    u'・傍点《ぼうてん》の描画《びょうが》［＃「傍点の描画」は太字］［＃「傍点の描画」の左に「ぼうてんのびょうが」の注記］については本文をトレースしません。\n'+
+                    u'・傍点の本文トレースは厳密なものではありません。\n'+
+                    u'　例　example［＃「example」に傍点］ 見本《みほん》［＃「見本」に傍点］\n'+
+                    u'　例　［＃傍点］example［＃「example」は大見出し］［＃傍点終わり］ \n'+
+                    u'　例　［＃傍点］本日は晴天なり［＃「本日は晴天なり」は大見出し］［＃傍点終わり］ \n'+
+                    u'・連続して出現するルビの連結や位置調整は行いません。重なって'+
+                    u'表示される場合はフォントサイズを小さくしてみてください。\n'+
+                    u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
                     u'［＃字下げ終わり］')
 
             self.cc.set_source(s)

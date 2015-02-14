@@ -289,11 +289,14 @@ class Aozora(ReaderSetting, AozoraScale):
     # 縦中横
     reTatenakayoko = re.compile(ur'(［＃「(?P<name>.+?)」は縦中横］)')
 
+    # 割り注
+    reWarichu = re.compile(ur'(［＃(ここから)??割り注］)')
+    reWarichuOwari = re.compile(ur'(［＃(ここで)??割り注終わり］)')
+
     # 未実装タグ
     reOmit = re.compile(
                 ur'(［＃(ここから)??横組み］)|'+
                 ur'(［＃(ここで)??横組み終わり］)|' +
-                ur'(［＃割り注.*?］)|' +
                 ur'(［＃「.+?」は底本では「.+?」］)|' +
                 ur'(［＃ルビの「.+?」は底本では「.+?」］)')
 
@@ -364,8 +367,6 @@ class Aozora(ReaderSetting, AozoraScale):
         u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
         u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
         u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
-        #u'［＃ここからキャプション］':u'<span size="smaller">',
-        #    u'［＃ここでキャプション終わり］':u'</span>',
         u'［＃左に傍線］':u'<span underline="single">',
             u'［＃左に傍線終わり］':u'</span>',
         u'［＃左に二重傍線］':u'<span underline="double">',
@@ -532,7 +533,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 """
                 if not lnbuf:  # len(lnbuf) == 0 よりわずかに速い
                     if boutoudone:
-                        yield u'\n'
+                        yield u''
                     else:
                         boutoudone = True
                         yield u'［＃改ページ］'
@@ -712,8 +713,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             #   暫定処理：小文字で表示
                             tmpStart,tmpEnd = self.honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            #lnbuf = u'%s<span size="smaller">%s</span>%s%s' % (
-
                             # 横書きにするので内容への修飾を外す
                             sTmp = lnbuf[tmpStart:tmpEnd]
                             postmp = sTmp.find(u'［＃')
@@ -721,7 +720,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                 postmp2 = sTmp.rfind(u'］')
                                 if postmp2 != -1:
                                     sTmp = sTmp[:postmp]+sTmp[postmp2+1:]
-                            lnbuf = u'%s<aozora caption="%s" size="smaller">　</aozora>%s%s' % (
+                            lnbuf = u'%s<aozora caption="%s">　</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
                                         sTmp,
                                         lnbuf[tmpEnd:tmp.start()],
@@ -940,7 +939,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-
                         #   上記以外のタグは後続処理に引き渡す
                         tmp = self.reCTRL2.search(lnbuf,tmp.end())
 
@@ -979,7 +977,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 """ 処理の終わった行を返す
                 """
-                yield lnbuf + u'\n'
+                yield lnbuf #+ u'\n'
 
         """ 最初の1ページ目に作品名・著者名を左右中央で表示するため、
             最初に［＃ページの左右中央］を出力している。最初の空行出現時に
@@ -1133,6 +1131,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
             workfilestack = []                  # 作業用一時ファイル
             isNoForming = False                 # 行の整形を抑止する
+            warichupos = 0                      # 割り注用フラグ兼ポインタ
 
             for lnbuf in self.formater_pass1():
                 lnbuf = lnbuf.rstrip('\n')
@@ -1167,7 +1166,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                         matchFig = self.reFig.match(tmp.group())
                         if matchFig:
-                            #挿図
+                            #   挿図
                             #    キャンバスの大きさに合わせて画像を縮小する。
                             #    幅　　上限　キャンバスの半分迄
                             #    高さ　上限　キャンバスの高さ迄
@@ -1222,7 +1221,49 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 割り注
+                            同一行内に割り注終わりが存在するはず
+                        """
+                        tmp2 = self.reWarichu.match(tmp.group())
+                        if tmp2:
+                            # ネストすることは考えにくいのでフラグで済ます
+                            warichupos = tmp.start()
+                            lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+                        """ 割り注終わり
+                        """
+                        tmp2 = self.reWarichuOwari.match(tmp.group())
+                        if tmp2:
+                            sTmp = lnbuf[warichupos:tmp.start()]
+                            # 割り注表示部分の高さを求める
+                            if sTmp.find(u'［＃改行］') == -1:
+                                # 改行位置が明示されていなければ、全長の半分
+                                l = int(math.ceil(len(sTmp)/2.))
+                            else:
+                                # 明示されていれば長いほうとする
+                                l = 0
+                                for s0 in sTmp.split(u'［＃改行］'):
+                                    if len(s0) > l:
+                                        l = len(s0)
+                            lnbuf = u'%s<aozora warichu="%s" height="%d">%s</aozora>%s' % (
+                                lnbuf[:warichupos], sTmp, l,
+                                u'　' * int(math.ceil(
+                                    l * self.fontmagnification(u'size="smaller"'))),
+                                lnbuf[tmp.end():] )
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+                        """ 割り注内で使われる特殊タグをいかす
+                        """
+                        if tmp.group() == u'［＃改行］':
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
+                            continue
+
                         """ 複数行に及ぶキャプション
+                            行の整形を抑止し、出力先を一時ファイルに
+                            切り替える。
                         """
                         if tmp.group() == u'［＃ここからキャプション］':
                             # カレントハンドルを退避して、一時ファイルを
@@ -1238,8 +1279,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             continue
 
                         if tmp.group() == u'［＃ここでキャプション終わり］':
-                            # ページの左右中央の処理
-                            #self.pagecenterflag = False
                             if len(workfilestack) == 1:
                                 # 退避してあるハンドルをフォーマット出力先
                                 # と見てページカウントを再開する。
@@ -1256,7 +1295,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 行の整形を再開
                             isNoForming = False
                             # キャプション
-                            lnbuf = u'%s<aozora caption="%s" size="smaller">　</aozora>%s' % (
+                            lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
                                         lnbuf[:tmp.start()],
                                         sTmp,
                                         lnbuf[tmp.end():] )
@@ -1719,6 +1758,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     tmp = self.reFontsizefactor.search(tagname)
                     if tmp:
                         if tmp.group('name') in self.fontsizefactor:
+
                             fontsizename = tmp.group('name') # 文字サイズ変更
                     self.tagstack.append(tagname)
                     tagname = u''
@@ -2122,6 +2162,25 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 self.oldwidth = int(round(float(dicArg[u'width']) *
                                                     float(dicArg[u'rasio'])))
 
+            elif u'warichu' in dicArg:
+                # 割り注
+                layout.set_markup(data)
+                length,y = layout.get_pixel_size()
+                sTmp = dicArg[u'warichu'].split(u'［＃改行］')
+                if len(sTmp) < 2:
+                    l = int(dicArg[u'height'])
+                    sTmp = [ dicArg[u'warichu'][:l],dicArg[u'warichu'][l:] ]
+                sTmp.insert(1,u'\n')
+                layout.set_markup(u'<span size="smaller">%s</span>' % ''.join(sTmp))
+                x0,y = layout.get_pixel_size()
+                pangoctx.translate(self.xpos + y//2, self.ypos + (length-x0)//2)
+                pangoctx.rotate(3.1415/2.)
+                pc = layout.get_context()
+                pc.set_base_gravity('auto')
+                pangoctx.update_layout(layout)
+                pangoctx.show_layout(layout)
+                del pc
+
             elif u'caption' in dicArg:
                 # キャプション
                 # 直前に画像がなかったり改ページされている場合は失敗するので、
@@ -2131,16 +2190,16 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # ch : １行あたりの文字数
                 if self.oldwidth > 0:
                     ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
-                            self.fontmagnification( u'size="%s"' % dicArg[u'size'] )) ))
+                            self.fontmagnification( u'size="smaller"' )) ))
                     sTmp = u''
                     for s0 in dicArg[u'caption'].split(u'\\n'):
                         while len(s0) > ch:
                             sTmp += s0[:ch] + u'\n'
                             s0 = s0[ch:]
                         sTmp += s0[:ch] + u'\n'
-                    sTmp = u'<span size="%s">%s</span>' % (dicArg[u'size'], sTmp.rstrip(u'\n'))
+                    sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
                     layout.set_markup(sTmp)
-                    length, y = layout.get_pixel_size() #x,yを入れ替えることに注意
+                    length, y = layout.get_pixel_size()
                     pangoctx.translate(self.xpos + int(self.get_value(u'linewidth')),
                                                 self.ypos + 5 + self.oldlength)
                     pangoctx.rotate(0)
@@ -2151,6 +2210,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     del pc
                     length = y
                 else:
+                    logging.info( u'キャプションが出力されませんでした: %s' %  dicArg[u'caption'])
                     length = 0
 
             elif u'tatenakayoko' in dicArg:

@@ -41,11 +41,9 @@
 
 import jis3
 from readersub  import ReaderSetting, AozoraDialog, History
-#from aozoracard import AuthorList
-from formater   import Aozora, CairoCanvas
+from formater   import Aozora, CairoCanvas, AozoraCurrentTextinfo
 from whatsnew   import WhatsNewUI
 from logview    import Logviewer
-#from booklist   import BookshelfUI
 from bunko      import BunkoUI
 
 import tempfile
@@ -56,10 +54,12 @@ import os.path
 import datetime
 import unicodedata
 import logging
+import copy
+import gc
 import gtk
 import gobject
 
-sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
+sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
 
 """ UI
 """
@@ -278,7 +278,7 @@ class BookmarkUI(gtk.Window):
         self.exitall()
         self.rv = None
 
-    def key_press_event_cb( self, widget, event ):
+    def key_press_event_cb(self, widget, event):
         """ キー入力のトラップ
         """
         key = event.keyval
@@ -571,15 +571,12 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menuitem_file = gtk.MenuItem(u'ファイル(_F)', True )
         self.menuitem_open = gtk.ImageMenuItem(gtk.STOCK_OPEN, self.accelgroup)
         self.menuitem_open.connect('activate', self.menu_fileopen_cb )
-        #self.menuitem_download = gtk.MenuItem(u'青空文庫へアクセス(_D)', True )
-        #self.menuitem_download.connect('activate', self.online_access_cb )
         self.menuitem_whatsnew = gtk.MenuItem(u'青空文庫新着情報(_N)', True )
         self.menuitem_whatsnew.connect('activate', self.whatsnew_cb )
         self.menuitem_quit = gtk.ImageMenuItem(gtk.STOCK_QUIT, self.accelgroup)
         self.menuitem_quit.connect('activate', self.menu_quit )
         self.menu_file = gtk.Menu()
         self.menu_file.add(self.menuitem_open)
-        #self.menu_file.add(self.menuitem_download)
         self.menu_file.add(self.menuitem_whatsnew)
         self.menu_file.add(gtk.SeparatorMenuItem())
         for item in self.menuitem_history:
@@ -656,9 +653,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.popupmenu_bookmark.append(self.pmenu_book_list)
         self.popupmenu_bookmark.show_all()
 
+        #   テキスト情報
+        self.cc = AozoraCurrentTextinfo()
 
         #   文章表示領域
-        self.cc = CairoCanvas()
         self.imagebuf = gtk.Image()
         self.ebox = gtk.EventBox()
         self.ebox.add(self.imagebuf) # image がイベントを見ないのでeventboxを使う
@@ -671,9 +669,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.vbox.pack_end(self.ebox)
         self.add(self.vbox)
 
-        #self.scount = 0
-        #self.ecount = 0
-        #self.mousecount = 0
         self.connect('delete_event', self.delete_event_cb)
         self.connect('size-allocate', self.size_allocate_event_cb)
         self.connect('realize', self.realize_event_cb)
@@ -719,17 +714,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         # デフォルトルーチンに繋ぐため False を返すこと
         return False
 
-    """
-    def online_access_cb(self, widget):
-    """ #インターネット上の青空文庫にアクセス
-    """
-        dlg = AuthorList()
-        res,fn = dlg.run()
-        dlg.destroy()
-        if res == gtk.RESPONSE_OK:
-            self.bookopen(fn)
-    """
-
     def whatsnew_cb(self, widget):
         """ 青空文庫新着情報
         """
@@ -738,19 +722,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         dlg.destroy()
         if res == gtk.RESPONSE_OK:
             self.bookopen(fn)
-
-    def mokuji_create(self):
-        """ フォーマッタが作成した目次を読み込んで
-            メニューに追加する
-        """
-        if self.cc.sourcefile != u'':
-            menu = gtk.Menu()
-            for s in self.cc.mokuji_itre():
-                menuitem = gtk.MenuItem(s, False)
-                menuitem.connect( 'activate', self.mokuji_jump, s )
-                menu.add(menuitem)
-                menuitem.show()
-            self.menuitem_mokuji.set_submenu(menu)
 
     def mokuji_jump(self, widget, s):
         """ 目次ジャンプの下請け
@@ -765,7 +736,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         n = self.cc.get_booktitle()
         s = u'%s,%s,%d,%s,%s\n' % (n[0], n[1],
                             self.currentpage+1,
-                            datetime.date.today(), self.cc.get_source() )
+                            datetime.date.today(), self.cc.sourcefile )
         bm = BookMarkInfo()
         bm.append(s)
 
@@ -811,28 +782,28 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.page_common(int(a)-1)
         dlg.destroy()
 
-    def menu_gototop_cb( self, widget ):
+    def menu_gototop_cb(self, widget):
         """ 先頭ページへ
         """
-        self.page_common( 0 )
+        self.page_common(0)
 
-    def menu_gotoend_cb( self, widget ):
+    def menu_gotoend_cb(self, widget):
         """ 最終ページへ
         """
-        self.page_common( self.cc.pagecounter )
+        self.page_common(self.cc.pagecounter)
 
-    def menu_logwindow_cb( self, widget ):
+    def menu_logwindow_cb(self, widget):
         """ ログファイルの表示
         """
         self.logwindow.run()
 
-    def menu_about_cb( self, widget ):
+    def menu_about_cb(self, widget):
         """ プログラムバージョン
         """
         dlg = gtk.AboutDialog()
-        dlg.set_program_name( u'青空文庫リーダー' )
-        dlg.set_version( u'unstable version' )
-        dlg.set_copyright( u'by sakai satoru 2015' )
+        dlg.set_program_name(u'青空文庫リーダー')
+        dlg.set_version(u'unstable version')
+        dlg.set_copyright(u'by sakai satoru 2015')
         dlg.run()
         dlg.destroy()
 
@@ -864,31 +835,32 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         dlg.run()
         fn = dlg.get_filename()
         if fn != u'':
-            print fn
             self.bookopen(fn)
 
     def bookopen(self, fn, pagenum=0):
-        if self.cc.get_source() != fn:
+        aoTmp = Aozora()
+        if self.cc.sourcefile != fn:
             # 新規読み込み
-            self.cc.set_source(fn)
+            aoTmp.set_source(fn)
             m = sum(1 for line in codecs.open(fn))
             c = 0
-            for tmp in self.cc.formater():
+            for tmp in aoTmp.formater():
                 c += 1
-                self.set_title2(None,u'読込中 %s / %s' % (c,m))
-            self.mokuji_create()
-            self.set_title2(None,'')
-        self.page_common(pagenum)
+                self.set_title(u'読込中 %s / %s 青空文庫リーダー' % (c,m))
 
-    def set_title2(self, t, s):
-        """ ウインドウタイトルの設定の拡張
-            t, s は tristate(None, u'', any)
-        """
-        if t != None:
-            self.t1 = t
-        if s != None:
-            self.t2 = s
-        self.set_title( u'%s %s 青空文庫リーダー' % (self.t1, self.t2))
+            # 目次の作成
+            menu = gtk.Menu()
+            for s in aoTmp.mokuji_itre():
+                menuitem = gtk.MenuItem(s, False)
+                menuitem.connect( 'activate', self.mokuji_jump, s )
+                menu.add(menuitem)
+                menuitem.show()
+            self.menuitem_mokuji.set_submenu(menu)
+
+            # ページ情報の複写
+            self.cc = copy.copy(aoTmp.currentText)
+            del aoTmp
+        self.page_common(pagenum)
 
     def button_release_event_cb( self, widget, event ):
         return False
@@ -929,16 +901,27 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             テキストが開かれていなければ何もしない
         """
         if self.cc.sourcefile != u'':
-            if n >= 0 and n <= self.cc.pagecounter:
+            if n > self.cc.pagecounter:
+                # 存在しないページが指定されている
+                n = 0
+            if n >= 0:
                 self.currentpage = n
+            cTmp = CairoCanvas()
+            cTmp.writepage(self.cc.currentpage[self.currentpage])
+            del cTmp
 
-            self.cc.writepage(self.currentpage)
-            self.imagebuf.set_from_file(os.path.join(
+            #self.imagebuf.set_from_file(os.path.join(
+            #                self.get_value(u'workingdir'), 'thisistest.png'))
+            a = gtk.gdk.pixbuf_new_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
+            self.imagebuf.clear()
+            self.imagebuf.set_from_pixbuf(a)
+            del a
             bookname,author = self.cc.get_booktitle()
-            self.set_title2(u'【%s】 %s - %s / %s -' %
-                (bookname, author, self.currentpage+1,self.cc.pagecounter+1),
-                None )
+            self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
+                (bookname, author, self.currentpage+1,self.cc.pagecounter+1))
+        for g in gc.garbage:
+            print g
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass
@@ -963,6 +946,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.bookhistory.save()
         self.hide_all()
         gtk.main_quit()
+        #gc.collect()
 
     def run(self, restart=False, opened=False):
         """ エントリー
@@ -970,7 +954,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """
         self.currentpage = 0
         self.dummytitle = u'［＃３字下げ］青空文庫《あおぞらぶんこ》リーダー［＃「青空文庫リーダー」は大見出し］［＃「青空文庫リーダー」に傍線］'
-        self.set_title2(u'', u'')
+        self.set_title( u'青空文庫リーダー' )
         while restart:
             """ 再起動時の処理
             """
@@ -1026,10 +1010,17 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
                     u'［＃字下げ終わり］\n')
 
-            self.cc.set_source(s)
-            for tmp in self.cc.formater():
+
+            aoTmp = Aozora()
+            aoTmp.set_source(s)
+            for tmp in aoTmp.formater():
                 pass
-            self.cc.writepage(0)
+            self.cc = copy.copy(aoTmp.currentText)
+            cTmp = CairoCanvas()
+            cTmp.writepage(0)
+            del cTmp
+            del aoTmp
+            self.imagebuf.clear()
             self.imagebuf.set_from_file(
                 os.path.join(self.get_value(u'workingdir'), 'thisistest.png'))
         self.show_all()
@@ -1038,6 +1029,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
 
 if __name__ == '__main__':
+    gc.enable()
+    gc.set_debug(gc.DEBUG_LEAK|gc.DEBUG_STATS)
+    gc.collect()
+
     restart = False
     book = False
     while True:
@@ -1047,3 +1042,4 @@ if __name__ == '__main__':
         del ui
         if not restart:
             break
+

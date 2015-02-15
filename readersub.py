@@ -164,56 +164,44 @@ class ReaderSetting():
                 $HOME/.cahce/           一時ファイル、キャッシュ
                 $HOME/.config/aozora    各種設定
                 $HOME/aozora            青空文庫ディレクトリ
-
-        テキスト表示領域の解像度等のデータベース
-            XGA(1024x768)
-                width=880, height=616, topmargin = 8, rightmargin = 12, linestep = 30, colum = 37, lines = 29
-            WXGA(1280x800)
-                width=1240, height=664, topmargin = 8, rightmargin = 12, linestep = 30, colum = 40, lines = 41
-            WSVGA(1024x600)
-                width=880, height=448, topmargin = 8, rightmargin = 12, linestep = 30, colum = 26, lines = 29
-            SVGA(800x600)
-                width=740, height=448, topmargin = 8, rightmargin = 12, linestep = 30, colum = 26, lines = 24
-
-        ルビサイズ
-            本文の半分
     """
 
     def __init__(self, name = u'aozora'):
         """ 設定の初期化
             設定情報が既存であれば読み込み、なければ初期化する。
         """
-        #             SVGA       WSVGA       WXGA         XGA
-        screendata = [448, 740,  448, 880,   736, 1240,   656, 996]
+        #             XGA   WXGA    WSVGA   SVGA
+        screendata = [(996 , 656) , (1240 , 736) , (880 , 448) , (740 , 448)]
         self.dicScreen = {}
-        for i in (u'XGA', u'WXGA', u'WSVGA', u'SVGA'):
-            for j in (u'width', u'height'):
-                self.dicScreen[u'%s_%s' % (i,j)] = screendata.pop()
+        for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
+            self.dicScreen[k] = screendata.pop()
         homedir = self.get_homedir()
-        self.dicSetting = { u'settingdir':os.path.join( homedir, u'.config/aozora'),
-                                u'aozoracurrent':u'',
-                                u'aozoradir':u'',
-                                u'backcolor':u'#fffffdade03d',
-                                u'bottommargin':u'8',
-                                u'column':u'26',
-                                u'fontcolor':u'#514050800000',
-                                u'fontname':u'Serif',
-                                u'fontsize':u'12',
-                                u'fontheight':u'',
-                                u'leftmargin':u'10',
-                                u'lines':u'24',
-                                u'linestep':u'1.5',
-                                u'linewidth':u'32',
-                                u'resolution':u'SVGA',
-                                u'rightmargin':u'12',
-                                u'rubifontsize':u'6',
-                                u'rubiwidth':u'7',
-                                u'scrnheight':u'448',
-                                u'scrnwidth':u'740',
-                                u'topmargin':u'8',
-                                u'workingdir':u''
-                            }
-        self.settingfile = os.path.join(self.dicSetting[u'settingdir'], 'aozora.conf')
+        self.dicSetting = {
+                u'settingdir':os.path.join( homedir, u'.config/aozora'),
+                u'aozoracurrent':u'',
+                u'aozoradir':u'',
+                u'backcolor':u'#fffffdade03d',
+                u'bottommargin':u'8',
+                u'column':u'26',
+                u'fontcolor':u'#514050800000',
+                u'fontname':u'Serif',
+                u'fontsize':u'12',
+                u'fontheight':u'',
+                u'leftmargin':u'10',
+                u'lines':u'24',
+                u'linestep':u'1.5',
+                u'linewidth':u'32',
+                u'resolution':u'SVGA',
+                u'rightmargin':u'12',
+                u'rubifontsize':u'6',
+                u'rubiwidth':u'7',
+                u'scrnheight':u'448',
+                u'scrnwidth':u'740',
+                u'topmargin':u'8',
+                u'workingdir':u''
+                }
+        self.settingfile = os.path.join(self.dicSetting[u'settingdir'],
+                                                                'aozora.conf')
         self.checkdir(self.dicSetting[u'settingdir'])
         if os.path.isfile(self.settingfile):
             # 既存設定ファイルの読み込み
@@ -230,6 +218,21 @@ class ReaderSetting():
             self.set_aozorabunkodir(name)
             self.update()
 
+        # 各種ファイル名の設定
+        self.destfile = os.path.join(self.get_value(u'workingdir'), u'view.txt')
+        self.mokujifile = os.path.join(self.get_value(u'workingdir'),u'mokuji.txt')
+        # 各種設定値の取り出し
+        self.pagelines          = int(self.get_value(u'lines'))  # 1頁の行数
+        self.chars              = int(self.get_value(u'column')) # 1行の最大文字数
+        self.canvas_width       = int(self.get_value(u'scrnwidth'))
+        self.canvas_height      = int(self.get_value(u'scrnheight'))
+        self.canvas_topmargin   = int(self.get_value(u'topmargin'))
+        self.canvas_rightmargin = int(self.get_value(u'rightmargin'))
+        self.canvas_fontsize    = float(self.get_value( u'fontsize'))
+        self.canvas_rubifontsize= float(self.get_value( u'rubifontsize'))
+        self.canvas_linewidth   = int(self.get_value(u'linewidth'))
+        self.canvas_rubispan    = int(self.get_value(u'rubiwidth'))#
+        self.canvas_fontname    = self.get_value(u'fontname')#
 
     def get_linedata(self, fsize, linestep):
         """ フォントサイズから行幅(ピクセル)を得る
@@ -242,7 +245,7 @@ class ReaderSetting():
                     rubiwidth       ルビ幅（ピクセル）
                     linewidth       1行幅（ピクセル）
         """
-        honbunwidth = int(round(fsize*(16./12.))) # 本来は 16/12
+        honbunwidth = int(round(fsize*(16./12.)))
         rubiwidth = int(math.ceil(honbunwidth/2))
         linewidth = int(math.ceil((honbunwidth+rubiwidth)*linestep))
         return (honbunwidth, rubiwidth, linewidth)
@@ -256,10 +259,8 @@ class ReaderSetting():
         self.dicSetting[u'fontheight'] = str(honbun)
         self.dicSetting[u'rubiwidth'] = str(rubiwidth)
         self.dicSetting[u'linewidth'] = str(linewidth)
-        self.dicSetting[u'scrnwidth'] = self.dicScreen[u'%s_width' %
-                                                self.dicSetting[u'resolution']]
-        self.dicSetting[u'scrnheight'] = self.dicScreen[u'%s_height' %
-                                                self.dicSetting[u'resolution']]
+        (self.dicSetting[u'scrnwidth'],
+        self.dicSetting[u'scrnheight']) = self.dicScreen[self.dicSetting[u'resolution']]
         self.dicSetting[u'column'] = str(int(
                             (float(int(self.dicSetting[u'scrnheight']) -
                                     int(self.dicSetting[u'topmargin']) -

@@ -34,7 +34,6 @@
 
 import jis3
 from readersub import ReaderSetting, AozoraDialog
-from aozoracard import AuthorList
 import aozoraaccent
 
 import sys
@@ -50,6 +49,7 @@ import math
 import copy
 from contextlib import contextmanager
 from HTMLParser import HTMLParser
+import gc
 
 import gtk
 import cairo
@@ -59,6 +59,27 @@ import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
+
+class AozoraCurrentTextinfo(ReaderSetting):
+    """ 現在扱っているテキストの情報を保持する
+
+        テキストタイトル
+        目次
+        スクリーンレイアウト
+    """
+    def __init__(self):
+        ReaderSetting.__init__(self)
+        self.currentpage = []
+        self.pagecounter = 0
+        self.sourcefile= u''
+        self.booktitle = u''
+        self.bookauthor = u''
+        self.booktranslator = u''
+
+    def get_booktitle(self):
+        """ 処理したファイルの書名、著者名を返す。
+        """
+        return (self.booktitle, self.bookauthor)
 
 
 class AozoraTag():
@@ -160,7 +181,7 @@ class AozoraScale():
                 if tagname[:2] == u'</':
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
-                    tmp = self.reFontsizefactor.search(self.tagstack.pop())
+                    tmp = self.reFontsizefactor.search(tagstack.pop())
                     if tmp:
                         if tmp.group('name') in self.fontsizefactor:
                             fontsizename = u'normal' # 文字サイズの復旧
@@ -169,7 +190,7 @@ class AozoraScale():
                     if tmp:
                         if tmp.group('name') in self.fontsizefactor:
                             fontsizename = tmp.group('name') # 文字サイズ変更
-                    self.tagstack.append(tagname)
+                    tagstack.append(tagname)
                     tagname = u''
                 inTag = False
             elif s == u'<':
@@ -219,15 +240,13 @@ class AozoraScale():
         for s2 in s:
             j = u'０１２３４５６７８９'.find(s2)
             if j != -1:
-                n *= 10
-                n += j
+                n = n * 10 + j
             else:
                 break
         return n
 
 
-
-class Aozora(ReaderSetting, AozoraScale):
+class Aozora(AozoraScale):
     """
     """
     # ヘッダ・フッタ境界
@@ -386,51 +405,26 @@ class Aozora(ReaderSetting, AozoraScale):
 
 
     def __init__( self, chars=40, lines=25 ):
-        ReaderSetting.__init__(self)
         AozoraScale.__init__(self)
-        self.destfile = os.path.join(self.get_value(u'workingdir'), u'view.txt')
-        self.mokujifile = os.path.join(self.get_value(u'workingdir'),u'mokuji.txt')
         self.readcodecs = u'shift_jis'
-        self.pagelines = int(self.get_value(u'lines'))  # 1頁の行数
-        self.chars = int(self.get_value(u'column'))     # 1行の最大文字数
-        self.linewidth = int(self.get_value(u'linewidth')) # 1行の幅
-        self.charsmax = self.chars - 1          # 最後の1文字は禁則処理用に確保
-        self.pagecounter = 0
+        self.currentText = AozoraCurrentTextinfo()
         self.set_source( None )
-        self.BookTitle = u''
-        self.BookAuthor = u''
-        self.BookTranslator = u''
+        self.charsmax = self.currentText.chars - 1 # 最後の1文字は禁則処理用に確保
 
     def set_source( self, s ):
         """ 青空文庫ファイルをセット
         """
-        self.sourcefile = s if s else u''
-        self.set_aozorabunkocurrent( self.sourcefile )
+        self.currentText.sourcefile= s if s else u''
 
     def get_form( self ):
         """ ページ設定を返す。
         """
-        return (self.chars, self.pagelines)
-
-    def get_outputname(self):
-        """ フォーマット済みのファイル名を返す。現在は単純に中間ファイル名を返す
-        """
-        return self.destfile            # フォーマット済ファイル出力先
-
-    def get_booktitle(self):
-        """ 処理したファイルの書名、著者名を返す。
-        """
-        return (self.BookTitle, self.BookAuthor)
-
-    def get_source(self):
-        """ 処理したファイル名を返す。
-        """
-        return self.sourcefile
+        return (self.currentText.chars, self.currentText.pagelines)
 
     def mokuji_itre(self):
         """ 作成した目次のイテレータ。UI向け。
         """
-        with file(self.mokujifile,'r') as f0:
+        with file(self.currentText.mokujifile,'r') as f0:
             for s in f0:
                 yield s.strip('\n')
 
@@ -455,7 +449,7 @@ class Aozora(ReaderSetting, AozoraScale):
         sBuff = []
 
         if not sourcefile:
-            sourcefile = self.sourcefile
+            sourcefile = self.currentText.sourcefile
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
             sBookTitle = f0.readline().rstrip('\r\n')
@@ -497,7 +491,7 @@ class Aozora(ReaderSetting, AozoraScale):
             置換処理を行う。
         """
         if not sourcefile:
-            sourcefile = self.sourcefile
+            sourcefile = self.currentText.sourcefile
 
         headerflag = False      # 書名以降の注釈部分を示す
         boutoudone = False      # ヘッダ処理が終わったことを示す
@@ -659,11 +653,11 @@ class Aozora(ReaderSetting, AozoraScale):
                             try:
                                 fname = tmp2.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                    os.path.join(self.get_value(u'aozoradir'),
+                                    os.path.join(self.currentText.get_value(u'aozoradir'),
                                         fname))
                                 figheight = tmpPixBuff.get_height()
                                 figwidth = tmpPixBuff.get_width()
-                                if figwidth > self.linewidth * 2:
+                                if figwidth > self.currentText.canvas_linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
                                     sNameTmp = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
                                             fname, figwidth, figheight)
@@ -674,7 +668,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                                 # 図の高さに相当する文字列を得る
                                 sPad = u'＃' * int(math.ceil(
-                                    float(figheight)/float(self.get_value('fontheight'))))
+                                    float(figheight)/float(self.currentText.get_value('fontheight'))))
                                 del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
@@ -1092,7 +1086,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 pass
         return (start,end+1)
 
-    def formater( self, output_file=u'', mokuji_file=u'' ):
+    def formater(self, output_file=u'', mokuji_file=u''):
         """ フォーマッタ
         """
         if output_file:
@@ -1100,17 +1094,17 @@ class Aozora(ReaderSetting, AozoraScale):
         if mokuji_file:
             self.mokujifile = mokuji_file
 
-        (self.BookTitle, self.BookAuthor) = self.get_booktitle_sub()
-        logging.info( u'****** %s ******' % self.sourcefile )
+        (self.currentText.booktitle, self.currentText.bookauthor) = self.get_booktitle_sub()
+        logging.info( u'****** %s ******' % self.currentText.sourcefile)
 
-        with file(self.destfile, 'w') as fpMain, file(self.mokujifile, 'w') as self.mokuji_f:
+        with file(self.currentText.destfile, 'w') as fpMain, file(self.currentText.mokujifile, 'w') as self.mokuji_f:
             dfile = fpMain                      # フォーマット済出力先
             self.pagecenterflag = False         # ページ左右中央用フラグ
             self.countpage = True               # ページ作成フラグ
             self.linecounter = 0                # 出力した行数
-            self.pagecounter = 0                # 出力したページ数
-            self.pageposition=[] # フォーマット済ファイルにおける各ページの絶対位置
-            self.pageposition.append(dfile.tell())  # 1頁目のファイル位置を保存
+            self.currentText.pagecounter = 0    # 出力したページ数
+            self.currentText.currentpage=[] # フォーマット済ファイルにおける各ページの絶対位置
+            self.currentText.currentpage.append(dfile.tell())  # 1頁目のファイル位置を保存
             self.midashi = u''
             self.inMidashi = False
             self.inFukusuMidashi = False        # 複数行におよぶ見出し
@@ -1176,7 +1170,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             try:
                                 fname = matchFig.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                    os.path.join(self.get_value(u'aozoradir'),
+                                    os.path.join(self.currentText.get_value(u'aozoradir'),
                                         fname))
                                 figheight = tmpPixBuff.get_height()
                                 figwidth = tmpPixBuff.get_width()
@@ -1190,13 +1184,13 @@ class Aozora(ReaderSetting, AozoraScale):
                                 tmp = self.reCTRL2.search(lnbuf)
                                 continue
 
-                            tmpH = float(self.get_value(u'scrnheight')) - \
-                                    float(self.get_value(u'bottommargin')) - \
-                                            float(self.get_value(u'topmargin')) - \
-                                            float(self.get_value(u'fontheight'))*5
-                            tmpW = float(self.get_value(u'scrnwidth')) - \
-                                    float(self.get_value(u'rightmargin')) - \
-                                            float(self.get_value(u'leftmargin'))
+                            tmpH = float(self.currentText.get_value(u'scrnheight')) - \
+                                    float(self.currentText.get_value(u'bottommargin')) - \
+                                            float(self.currentText.get_value(u'topmargin')) - \
+                                            float(self.currentText.get_value(u'fontheight'))*5
+                            tmpW = float(self.currentText.get_value(u'scrnwidth')) - \
+                                    float(self.currentText.get_value(u'rightmargin')) - \
+                                            float(self.currentText.get_value(u'leftmargin'))
                             tmpW //= 2. # 許可される最大幅
                             # 表示領域に収まるような倍率を求める
                             tmpRasio = min((tmpH / figheight),(tmpW / figwidth))
@@ -1204,9 +1198,9 @@ class Aozora(ReaderSetting, AozoraScale):
                                 tmpRasio = 1.0
 
                             # 画像幅をピクセルから行数に換算する
-                            figspan = int(round(figwidth*tmpRasio / float(self.linewidth)))
+                            figspan = int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth)))
 
-                            if self.linecounter + figspan >= self.pagelines:
+                            if self.linecounter + figspan >= self.currentText.pagelines:
                                 # 画像がはみ出すようなら改ページする
                                 while not self.write2file(dfile, '\n'):
                                     pass
@@ -1331,7 +1325,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                 # 一時ファイルに掃き出された行数を数えて
                                 # ページ中央にくるようにパディングする
                                 dfile.seek(0)
-                                iCenter = self.pagelines
+                                iCenter = self.currentText.pagelines
                                 for sCenter in dfile:
                                     iCenter -= 1
                                 while iCenter > 1:
@@ -1509,10 +1503,10 @@ class Aozora(ReaderSetting, AozoraScale):
                             iCenter = 0
                             for sCenter in dfile:
                                 iCenter += 1
-                            if iCenter < self.pagelines:
+                            if iCenter < self.currentText.pagelines:
                                 # 罫囲みが次ページへまたがる場合は改ページする。
                                 # 但し、１ページを越える場合は無視する。
-                                if self.linecounter + iCenter >= self.pagelines:
+                                if self.linecounter + iCenter >= self.currentText.pagelines:
                                     while not self.write2file(workfilestack[-1], '\n' ):
                                         pass
 
@@ -1895,13 +1889,13 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 行末に充分な表示領域が見込めれば次行へ引き継がない。
                         # でなければ、行末側を削除して次行行頭のみ表示する
                         h = int(chktag.split()[3].split(u'=')[1].strip('">'))
-                        if hlen * int(self.get_value('fontheight')) < h:
+                        if hlen * int(self.currentText.get_value('fontheight')) < h:
                             # 行末の画像表示域が見込めなければ次行行頭へ移動
                             pos = 0
                             while honbun2[pos] == u'　':
                                 pos += 1
                             sPad = u'＃' * int(math.ceil(
-                                    float(h)/float(self.get_value('fontheight'))))
+                                    float(h)/float(self.currentText.get_value('fontheight'))))
                             endpos = len(honbun2)
                             pos2 = pos
                             while pos2 < endpos and honbun2[pos2] == u'＃':
@@ -1959,27 +1953,27 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.mokuji_f.write( sMokujiForm % (
                             self.reTagRemove.sub(u'',
                                 self.midashi.lstrip(u' 　').rstrip('\n')),
-                            self.pagecounter +1))
+                            self.currentText.pagecounter +1))
                         self.inMidashi = False
                 else:
                     self.mokuji_f.write( sMokujiForm % (
                         self.reTagRemove.sub(u'',
                             self.midashi.lstrip(u' 　').rstrip('\n')),
-                        self.pagecounter +1))
+                        self.currentText.pagecounter +1))
                     self.inMidashi = False
 
         if self.loggingflag:
             logging.debug( u'　位置：%dページ、%d行目' % (
-                                    self.pagecounter+1,self.linecounter+1 ))
+                                    self.currentText.pagecounter+1,self.linecounter+1 ))
             self.loggingflag = False
 
         fd.write(s)         # 本文
         if self.countpage:
             self.linecounter += 1
-            if self.linecounter >= self.pagelines:
+            if self.linecounter >= self.currentText.pagelines:
                 # 1頁出力し終えたらその位置を記録する
-                self.pagecounter += 1
-                self.pageposition.append(fd.tell())
+                self.currentText.pagecounter += 1
+                self.currentText.currentpage.append(fd.tell())
                 self.linecounter = 0
                 fd.flush()
                 rv = True
@@ -2027,7 +2021,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.xpos = xpos
         self.ypos = ypos
 
-        self.feed('<span font_desc="%s %s">%s</span>' % (
+        self.feed('<span font_desc="%s %f">%s</span>' % (
                             self.fontname, self.fontsize, s))
 
     def convcolor(self, s):
@@ -2054,8 +2048,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.fontheight = int(round(float(size)*(16./12.)))
         self.fontwidth = self.fontheight # 暫定
 
-        self.font = pango.FontDescription(u'%s %s' % (font,size))
-        self.font_rubi = pango.FontDescription(u'%s %s' % (font,rubisize))
+        self.font = pango.FontDescription(u'%s %f' % (font,size))
+        self.font_rubi = pango.FontDescription(u'%s %f' % (font,rubisize))
 
     def getforegroundcolour(self):
         return (self.foreR,self.foreG,self.foreB)
@@ -2138,6 +2132,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         dicArg[u'img']))
                 ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
                 ctx.paint()
+                del img
 
             elif u'img2' in dicArg:
                 # 画像
@@ -2161,6 +2156,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 self.oldlength = length
                 self.oldwidth = int(round(float(dicArg[u'width']) *
                                                     float(dicArg[u'rasio'])))
+                del img
 
             elif u'warichu' in dicArg:
                 # 割り注
@@ -2239,6 +2235,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pangoctx.show_layout(layout)
                 del pc
 
+            del sTmp
             del layout
 
         if u'rubi' in dicArg:
@@ -2296,7 +2293,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             layout.set_font_description(self.font)
                             layout.set_text(self.dicBouten[dicArg[u'bousen']])
                             panctx.translate(
-                                self.xpos + honbunxpos + rubispan + int(round(honbunxpos*1.2)),
+                                self.xpos + honbunxpos + rubispan + int(round(honbunxpos*1.3)),
                                 tmpypos + offset)
                             tmpypos += step
                             panctx.rotate(3.1515/2.)
@@ -2331,27 +2328,22 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.ypos += length
 
 
-class CairoCanvas(Aozora):
+class CairoCanvas(ReaderSetting, AozoraScale):
     """ cairo / pangocairo を使って文面を縦書きする
     """
     def __init__(self):
-        Aozora.__init__(self)
-        self.canvas_width       = int(self.get_value( u'scrnwidth' ))
-        self.canvas_height      = int(self.get_value( u'scrnheight'))
-        self.canvas_topmargin   = int(self.get_value( u'topmargin'))
-        self.canvas_rightmargin = int(self.get_value( u'rightmargin' ))
-        self.canvas_fontsize    = float(self.get_value( u'fontsize' ))
-        self.canvas_rubisize    = float(self.get_value( u'rubifontsize' ))
-        self.canvas_linewidth   = int(self.get_value(u'linewidth'))
-        self.canvas_rubispan    = int(self.get_value(u'rubiwidth'))
-        self.canvas_fontname    = self.get_value(u'fontname')
+        ReaderSetting.__init__(self)
 
         self.BEDEBUG = False #True
-    def writepage(self, pagenum, buffname=u''):
+
+    def writepage(self, pageposition, buffname=u''):
         """ 指定したページを描画する
+            pageposition : 表示ページのフォーマット済ファイル上での絶対位置
         """
+        gc.enable()
+        gc.set_debug(gc.DEBUG_LEAK|gc.DEBUG_STATS)
         if not buffname:
-            buffname = self.get_outputname()
+            buffname = self.destfile
 
         inKeikakomi = False # 罫囲み
         maxchars = 0            # 囲み内に出現する文字列の最大長
@@ -2371,10 +2363,9 @@ class CairoCanvas(Aozora):
         # 文字列表示
         self.drawstring = expango(self.sf)
         self.drawstring.setcolour(self.get_value(u'fontcolor'),
-                                    self.get_value(u'backcolor'))
-        self.drawstring.setfont(self.get_value( u'fontname' ),
-                                        self.get_value(u'fontsize'),
-                                        self.get_value(u'rubifontsize') )
+                                                self.get_value(u'backcolor'))
+        self.drawstring.setfont(self.canvas_fontname, self.canvas_fontsize,
+                                                    self.canvas_rubifontsize )
         """ 画面クリア
         """
         with cairocontext(self.sf) as ctx:
@@ -2383,6 +2374,7 @@ class CairoCanvas(Aozora):
             ctx.set_source_rgb(r, g, b)
             ctx.fill()
 
+            """
             if self.BEDEBUG:
             # マージンに境界線を引く（デバッグ用）
                 r,g,b = self.drawstring.getforegroundcolour()
@@ -2402,7 +2394,8 @@ class CairoCanvas(Aozora):
 
                 tmpwidth = 0
                 tmpheight = 0
-
+            """
+        """
         if self.BEDEBUG:
             # 行番号の表示（デバッグ用）
             tmpxpos = self.canvas_width - self.canvas_rightmargin - int(math.ceil(self.canvas_linewidth/2.))
@@ -2440,69 +2433,70 @@ class CairoCanvas(Aozora):
                     del pc
                     tmpxpos += int(self.get_value('fontheight'))
                     n += 1
-
+        """
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
-            try:
-                f0.seek(self.pageposition[pagenum])
-            except IndexError:
-                logging.error( u'存在しないページ(%d)を指定しました。' % pagenum )
-            else:
-                for i in xrange(self.pagelines):
-                    s0 = f0.readline().rstrip('\n')
+            f0.seek(pageposition)
+            for i in xrange(self.pagelines):
+                s0 = f0.readline().rstrip('\n')
 
-                    tmpxpos = s0.find(u'［＃ここから罫囲み］')
-                    if tmpxpos != -1:
-                        # 罫囲み開始
-                        inKeikakomi = True
-                        offset_y = self.chars
-                        maxchars = 0
-                        s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここから罫囲み］'):]
-                        KeikakomiXendpos = xpos# + int(round(self.canvas_linewidth/2.))
+                tmpxpos = s0.find(u'［＃ここから罫囲み］')
+                if tmpxpos != -1:
+                    # 罫囲み開始
+                    inKeikakomi = True
+                    offset_y = self.chars
+                    maxchars = 0
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここから罫囲み］'):]
+                    KeikakomiXendpos = xpos# + int(round(self.canvas_linewidth/2.))
 
-                    tmpxpos = s0.find(u'［＃ここで罫囲み終わり］')
-                    if tmpxpos != -1:
-                        # 罫囲み終わり
-                        inKeikakomi = False
-                        s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここで罫囲み終わり］'):]
-                        if offset_y > 0:
-                            offset_y -= 1
-                        maxchars -= offset_y
-                        if maxchars < self.chars:
-                            maxchars += 1
-                        #tmpwidth = KeikakomiXendpos - xpos - (self.canvas_linewidth/2)
-                        tmpwidth = KeikakomiXendpos - xpos
-                        with cairocontext(self.sf) as ctx:
-                            ctx.set_antialias(cairo.ANTIALIAS_NONE)
-                            ctx.new_path()
-                            ctx.set_line_width(1)
-                            #ctx.move_to(xpos - (self.canvas_linewidth/2),
-                            ctx.move_to(xpos,
-                                    self.canvas_topmargin + offset_y * fontheight)
-                            ctx.rel_line_to(tmpwidth,0)
-                            ctx.rel_line_to(0, maxchars * fontheight)
-                            ctx.rel_line_to(-tmpwidth,0)
-                            ctx.close_path()
-                            ctx.stroke()
+                tmpxpos = s0.find(u'［＃ここで罫囲み終わり］')
+                if tmpxpos != -1:
+                    # 罫囲み終わり
+                    inKeikakomi = False
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここで罫囲み終わり］'):]
+                    if offset_y > 0:
+                        offset_y -= 1
+                    maxchars -= offset_y
+                    if maxchars < self.chars:
+                        maxchars += 1
+                    tmpwidth = KeikakomiXendpos - xpos
+                    with cairocontext(self.sf) as ctx:
+                        ctx.set_antialias(cairo.ANTIALIAS_NONE)
+                        ctx.new_path()
+                        ctx.set_line_width(1)
+                        ctx.move_to(xpos,
+                                self.canvas_topmargin + offset_y * fontheight)
+                        ctx.rel_line_to(tmpwidth,0)
+                        ctx.rel_line_to(0, maxchars * fontheight)
+                        ctx.rel_line_to(-tmpwidth,0)
+                        ctx.close_path()
+                        ctx.stroke()
 
-                    if inKeikakomi:
-                        # 罫囲み時の最大高さを得る
-                        tmpheight = self.linelengthcount(s0)
-                        if  tmpheight > maxchars:
-                            maxchars = tmpheight
-                        # 文字列の最低書き出し位置を求める
-                        sTmp = s0.strip()
-                        if sTmp:
-                            tmpheight = s0.find(sTmp)
-                            if tmpheight < offset_y:
-                                offset_y = tmpheight
+                if inKeikakomi:
+                    # 罫囲み時の最大高さを得る
+                    tmpheight = self.linelengthcount(s0)
+                    if  tmpheight > maxchars:
+                        maxchars = tmpheight
+                    # 文字列の最低書き出し位置を求める
+                    sTmp = s0.strip()
+                    if sTmp:
+                        tmpheight = s0.find(sTmp)
+                        if tmpheight < offset_y:
+                            offset_y = tmpheight
 
-                    self.drawstring.settext(s0, xpos, self.canvas_topmargin)
-                    xpos -= self.canvas_linewidth
+                self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                xpos -= self.canvas_linewidth
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
                                                             'thisistest.png'))
         self.sf.finish()
+        del self.drawstring
+        #self.drawstring = None
+        del self.sf
+
+        gc.collect()
+        for g in gc.garbage:
+            print g
 
 
 

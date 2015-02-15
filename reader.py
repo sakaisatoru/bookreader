@@ -920,8 +920,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             bookname,author = self.cc.get_booktitle()
             self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
                 (bookname, author, self.currentpage+1,self.cc.pagecounter+1))
-        for g in gc.garbage:
-            print g
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass
@@ -946,7 +944,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.bookhistory.save()
         self.hide_all()
         gtk.main_quit()
-        #gc.collect()
 
     def run(self, restart=False, opened=False):
         """ エントリー
@@ -1029,10 +1026,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
 
 if __name__ == '__main__':
-    gc.enable()
-    gc.set_debug(gc.DEBUG_LEAK|gc.DEBUG_STATS)
-    gc.collect()
-
     restart = False
     book = False
     while True:

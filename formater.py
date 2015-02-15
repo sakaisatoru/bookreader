@@ -2340,8 +2340,6 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         """ 指定したページを描画する
             pageposition : 表示ページのフォーマット済ファイル上での絶対位置
         """
-        gc.enable()
-        gc.set_debug(gc.DEBUG_LEAK|gc.DEBUG_STATS)
         if not buffname:
             buffname = self.destfile
 
@@ -2493,10 +2491,6 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         del self.drawstring
         #self.drawstring = None
         del self.sf
-
-        gc.collect()
-        for g in gc.garbage:
-            print g
 
 
 

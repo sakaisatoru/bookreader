@@ -588,22 +588,22 @@ class gojuonUI(gtk.Table):
     sIdx = {
             u'平大':u'あいうえおかきくけこさしすせそたちつてとなにぬねの' + \
                     u'はひふへほまみむめもや　ゆ　よらりるれろわ　　をん' + \
-                    u'゛゜　　戻' + \
+                    u'゛゜ー　戻' + \
                     u'消英小　片',
 
             u'片大':u'アイウエオカキクケコサシスセソタチツテトナニヌネノ' + \
                     u'ハヒフヘホマミムメモヤ　ユ　ヨラリルレロワ　　ヲン' + \
-                    u'゛゜　　戻' + \
+                    u'゛゜─　戻' + \
                     u'消英小平　',
 
             u'片小':u'ァィゥェォヵ　ㇰヶ　　ㇱㇲ　　　　ッ　ㇳ　　ㇴ　　' + \
                     u'ㇵㇶㇷㇸㇹ　　ㇺ　　ャ　ュ　ョㇻㇼㇽㇾㇿヮ　　　　' + \
-                    u'　　　　戻' + \
+                    u'　　─　戻' + \
                     u'消英大平　',
 
             u'平小':u'ぁぃぅぇぉゕ　　ゖ　　　　　　　　っ　　　　　　　' + \
                     u'　　　　　　　　　　ゃ　ゅ　ょ　　　　　ゎ　　　　' + \
-                    u'　　　　戻' + \
+                    u'　　ー　戻' + \
                     u'消英大　片',
 
             u'英大':u'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹ' + \
@@ -748,6 +748,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
 
         #選択されたテキスト
         self.selectfile = u''
+        self.selectzip = u''
 
     def btnDL_clicked_cb(self, widget):
         """ 一括ダウンロード
@@ -796,8 +797,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
             self.sakuhin.child.get_model().append(
                     (n[0], n[1], n[2], n[3], n[4], n[5], s[0]+u' '+s[1], n[7],
                     u'●' if os.path.isfile(os.path.join(
-                        self.get_value(u'aozoradir'),
-                            os.path.basename(n[7])) ) else u''  ))
+                        self.aozoradir, os.path.basename(n[7])) ) else u''  ))
 
     def author_row_activated_treeview_cb(self, path, view_column, column):
         """ 著者一覧用コールバック（１）
@@ -857,7 +857,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
         """ インデックスファイルのチェック
             存在しなければ新規ダウンロード
         """
-        localfile = os.path.join(self.get_value(u'aozoradir'),
+        localfile = os.path.join(self.aozoradir,
                                         os.path.basename(BunkoUI.indexfileurl))
         if ow:
             os.remove(localfile)
@@ -866,8 +866,8 @@ class BunkoUI(gtk.Window, ReaderSetting):
                 return None
 
         a = zipfile.ZipFile( localfile, u'r' )
-        a.extractall( self.get_value(u'aozoradir'))
-        return os.path.join(self.get_value(u'aozoradir'),a.namelist()[0])
+        a.extractall(self.aozoradir)
+        return os.path.join(self.aozoradir,a.namelist()[0])
 
     def download(self, url, localfile=u'', ow=True):
         """ ダウンロード下請け
@@ -875,8 +875,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
         """
         rv = True
         if localfile == u'':
-            localfile = os.path.join(self.get_value(u'aozoradir'),
-                                                os.path.basename(url))
+            localfile = os.path.join(self.aozoradir, os.path.basename(url))
         if not ow and os.path.isfile(localfile):
             """ ファイルがあればダウンロードしない
             """
@@ -903,17 +902,17 @@ class BunkoUI(gtk.Window, ReaderSetting):
                 r = self.download(c.get_value(i, 7), ow=False)
                 if r[0]:
                     a = zipfile.ZipFile(r[1], u'r' )
-                    a.extractall(self.get_value(u'aozoradir'))
+                    a.extractall(self.aozoratextdir)
                     for b in a.namelist():
                         if os.path.basename(b)[-4:] == '.txt':
-                            self.selectfile = os.path.join(
-                                self.get_value(u'aozoradir'), b )
+                            self.selectfile = os.path.join(self.aozoratextdir, b)
+                            self.selectzip = r[1]
                             break
         except IndexError:
             pass
 
     def get_filename(self):
-        return self.selectfile
+        return self.selectfile, self.selectzip
 
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ

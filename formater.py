@@ -75,6 +75,7 @@ class AozoraCurrentTextinfo(ReaderSetting):
         self.booktitle = u''
         self.bookauthor = u''
         self.booktranslator = u''
+        self.zipfilename = u''
 
     def get_booktitle(self):
         """ 処理したファイルの書名、著者名を返す。
@@ -408,13 +409,14 @@ class Aozora(AozoraScale):
         AozoraScale.__init__(self)
         self.readcodecs = u'shift_jis'
         self.currentText = AozoraCurrentTextinfo()
-        self.set_source( None )
+        self.set_source()
         self.charsmax = self.currentText.chars - 1 # 最後の1文字は禁則処理用に確保
 
-    def set_source( self, s ):
+    def set_source( self, s=u'', z=u'' ):
         """ 青空文庫ファイルをセット
         """
-        self.currentText.sourcefile= s if s else u''
+        self.currentText.sourcefile= s
+        self.currentText.zipfilename = z
 
     def get_form( self ):
         """ ページ設定を返す。
@@ -653,8 +655,7 @@ class Aozora(AozoraScale):
                             try:
                                 fname = tmp2.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                    os.path.join(self.currentText.get_value(u'aozoradir'),
-                                        fname))
+                                    os.path.join(self.currentText.aozoratextdir, fname))
                                 figheight = tmpPixBuff.get_height()
                                 figwidth = tmpPixBuff.get_width()
                                 if figwidth > self.currentText.canvas_linewidth * 2:
@@ -1170,11 +1171,10 @@ class Aozora(AozoraScale):
                             try:
                                 fname = matchFig.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                    os.path.join(self.currentText.get_value(u'aozoradir'),
-                                        fname))
+                                    os.path.join(self.currentText.aozoratextdir, fname))
                                 figheight = tmpPixBuff.get_height()
                                 figwidth = tmpPixBuff.get_width()
-                                #del tmpPixBuff
+                                del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
                                 self.loggingflag = True
@@ -2009,20 +2009,24 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         HTMLParser.__init__(self)
         AozoraScale.__init__(self)
         ReaderSetting.__init__(self)
-        self.tagstack = []
-        self.attrstack = []
         self.sf = canvas
         self.xposoffsetold = 0
         self.oldlength = 0
         self.oldwidth = 0
 
+    def destroy(self):
+        del self.tagstack
+        del self.attrstack
+
     def settext(self, s, xpos, ypos):
-        self.source = s
         self.xpos = xpos
         self.ypos = ypos
+        self.tagstack = []
+        self.attrstack = []
 
         self.feed('<span font_desc="%s %f">%s</span>' % (
                             self.fontname, self.fontsize, s))
+        self.close()
 
     def convcolor(self, s):
         """ カラーコードを16進文字列からRGB(0..1)に変換して返す
@@ -2128,8 +2132,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                                         self.ypos+imgtmpy)
                 pangoctx.rotate(0)
                 img = cairo.ImageSurface.create_from_png(
-                        os.path.join(self.get_value(u'aozoradir'),
-                        dicArg[u'img']))
+                        os.path.join(self.aozoratextdir,dicArg[u'img']) )
                 ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
                 ctx.paint()
                 del img
@@ -2140,8 +2143,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     self.ypos + int(self.get_value(u'fontheight'))*2)
                 pangoctx.rotate(0)
                 img = cairo.ImageSurface.create_from_png(
-                            os.path.join(self.get_value(u'aozoradir'),
-                            dicArg[u'img2']))
+                            os.path.join(self.aozoratextdir,dicArg[u'img2']) )
 
                 ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
                 # scaleで画像を縮小すると座標系全てが影響を受ける為、
@@ -2327,7 +2329,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         # ypos 更新
         self.ypos += length
 
-
 class CairoCanvas(ReaderSetting, AozoraScale):
     """ cairo / pangocairo を使って文面を縦書きする
     """
@@ -2359,6 +2360,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
                                         self.canvas_width, self.canvas_height)
         # 文字列表示
+
         self.drawstring = expango(self.sf)
         self.drawstring.setcolour(self.get_value(u'fontcolor'),
                                                 self.get_value(u'backcolor'))
@@ -2371,8 +2373,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             r,g,b = self.drawstring.getbackgroundcolour()
             ctx.set_source_rgb(r, g, b)
             ctx.fill()
-
-            """
+        """
             if self.BEDEBUG:
             # マージンに境界線を引く（デバッグ用）
                 r,g,b = self.drawstring.getforegroundcolour()
@@ -2392,7 +2393,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
 
                 tmpwidth = 0
                 tmpheight = 0
-            """
+        """
         """
         if self.BEDEBUG:
             # 行番号の表示（デバッグ用）
@@ -2483,13 +2484,13 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                             offset_y = tmpheight
 
                 self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                self.drawstring.destroy()
                 xpos -= self.canvas_linewidth
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
                                                             'thisistest.png'))
         self.sf.finish()
         del self.drawstring
-        #self.drawstring = None
         del self.sf
 
 

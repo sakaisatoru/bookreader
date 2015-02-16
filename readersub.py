@@ -32,6 +32,8 @@ import urllib
 import zipfile
 import logging
 import math
+import errno
+
 import gtk
 import cairo
 import pango
@@ -65,7 +67,7 @@ class Download():
         flag = False
         lastselectfile = u''
 
-        sTmpfile = os.path.join(self.get_value( u'workingdir' ), u'a.html')
+        sTmpfile = os.path.join(self.get_value(u'workingdir'), u'a.html')
         try:
             urllib.urlretrieve(url, sTmpfile)
         except IOError:
@@ -103,11 +105,12 @@ class Download():
 
                     try:
                         a = zipfile.ZipFile( sLocalfilename, u'r' )
-                        a.extractall( self.get_value(u'aozoradir'))
+                        a.extractall( self.get_value(u'aozoracurrent'))
                         for b in a.namelist():
-                            if os.path.split(b)[1].split(u'.')[1] == 'txt':
+                            print b
+                            if os.path.split(b)[1][-4:] == '.txt':
                                 lastselectfile = os.path.join(
-                                    self.get_value(u'aozoradir'), b )
+                                    self.get_value(u'aozoracurrent'), b )
                                 break
                         else:
                             return (False, u'アーカイブを' + \
@@ -121,8 +124,8 @@ class Download():
         if not flag:
             return (False, u'ダウンロードできません。この作品はルビあり' + \
                             u'テキストファイルで登録されていません。' )
-
-        return (True, lastselectfile)
+        print sLocalfilename
+        return (True, lastselectfile, sLocalfilename)
 
 
 class AozoraDialog():
@@ -161,25 +164,65 @@ class AozoraDialog():
 class ReaderSetting():
     """ 設定等
             参照及び作業ディレクトリ
-                $HOME/.cahce/           一時ファイル、キャッシュ
-                $HOME/.config/aozora    各種設定
-                $HOME/aozora            青空文庫ディレクトリ
+                $HOME/.cahce/aozora         一時ファイル、キャッシュ
+                $HOME/.cahce/aozora/text    展開されたテキストファイル
+                $HOME/.config/aozora        各種設定
+                $HOME/aozora                青空文庫ディレクトリ
     """
 
-    def __init__(self, name = u'aozora'):
+    def __init__(self, name=u'aozora'):
         """ 設定の初期化
             設定情報が既存であれば読み込み、なければ初期化する。
         """
+        #   スクリーンサイズ
         #             XGA   WXGA    WSVGA   SVGA
         screendata = [(996 , 656) , (1240 , 736) , (880 , 448) , (740 , 448)]
+        self.currentversion = u'0.3' # 設定ファイルのバージョン
         self.dicScreen = {}
         for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
             self.dicScreen[k] = screendata.pop()
-        homedir = self.get_homedir()
-        self.dicSetting = {
-                u'settingdir':os.path.join( homedir, u'.config/aozora'),
-                u'aozoracurrent':u'',
-                u'aozoradir':u'',
+
+        #   参照及び作業ディレクトリ
+        homedir = os.getenv('HOME')
+        if not homedir:
+            homedir = os.getcwd()
+        cachedir = os.path.join(homedir, u'.cache', u'aozora')
+        configdir = os.path.join(homedir, u'.config', u'aozora')
+        aozoracurrent = os.path.join(cachedir, u'text')
+        aozoradir = os.path.join(homedir, name)
+
+        try:
+            os.makedirs(cachedir)       # キャッシュディレクトリ
+            os.makedirs(aozoracurrent)  # 展開されたテキスト
+            os.makedirs(configdir)      # 設定ディレクトリ
+            os.makedirs(aozoradir)      # 文庫ディレクトリ
+        except OSError, info:
+            if info.errno == errno.EEXIST:
+                # file exists
+                pass
+            else:
+                logging.error(u'ディレクトリの作成に失敗しました。%s' % info)
+
+        #   設定ファイル
+        self.settingfile = os.path.join(configdir,u'aozora.conf')
+        self.dicSetting = {}
+        self.dicSetting[u'version'] = u''
+
+        if os.path.isfile(self.settingfile):
+            # 既存設定ファイルの読み込み
+            with file( self.settingfile, 'r' ) as f0:
+                for line in f0:
+                    ln = line.split('=')
+                    if len(ln) > 1:
+                        self.dicSetting[ln[0]] = ln[1].rstrip('\n')
+
+        if self.dicSetting[u'version'] != self.currentversion:
+            # 設定ファイルの書き換え
+            self.dicSetting = {
+                u'version':self.currentversion,
+                u'settingdir':configdir,
+                u'aozoracurrent':aozoracurrent,
+                u'aozoradir':aozoradir,
                 u'backcolor':u'#fffffdade03d',
                 u'bottommargin':u'8',
                 u'column':u'26',
@@ -198,30 +241,17 @@ class ReaderSetting():
                 u'scrnheight':u'448',
                 u'scrnwidth':u'740',
                 u'topmargin':u'8',
-                u'workingdir':u''
+                u'workingdir':cachedir
                 }
-        self.settingfile = os.path.join(self.dicSetting[u'settingdir'],
-                                                                'aozora.conf')
-        self.checkdir(self.dicSetting[u'settingdir'])
-        if os.path.isfile(self.settingfile):
-            # 既存設定ファイルの読み込み
-            with file( self.settingfile, 'r' ) as f0:
-                for line in f0:
-                    ln = line.split('=')
-                    if len(ln) > 1:
-                        self.dicSetting[ln[0]] = ln[1].rstrip('\n')
-        else:
-            # 設定ファイルの新規作成
-            self.dicSetting[u'workingdir'] = os.path.join(homedir, u'.cache',
-                                                                    u'aozora')
-            self.checkdir(self.dicSetting[u'workingdir'])
-            self.set_aozorabunkodir(name)
             self.update()
 
         # 各種ファイル名の設定
         self.destfile = os.path.join(self.get_value(u'workingdir'), u'view.txt')
         self.mokujifile = os.path.join(self.get_value(u'workingdir'),u'mokuji.txt')
+
         # 各種設定値の取り出し
+        self.aozoradir          = self.get_value(u'aozoradir')
+        self.aozoratextdir      = self.get_value(u'aozoracurrent')
         self.pagelines          = int(self.get_value(u'lines'))  # 1頁の行数
         self.chars              = int(self.get_value(u'column')) # 1行の最大文字数
         self.canvas_width       = int(self.get_value(u'scrnwidth'))
@@ -275,49 +305,6 @@ class ReaderSetting():
         with file( self.settingfile, 'w') as f0:
             for s in self.dicSetting:
                 f0.write( u'%s=%s\n' % (s, self.dicSetting[s]) )
-
-    def checkdir(self, dirname):
-        """ ディレクトリの有無を調べて存在しなければ新規に作成する
-        """
-        sTmpdir = dirname.split('/')
-        sCurrdir = sTmpdir[0]
-        if sCurrdir == '':
-            sCurrdir = '/'
-        os.chdir(sCurrdir)
-
-        for s in sTmpdir[1:]:
-            sCurrdir = os.path.join(sCurrdir,s)
-            try:
-                os.chdir(sCurrdir)
-            except OSError:
-                os.mkdir(sCurrdir)
-
-    def get_homedir(self):
-        """ ホームディレクトリを返す。存在しない場合は
-            カレントディレクトリを返す。
-        """
-        homedir = os.getenv('HOME')
-        if not homedir:
-            homedir = u'.'
-        return homedir
-
-    def set_aozorabunkocurrent(self, name):
-        """ オープンした青空文庫の格納先ディレクトリを得る
-            同梱の画像ファイル等を探す際、参照される。
-        """
-        self.dicSetting[u'aozoracurrent'] = os.path.dirname(name)
-
-    def set_aozorabunkodir(self, name):
-        """ 青空文庫の格納先をセットする
-            ディレクトリが無ければ作成する
-        """
-        if name[0] == '/':
-            self.dicSetting[u'aozoradir'] = name
-        else:
-            homedir = self.get_homedir()
-            self.dicSetting[u'aozoradir'] = os.path.join(homedir,name)
-
-        self.checkdir(self.dicSetting[u'aozoradir'])
 
     def set_value(self, key, value):
         """ 項目値の変更

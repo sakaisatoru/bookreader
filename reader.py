@@ -55,6 +55,10 @@ import datetime
 import unicodedata
 import logging
 import copy
+import subprocess
+import os
+import zipfile
+
 import gc
 import gtk
 import gobject
@@ -73,7 +77,7 @@ class BookMarkInfo(ReaderSetting):
         """ しおりファイルを読み込んでリストに格納する。
         """
         ReaderSetting.__init__(self)
-        self.shiorifile = self.get_value(u'workingdir') + '/shiori.txt'
+        self.shiorifile = os.path.join(self.get_value(u'workingdir'), u'shiori.txt')
         if os.path.isfile(self.shiorifile):
             self.rewind()
         else:
@@ -181,6 +185,7 @@ class BookmarkUI(gtk.Window):
                                                     gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING,
+                                                    gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING ))
         self.bookmark_bv.set_rules_hint(True)
         self.bookmark_bv.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -224,7 +229,8 @@ class BookmarkUI(gtk.Window):
                                     sc[1],          # 著者
                                     sc[2],          # ページ番号
                                     sc[3],          # 日付
-                                    sc[4] )         # パス
+                                    sc[4],          # パス
+                                    sc[5] )         # zipfile
                                     )
         self.rv = None
 
@@ -262,9 +268,7 @@ class BookmarkUI(gtk.Window):
             try:
                 iters = [c.get_iter(p) for p in d]
                 for i in iters:
-                    self.rv = ( c.get_value(i, 0), c.get_value(i, 1),
-                                c.get_value(i, 2), c.get_value(i, 3),
-                                c.get_value(i, 4) )
+                    self.rv = [c.get_value(i, k) for k in xrange(6)]
                 f = True
             except IndexError:
                 pass
@@ -301,7 +305,7 @@ class BookmarkUI(gtk.Window):
         m = self.bookmark_bv.get_model()
         i = m.get_iter_first()
         while i:
-            bi.append2(u'%s,%s,%s,%s,%s\n' % m.get(i, 0, 1, 2, 3, 4))
+            bi.append2(u'%s,%s,%s,%s,%s\n' % m.get(i, 0, 1, 2, 3, 4, 5))
             i = m.iter_next(i)  # 次が無ければNoneでループを抜ける
         bi.update()
 
@@ -676,6 +680,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.connect('key-press-event', self.key_press_event_cb)
         self.set_position(gtk.WIN_POS_CENTER)
 
+        #   下請けサブプロセス用スクリプトの書き出し
+        self.drawingsubprocess = os.path.join(sys.path[0],u'draw.py')
+        with open(self.drawingsubprocess,'w') as f0:
+            f0.write(   u'#!/usr/bin/python\n'+
+                        u'# -*- coding: utf-8 -*-\n'+
+                        u'#  draw.py\n'+
+                        u'import sys\n'+
+                        u'from formater import CairoCanvas\n'+
+                        u'if __name__ == "__main__":\n'+
+                        u'    cTmp = CairoCanvas()\n'+
+                        u'    cTmp.writepage(long(sys.argv[1]))\n'+
+                        u'    del cTmp\n' )
+
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
         """
@@ -707,10 +724,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                 self.prior_page()
             elif key == 0xff50:
                 # Home
-                self.page_common( 0 )
+                self.page_common(0)
             elif key == 0xff57:
                 # End
-                self.page_common( self.cc.pagecounter )
+                self.page_common(self.cc.pagecounter)
         # デフォルトルーチンに繋ぐため False を返すこと
         return False
 
@@ -718,10 +735,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ 青空文庫新着情報
         """
         dlg = WhatsNewUI()
-        res,fn = dlg.run()
+        res,fn,z = dlg.run()
         dlg.destroy()
         if res == gtk.RESPONSE_OK:
-            self.bookopen(fn)
+            self.bookopen(fn, zipname=z)
 
     def mokuji_jump(self, widget, s):
         """ 目次ジャンプの下請け
@@ -734,9 +751,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             しおりを挟む
         """
         n = self.cc.get_booktitle()
-        s = u'%s,%s,%d,%s,%s\n' % (n[0], n[1],
-                            self.currentpage+1,
-                            datetime.date.today(), self.cc.sourcefile )
+        s = u'%s,%s,%d,%s,%s,%s\n' % ( n[0], n[1], self.currentpage+1,
+                datetime.date.today(), self.cc.sourcefile, self.cc.zipfilename)
         bm = BookMarkInfo()
         bm.append(s)
 
@@ -748,7 +764,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         s = bi.run()
         bi.destroy()
         if s:
-            self.bookopen(s[4], int(s[2])-1)
+            self.bookopen(s[4], zipname=s[5], pagenum=int(s[2])-1)
 
     def menu_fontselect_cb( self, widget ):
         """ 表示フォントを選択する
@@ -811,8 +827,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """ 読書履歴
         """
         i = int(widget.get_label().split(u':')[0][1:]) - 1
-        (nm, pg, fn) = self.bookhistory.get_item(i).split(u',')
-        self.bookopen(fn, int(pg))
+        (nm, pg, fn, z) = self.bookhistory.get_item(i).split(u',')
+        self.bookopen(fn, zipname=z, pagenum=int(pg))
 
     def menu_quit(self,widget,data=None):
         self.exitall()
@@ -833,15 +849,17 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         #    dlg.destroy()
         dlg = BunkoUI()
         dlg.run()
-        fn = dlg.get_filename()
+        fn, z = dlg.get_filename()
         if fn != u'':
-            self.bookopen(fn)
+            self.bookopen(fn, zipname=z)
 
-    def bookopen(self, fn, pagenum=0):
+    def bookopen(self, fn, zipname=u'', pagenum=0):
         aoTmp = Aozora()
         if self.cc.sourcefile != fn:
             # 新規読み込み
-            aoTmp.set_source(fn)
+            a = zipfile.ZipFile(zipname, u'r' )
+            a.extractall(self.aozoratextdir)
+            aoTmp.set_source(fn, zipname)
             m = sum(1 for line in codecs.open(fn))
             c = 0
             for tmp in aoTmp.formater():
@@ -906,17 +924,20 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                 n = 0
             if n >= 0:
                 self.currentpage = n
-            cTmp = CairoCanvas()
-            cTmp.writepage(self.cc.currentpage[self.currentpage])
-            del cTmp
-
-            #self.imagebuf.set_from_file(os.path.join(
-            #                self.get_value(u'workingdir'), 'thisistest.png'))
-            a = gtk.gdk.pixbuf_new_from_file(os.path.join(
+            #cTmp = CairoCanvas()
+            #cTmp.writepage(self.cc.currentpage[self.currentpage])
+            #del cTmp
+            #print os.getcwd()
+            # pango のメモリリークに対応するためサブプロセスへ移行
+            subprocess.call(['python',self.drawingsubprocess,
+                            u'%ld' % self.cc.currentpage[self.currentpage]])
+            self.imagebuf.set_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
-            self.imagebuf.clear()
-            self.imagebuf.set_from_pixbuf(a)
-            del a
+            #a = gtk.gdk.pixbuf_new_from_file(os.path.join(
+            #                self.get_value(u'workingdir'), 'thisistest.png'))
+            #self.imagebuf.clear()
+            #self.imagebuf.set_from_pixbuf(a)
+            #del a
             bookname,author = self.cc.get_booktitle()
             self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
                 (bookname, author, self.currentpage+1,self.cc.pagecounter+1))
@@ -937,11 +958,18 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         logging.shutdown()
         #   現在読んでいる本を履歴に保存する
         bookname,author = self.cc.get_booktitle()
-        if bookname != u'' and bookname != self.dummytitle:
-            self.bookhistory.update( u'%s,%d,%s' %
-                (bookname, self.currentpage,self.cc.sourcefile) )
+        if bookname != u'' and self.cc.zipfilename != u'':
+            self.bookhistory.update( u'%s,%d,%s,%s' %
+                (bookname, self.currentpage,self.cc.sourcefile,self.cc.zipfilename))
             self.isBookopened = True # テキストを開いていた場合
         self.bookhistory.save()
+        #   展開したテキストを全て削除する
+        try:
+            for s in os.listdir(self.aozoratextdir):
+                os.remove(os.path.join(self.aozoratextdir,s))
+        except:
+            print u'一時ファイルの削除中にエラーが発生しました。'
+
         self.hide_all()
         gtk.main_quit()
 
@@ -992,9 +1020,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u' Python まかせにしています。このためメモリを相当使い'+
                     u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
                     u'います。［＃太字終わり］\n'+
-                    u'・設定ファイルが初期のものと非互換になってしまいました。起動に失敗'+
-                    u'する場合は、~/.config/aozora/aozora.conf を削除して再度'+
-                    u'起動してください。\n'+
                     u'・傍線における波線を実装していません。\n'+
                     u'・注記が重複すると正しく表示されない場合があります。\n'+
                     u'・傍点の本文トレースは厳密なものではありません。\n'+
@@ -1013,9 +1038,10 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             for tmp in aoTmp.formater():
                 pass
             self.cc = copy.copy(aoTmp.currentText)
-            cTmp = CairoCanvas()
-            cTmp.writepage(0)
-            del cTmp
+            #cTmp = CairoCanvas()
+            #cTmp.writepage(0)
+            #del cTmp
+            subprocess.call(['python',self.drawingsubprocess, '0'])
             del aoTmp
             self.imagebuf.clear()
             self.imagebuf.set_from_file(
@@ -1026,6 +1052,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
 
 
 if __name__ == '__main__':
+    gc.enable()
     restart = False
     book = False
     while True:

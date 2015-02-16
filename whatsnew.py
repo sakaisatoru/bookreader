@@ -208,7 +208,6 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
 
         a = ReadHTMLpage()
         a.setbaseurl( self.AOZORA_URL )
-        #a.gethtml( u'whatsnew_2014_1')
         a.gethtml( u'whatsnew1.html')
         for i in a.readrecord():
             try:
@@ -267,12 +266,13 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         f = False
         iters = [c.get_iter(p) for p in d]
         for i in iters:
-            (f, sMes) = self.selected_book( u'%s/%s' % (
-                                self.AOZORA_URL, c.get_value(i, 3)) )
+            (f, sMes, z) = self.selected_book( u'%s/%s' % (
+                            self.AOZORA_URL, c.get_value(i, 3)) )
             if not f:
                 self.msgerrinfo( sMes )
             else:
                 self.lastselectfile = sMes
+                self.lastselectzip = z
 
         return f
 
@@ -284,11 +284,6 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         self.show_all()
         self.set_modal(True)
         gtk.main()
-        return (self.ack, self.lastselectfile)
+        return (self.ack, self.lastselectfile, self.lastselectzip)
 
 
-"""
-if __name__ == '__main__':
-    a = WhatsNewUI()
-    a.run()
-"""

@@ -26,7 +26,6 @@
 
 
 from readersub import ReaderSetting, AozoraDialog, Download
-from aozoracard import AuthorList
 import sys
 import codecs
 import re

@@ -1,9 +1,11 @@
 Sorry, only japanese.
 
 #青空文庫リーダー
+
 2015年2月  sakai satoru  詳細は同梱のrireki.txtをご覧ください。
 ----------------------------------------
-##ライセンス  GPL2
+##ライセンス
+GPL2
 
 ##概要
 青空文庫 <http://www.aozora.gr.jp> のテキストファイルをPython(CPython)とgtk+2.0とPangoを用いて縦書き表示で読もう、というものです。

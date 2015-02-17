@@ -77,7 +77,8 @@ class BookMarkInfo(ReaderSetting):
         """ しおりファイルを読み込んでリストに格納する。
         """
         ReaderSetting.__init__(self)
-        self.shiorifile = os.path.join(self.get_value(u'workingdir'), u'shiori.txt')
+        self.shiorifile = os.path.join(self.get_value(u'workingdir'),
+                                                                u'shiori.txt')
         if os.path.isfile(self.shiorifile):
             self.rewind()
         else:
@@ -305,7 +306,7 @@ class BookmarkUI(gtk.Window):
         m = self.bookmark_bv.get_model()
         i = m.get_iter_first()
         while i:
-            bi.append2(u'%s,%s,%s,%s,%s\n' % m.get(i, 0, 1, 2, 3, 4, 5))
+            bi.append2(u'%s,%s,%s,%s,%s,%s\n' % m.get(i, 0, 1, 2, 3, 4, 5))
             i = m.iter_next(i)  # 次が無ければNoneでループを抜ける
         bi.update()
 
@@ -355,16 +356,16 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         sC = self.get_value(u'fontcolor')
         nC = (len(sC)-1)/3
         tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,
-                                eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
-                                    eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
+                            eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
+                                eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
         self.btFontcolor.set_color(tmpC)
         self.btBackcolor = gtk.ColorButton()
         self.btBackcolor.set_title(u'背景色を選択してください')
         sC = self.get_value(u'backcolor')
         nC = (len(sC)-1)/3
         tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,
-                                eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
-                                    eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
+                            eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
+                                eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
         self.btBackcolor.set_color(tmpC)
         self.lbFontcolor = gtk.Label(u'文字色')
         self.lbBackcolor = gtk.Label(u'背景色')
@@ -466,7 +467,6 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.connect('delete_event', self.delete_event_cb)
 
         self.rv = False
-
 
     def exitall(self):
         self.hide_all()
@@ -597,6 +597,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menuitem_pagejump.connect('activate', self.menu_pagejump_cb)
         self.menuitem_bookmark = gtk.MenuItem( u'しおりの管理(_L)', True)
         self.menuitem_bookmark.connect('activate', self.shiori_list_cb)
+        self.menuitem_bookmarkregist = gtk.MenuItem( u'しおりを挟む(_D)', True)
+        self.menuitem_bookmarkregist.connect('activate', self.shiori_here_cb)
         self.menuitem_gototop = gtk.MenuItem( u'先頭(_T)', True )
         self.menuitem_gototop.connect('activate', self.menu_gototop_cb)
         self.menuitem_gotoend = gtk.MenuItem( u'最後(_E)', True )
@@ -605,6 +607,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menu_tool.add(self.menuitem_pagejump)
         self.menu_tool.add(self.menuitem_gototop)
         self.menu_tool.add(self.menuitem_gotoend)
+        self.menu_tool.add(self.menuitem_bookmarkregist)
         self.menu_tool.add(self.menuitem_bookmark)
         self.menuitem_tool.set_submenu(self.menu_tool)
 
@@ -700,14 +703,19 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             key = event.hardware_keycode #event.keyval
             if key == 57:
                 # CTRL_N
-                self.whatsnew_cb( widget )
+                self.whatsnew_cb(widget)
             elif key == 41:
                 # CTRL_F
-                #self.online_access_cb( widget )
                 self.menu_fileopen_cb(widget)
             elif key == 46:
                 # CTRL_L
-                self.shiori_list_cb( widget )
+                self.shiori_list_cb(widget)
+            elif key == 40:
+                # CTRL_D
+                self.shiori_here_cb(widget)
+            elif key == 44:
+                # CTRL_J
+                self.menu_pagejump_cb(widget)
         else:
             key = event.keyval
             if key == 32:
@@ -746,7 +754,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """
         self.page_common(int(s.split()[1])-1)
 
-    def shiori_here_cb( self, widget ):
+    def shiori_here_cb(self, widget):
         """ テキスト上でのポップアップ（１）
             しおりを挟む
         """
@@ -778,7 +786,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         if self.isRestart:
             self.exitall()
 
-    def menu_pagejump_cb( self, widget ):
+    def menu_pagejump_cb(self, widget):
         """ ページ指定ジャンプ
         """
         label = gtk.Label( u'ページ番号' )
@@ -839,14 +847,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     def menu_fileopen(self):
         """ ローカルにある青空文庫ファイルを開く
         """
-        #dlg = BookshelfUI()
-        #res = dlg.run()
-        #if res == gtk.RESPONSE_OK:
-        #    fn = dlg.get_filename()
-        #    dlg.destroy()
-        #    self.bookopen(fn)
-        #else:
-        #    dlg.destroy()
         dlg = BunkoUI()
         dlg.run()
         fn, z = dlg.get_filename()
@@ -933,11 +933,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                             u'%ld' % self.cc.currentpage[self.currentpage]])
             self.imagebuf.set_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
-            #a = gtk.gdk.pixbuf_new_from_file(os.path.join(
-            #                self.get_value(u'workingdir'), 'thisistest.png'))
-            #self.imagebuf.clear()
-            #self.imagebuf.set_from_pixbuf(a)
-            #del a
             bookname,author = self.cc.get_booktitle()
             self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
                 (bookname, author, self.currentpage+1,self.cc.pagecounter+1))
@@ -978,7 +973,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             再起動フラグ及びテキストを開いていたかどうかを返す
         """
         self.currentpage = 0
-        self.dummytitle = u'［＃３字下げ］青空文庫《あおぞらぶんこ》リーダー［＃「青空文庫リーダー」は大見出し］［＃「青空文庫リーダー」に傍線］'
+        self.dummytitle = u'　　　青空文庫リーダー'
         self.set_title( u'青空文庫リーダー' )
         while restart:
             """ 再起動時の処理
@@ -995,9 +990,29 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     self.dummytitle+'\n'+
                     u'\n'+
                     u'［＃本文終わり］\n'+
-                    u'［＃小見出し］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月14［＃「14」は縦中横］日［＃小見出し終わり］\n'+
-                    u'\n' +
-                    u'Copyright 2014 sakaisatoru <endeavor2wako@gmail.com>\n'+
+                    u'バージョン［＃「バージョン」は大見出し］\n'+
+                    u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月17［＃「17」は縦中横］日\n'+
+                    u'\n'+
+                    u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
+                    u'［＃ここから１字下げ、折り返して２字下げ］'+
+                    u'・［＃太字］プログラム内で使用する作業領域の解放を'+
+                    u' Python まかせにしており、このためメモリを相当使い'+
+                    u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
+                    u'います。［＃太字終わり］\n'+
+                    u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
+                    u'・傍線における波線を実装していません。\n'+
+                    u'・注記が重複すると正しく表示されない場合があります。\n'+
+                    u'・傍点の本文トレースは厳密なものではありません。\n'+
+                    u'・連続して出現するルビの連結や位置調整は行いません。重なって'+
+                    u'表示される場合はフォントサイズを小さくしてみてください。\n'+
+                    u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
+                    u'・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
+                    u'・閲覧履歴はプログラム終了時に開いていたテキストのみ記録されます。これは仕様です。\n'+
+                    u'［＃字下げ終わり］\n'+
+                    u'［＃改ページ］\n'+
+                    u'\nライセンス［＃「ライセンス」は大見出し］\n'+
+                    u'［＃ここから１字下げ］\n' +
+                    u'Copyright 2015 sakaisatoru <endeavor2wako@gmail.com>\n'+
                     u'\n'+
                     u'This program is free software; you can redistribute it and/or modify'+
                     u'it under the terms of the GNU General Public License as published by'+
@@ -1013,25 +1028,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'along with this program; if not, write to the Free Software'+
                     u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
                     u'MA 02110-1301, USA.\n'+
-                    u'\n'+
-                    u'既知の問題点\n'+
-                    u'［＃ここから１字下げ、折り返して２字下げ］'+
-                    u'・［＃太字］プログラム内で使用する作業領域の解放を'+
-                    u' Python まかせにしています。このためメモリを相当使い'+
-                    u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
-                    u'います。［＃太字終わり］\n'+
-                    u'・傍線における波線を実装していません。\n'+
-                    u'・注記が重複すると正しく表示されない場合があります。\n'+
-                    u'・傍点の本文トレースは厳密なものではありません。\n'+
-                    u'　例　example［＃「example」に傍点］ 見本《みほん》［＃「見本」に傍点］\n'+
-                    u'　例　［＃傍点］example［＃「example」は大見出し］［＃傍点終わり］ \n'+
-                    u'　例　［＃傍点］本日は晴天なり［＃「本日は晴天なり」は大見出し］［＃傍点終わり］ \n'+
-                    u'・連続して出現するルビの連結や位置調整は行いません。重なって'+
-                    u'表示される場合はフォントサイズを小さくしてみてください。\n'+
-                    u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
-                    u'・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
-                    u'［＃字下げ終わり］\n')
-
+                    u'［＃字下げ終わり］')
 
             aoTmp = Aozora()
             aoTmp.set_source(s)

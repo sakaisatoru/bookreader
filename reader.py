@@ -927,7 +927,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             #cTmp = CairoCanvas()
             #cTmp.writepage(self.cc.currentpage[self.currentpage])
             #del cTmp
-            #print os.getcwd()
             # pango のメモリリークに対応するためサブプロセスへ移行
             subprocess.call(['python',self.drawingsubprocess,
                             u'%ld' % self.cc.currentpage[self.currentpage]])
@@ -995,11 +994,12 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'\n'+
                     u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
                     u'［＃ここから１字下げ、折り返して２字下げ］'+
-                    u'・［＃太字］プログラム内で使用する作業領域の解放を'+
-                    u' Python まかせにしており、このためメモリを相当使い'+
+                    u'・プログラム内で使用する作業領域の解放を'+
+                    u' Python［＃「Python」は太字］ まかせにしており、このためメモリを相当使い'+
                     u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
-                    u'います。［＃太字終わり］\n'+
-                    u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
+                    u'います。\n'+
+                    u'・Pango［＃「Pango」は太字］ の仕様により、文字の向きが正しく表示されない場合があります。\n'+
+                    u'　例えば欧文の横書きを優先すべく gravity_hint［＃「gravity_hint」は太字］ を natural［＃「natural」は太字］ にしていますが、このため一部の記号 （▼★等）も横書きされます。\n'+
                     u'・傍線における波線を実装していません。\n'+
                     u'・注記が重複すると正しく表示されない場合があります。\n'+
                     u'・傍点の本文トレースは厳密なものではありません。\n'+

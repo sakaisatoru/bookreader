@@ -2198,7 +2198,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
                     layout.set_markup(sTmp)
                     length, y = layout.get_pixel_size()
-                    pangoctx.translate(self.xpos + int(self.get_value(u'linewidth')),
+                    pangoctx.translate(
+                        self.xpos + int(self.get_value(u'linewidth')) + (self.oldwidth - length)//2,
                                                 self.ypos + 5 + self.oldlength)
                     pangoctx.rotate(0)
                     pc = layout.get_context() # Pango を得る
@@ -2233,6 +2234,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
                 pc = layout.get_context() # Pango を得る
                 pc.set_base_gravity('auto')
+                pc.set_gravity_hint('natural')#'line')#'strong')
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
                 del pc
@@ -2484,7 +2486,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                             offset_y = tmpheight
 
                 self.drawstring.settext(s0, xpos, self.canvas_topmargin)
-                self.drawstring.destroy()
+                #self.drawstring.destroy()
                 xpos -= self.canvas_linewidth
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),

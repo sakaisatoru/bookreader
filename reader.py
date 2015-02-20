@@ -22,19 +22,13 @@
 """ reader.py
         UI、プログラム本体
 
-    基本仕様
-        概要
-            青空文庫に登録されているルビ付きファイルを読み込んで表示する。
+    追加予定機能
+        画像表示幅の切り替え
+            現在、画面幅の半分までに制限。絵本閲覧時に文字がつぶれて読めない。
 
-        機能
-            ルビ付きファイル（shift-jis）を読み込んでフォーマットして表示。
-            目次作成機能
-            ページ送り、ページ指定ジャンプ
-            しおり機能
-
-    既知の問題点
-    更新履歴
-        同梱のファイル(rireki.txt)を参照願います。
+        Gravity hint の任意設定
+            現在、natural に設定しているため、回転しない文字が生じる。
+            strong にすると回転するが英文まで縦書きされてしまう。
 
 """
 
@@ -504,9 +498,9 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         fontname = self.fontsel.get_font_name().rstrip('.1234567890')
         self.set_value(u'fontname', fontname.strip(u' '))
         self.set_value(u'fontsize','%s' % round(float(
-                        self.fontsel.get_font_name().lstrip(fontname)),1))
+                        self.fontsel.get_font_name().split(fontname)[1]),1))
         self.set_value(u'rubifontsize', '%s' % round(float(
-                        self.rubifontsel.get_font_name().lstrip(fontname)),1))
+                        self.rubifontsel.get_font_name().split(fontname)[1]),1))
         self.set_value(u'topmargin',    str(int(self.topmargin.get_value())))
         self.set_value(u'bottommargin', str(int(self.bottommargin.get_value())))
         self.set_value(u'leftmargin',   str(int(self.leftmargin.get_value())))
@@ -712,7 +706,15 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                 self.shiori_list_cb(widget)
             elif key == 40:
                 # CTRL_D
-                self.shiori_here_cb(widget)
+                if event.state & gtk.gdk.SHIFT_MASK:
+                    # CTRL + SHIFT + D
+                    # 著者をブックマーク
+                    a = self.cc.get_booktitle()
+                    print a[0],u' ' ,a[1], self.cc.zipfilename
+                else:
+                    # しおり
+                    self.shiori_here_cb(widget)
+
             elif key == 44:
                 # CTRL_J
                 self.menu_pagejump_cb(widget)
@@ -845,7 +847,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         self.menu_fileopen()
 
     def menu_fileopen(self):
-        """ ローカルにある青空文庫ファイルを開く
+        """ 青空文庫ファイルを開く
         """
         dlg = BunkoUI()
         dlg.run()
@@ -990,29 +992,28 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'\n'+
                     u'［＃本文終わり］\n'+
                     u'バージョン［＃「バージョン」は大見出し］\n'+
-                    u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月17［＃「17」は縦中横］日\n'+
+                    u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月21［＃「21」は縦中横］日\n'+
                     u'\n'+
                     u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
                     u'［＃ここから１字下げ、折り返して２字下げ］'+
-                    u'・プログラム内で使用する作業領域の解放を'+
-                    u' Python［＃「Python」は太字］ まかせにしており、このためメモリを相当使い'+
+                    u'・プログラム内で使用する作業領域［＃「作業領域」は横組み］の解放を'+
+                    u' Python まかせにしており、このためメモリを相当使い'+
                     u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
                     u'います。\n'+
-                    u'・Pango［＃「Pango」は太字］ の仕様により、文字の向きが正しく表示されない場合があります。\n'+
-                    u'　例えば欧文の横書きを優先すべく gravity_hint［＃「gravity_hint」は太字］ を natural［＃「natural」は太字］ にしていますが、このため一部の記号 （▼★等）も横書きされます。\n'+
+                    u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
                     u'・傍線における波線を実装していません。\n'+
                     u'・注記が重複すると正しく表示されない場合があります。\n'+
                     u'・傍点の本文トレースは厳密なものではありません。\n'+
                     u'・連続して出現するルビの連結や位置調整は行いません。重なって'+
                     u'表示される場合はフォントサイズを小さくしてみてください。\n'+
                     u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
-                    u'・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
+                    u'［＃横組み］・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
                     u'・閲覧履歴はプログラム終了時に開いていたテキストのみ記録されます。これは仕様です。\n'+
-                    u'［＃字下げ終わり］\n'+
+                    u'［＃横組み終わり］［＃字下げ終わり］\n'+
                     u'［＃改ページ］\n'+
                     u'\nライセンス［＃「ライセンス」は大見出し］\n'+
                     u'［＃ここから１字下げ］\n' +
-                    u'Copyright 2015 sakaisatoru <endeavor2wako@gmail.com>\n'+
+                    u'Copyright 2015 sakaisatoru  endeavor2wako@gmail.com\n'+
                     u'\n'+
                     u'This program is free software; you can redistribute it and/or modify'+
                     u'it under the terms of the GNU General Public License as published by'+

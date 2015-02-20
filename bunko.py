@@ -521,7 +521,7 @@ class gojuonUI2(gtk.VBox):
         self.pack_end(self.gojuon)
 
         self.connect('button_press_event', self.button_press_event_cb)
-        self.tx.connect('key_press_event', self.key_press_event_cb)
+        #self.tx.connect('key_press_event', self.key_press_event_cb)
 
         self.clear()
         self.btn.toggled()
@@ -544,12 +544,13 @@ class gojuonUI2(gtk.VBox):
         """ キー入力のトラップ
         """
         rv = False
-        key = event.keyval
-        if  key == 0xff0d:
-            """ Enter
-            """
-            print self.tx.get_text()
-            rv = True
+        #print widget.get_name()
+        #key = event.keyval
+        #if  key == 0xff0d:
+         #   """ Enter
+         #   """
+         #   print self.tx.get_text()
+         #   rv = True
         return rv
 
     def button_press_event_cb(self, widget, event):
@@ -699,6 +700,8 @@ class BunkoUI(gtk.Window, ReaderSetting):
 
         # 50音及び作者一覧
         self.tbl = gojuonUI2(2,1)
+        self.tbl.connect('key_press_event',
+                                self.vbGojuonauthor_key_press_event_cb)
         self.author = authorlistUI()
         self.author.child.connect('row_activated',
                                 self.author_row_activated_treeview_cb)
@@ -740,7 +743,7 @@ class BunkoUI(gtk.Window, ReaderSetting):
         self.set_title(u'インデックスによる検索')
 
         self.connect('delete_event', self.delete_event_cb )
-        self.connect("key-press-event", self.key_press_event_cb )
+        self.connect("key_press_event", self.key_press_event_cb )
         # 検索キー値
         self.curr_ndc = u''
         self.curr_yomi = u''
@@ -817,25 +820,40 @@ class BunkoUI(gtk.Window, ReaderSetting):
         """
         rv = False
         if event.button == 1:
-            v = self.tbl.get_value()
-            k = unicode(v[0], 'UTF-8')
-            if v[1] == u'著者':
-                self.author.child.get_model().clear()
-                if k == u'':
-                    self.curr_authorid = k
-                for i in self.db.author_keys(k):
-                    n = i.split(u'|')
-                    self.author.child.get_model().append((
-                            n[3]+u' '+n[4], n[0], n[1] ))
-            else:
-                # 作品名よみがな先頭部分一致検索
-                self.sakuhin.child.get_model().clear()
-                self.curr_yomi = k
-                for i in self.db.subindex_keys( u'03' + k ):
-                    self.set_sakuhinlist(i)
+            self.vbGojuonauthor_search_common()
             rv = True
-
         return rv
+
+    def vbGojuonauthor_key_press_event_cb(self, widget, event):
+        """ 50音表用コールバック（２）
+            Enter キーによる検索
+        """
+        print widget.get_name()
+        rv = False
+        key = event.keyval
+        # デフォルトルーチンに繋ぐため False を返すこと
+        if key == 0xff0d:
+            self.vbGojuonauthor_search_common()
+            rv = True
+        return rv
+
+    def vbGojuonauthor_search_common(self):
+        v = self.tbl.get_value()
+        k = unicode(v[0], 'UTF-8')
+        if v[1] == u'著者':
+            self.author.child.get_model().clear()
+            if k == u'':
+                self.curr_authorid = k
+            for i in self.db.author_keys(k):
+                n = i.split(u'|')
+                self.author.child.get_model().append((
+                        n[3]+u' '+n[4], n[0], n[1] ))
+        else:
+            # 作品名よみがな先頭部分一致検索
+            self.sakuhin.child.get_model().clear()
+            self.curr_yomi = k
+            for i in self.db.subindex_keys( u'03' + k ):
+                self.set_sakuhinlist(i)
 
     def vhNDCsakuhin_button_press_event_cb(self, widget, event):
         """ NDC用コールバック（１）

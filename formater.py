@@ -212,11 +212,11 @@ class AozoraScale():
         """
         if lsc in self.charwidth_serif:
             lcc = self.charwidth_serif[lsc]
-        elif unicodedata.east_asian_width(lsc) == 'Na':
-            # 非全角文字
+        elif unicodedata.east_asian_width(lsc) == 'H':
+            # 半角カナ(青空文庫では未使用)
             lcc = 0.5
         else:
-            # 全角文字
+            # 全角文字扱い
             lcc = 1.0
         return lcc
 
@@ -300,12 +300,6 @@ class Aozora(AozoraScale):
     reMojisize = re.compile(ur'(［＃「(?P<name2>.+?)」は(?P<size>.+?)段階(?P<name>.+?)な文字］)')
     reMojisize2 = re.compile(ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
 
-    # 処理共通タグ ( </span>生成 )
-    reOwari = re.compile(
-                ur'(［＃(ここで)?((大き)|(小さ))+な文字終わり］)|' +
-                ur'(［＃(ここで)?斜体終わり］)|' +
-                ur'(［＃(ここで)?太字終わり］)')
-
     # 縦中横
     reTatenakayoko = re.compile(ur'(［＃「(?P<name>.+?)」は縦中横］)')
 
@@ -313,12 +307,12 @@ class Aozora(AozoraScale):
     reWarichu = re.compile(ur'(［＃(ここから)??割り注］)')
     reWarichuOwari = re.compile(ur'(［＃(ここで)??割り注終わり］)')
 
+    # 横組み
+    reYokogumi = re.compile(ur'(［＃「(?P<name>.+?)」は横組み］)')
+
     # 未実装タグ
     reOmit = re.compile(
-                ur'(［＃(ここから)??横組み］)|'+
-                ur'(［＃(ここで)??横組み終わり］)|' +
-                ur'(［＃「.+?」は底本では「.+?」］)|' +
-                ur'(［＃ルビの「.+?」は底本では「.+?」］)')
+                ur'(［＃(ルビの)?「(?P<name>.+?)」は底本では「(?P<name2>.+?)」］)')
 
     """ ソースに直書きしているタグ
         u'［＃ページの左右中央］'
@@ -381,7 +375,7 @@ class Aozora(AozoraScale):
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
     kinsoku4 = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»。、'
 
-    # Pangoタグへの単純な置換
+    # 単純な置換
     dicAozoraTag = {
         u'［＃行右小書き］':u'<sup>',   u'［＃行右小書き終わり］':u'</sup>',
         u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
@@ -394,7 +388,19 @@ class Aozora(AozoraScale):
         u'［＃太字］':u'<span font_desc="Sans">',
         u'［＃ここから太字］':u'<span font_desc="Sans">',
         u'［＃斜体］':u'<span style="italic">',
-        u'［＃ここから斜体］':u'<span style="italic">' }
+        u'［＃ここから斜体］':u'<span style="italic">' ,
+        u'［＃大きな文字終わり］':u'</span>',
+        u'［＃ここで大きな文字終わり］':u'</span>',
+        u'［＃小さな文字終わり］':u'</span>',
+        u'［＃ここで小さな文字終わり］':u'</span>',
+        u'［＃斜体終わり］':u'</span>',
+        u'［＃ここで斜体終わり］':u'</span>',
+        u'［＃太字終わり］':u'</span>',
+        u'［＃ここで太字終わり］':u'</span>',
+        u'［＃横組み］':u'<aozora yokogumi="dmy">',
+        u'［＃ここから横組み］':u'<aozora yokogumi="dmy">',
+        u'［＃横組み終わり］':u'</aozora>',
+        u'［＃ここで横組み終わり］':u'</aozora>' }
 
     # 文字の大きさ
     dicMojisize = {
@@ -626,9 +632,9 @@ class Aozora(AozoraScale):
 
                         if tmp.group() in self.dicAozoraTag:
                             # 単純な Pango タグへの置換
-                            lnbuf = lnbuf[:tmp.start()] + \
-                                    self.dicAozoraTag[tmp.group()] + \
-                                    lnbuf[tmp.end():]
+                            lnbuf = u'%s%s%s' % (lnbuf[:tmp.start()],
+                                    self.dicAozoraTag[tmp.group()],
+                                    lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -684,6 +690,19 @@ class Aozora(AozoraScale):
                                     u'<aozora img="%s" width="%s" height="%s">%s</aozora>' % (
                                         fname, figwidth, figheight, sPad) + \
                                     lnbuf[tmp.end():]
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = self.reYokogumi.match(tmp.group())
+                        if tmp2:
+                            # 横組み
+                            tmpStart,tmpEnd = self.honbunsearch(
+                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            lnbuf = u'%s<aozora yokogumi="dmy">%s</aozora>%s%s' % (
+                                        lnbuf[:tmpStart],
+                                            lnbuf[tmpStart:tmpEnd],
+                                            lnbuf[tmpEnd:tmp.start()],
+                                                lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -772,13 +791,6 @@ class Aozora(AozoraScale):
                                 lnbuf[tmpStart:tmpEnd],
                                 lnbuf[tmpEnd:tmp.start()],
                                 lnbuf[tmp.end():] )
-                            tmp = self.reCTRL2.search(lnbuf)
-                            continue
-
-                        if self.reOwari.match(tmp.group()):
-                            #   </span>生成用共通処理
-                            lnbuf = u'%s</span>%s' % (
-                                lnbuf[:tmp.start()], lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -1997,6 +2009,22 @@ def pangocairocontext(cairoctx):
         del pangoctx
 
 class expango(HTMLParser, AozoraScale, ReaderSetting):
+    """ 追加されたタグ
+        aozora  tatenakayoko
+                img
+                img2
+                warichu
+                caption
+                rubi
+                bousen
+                leftrubi
+                yokogumi
+
+        拡張されたタグ
+        pango   sup
+                sub
+
+    """
      # 右側傍点及び傍線
     dicBouten = {
         u'白ゴマ傍点':u'﹆',
@@ -2024,8 +2052,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.tagstack = []
         self.attrstack = []
 
-        self.feed('<span font_desc="%s %f">%s</span>' % (
-                            self.fontname, self.fontsize, s))
+        #self.feed('<span font_desc="%s %f">%s</span>' % (
+        #                    self.fontname, self.fontsize, s))
+        self.feed(s)
         self.close()
 
     def convcolor(self, s):
@@ -2061,6 +2090,23 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     def getbackgroundcolour(self):
         return (self.backR,self.backG,self.backB)
 
+    def isYokoChar(self, c):
+        """ 横組みがデフォルトなキャラクタであれば True を返す
+        """
+        if c in self.charwidth_serif:
+           # いわゆるASCII文字
+           f = True
+        elif c in u'”“’‘':
+            # ワイドな引用符
+            f = True
+        else:
+            f = False
+            n = unicodedata.category(c)
+            if n[0] == 'L':
+                if n != 'Lo':
+                    f = True # リガチャ狙い
+        return f
+
     def handle_starttag(self, tag, attr):
         self.tagstack.append(tag)
         self.attrstack.append(attr)
@@ -2080,6 +2126,25 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         rubispan = 0
         dicArg = {}
         sTmp = data
+
+        #print "debug  data   ",data
+        # 文字タイプのチェック（テスト）
+        sTmp0 = u''
+        f = False
+        for s in data:
+            s0 = self.isYokoChar(s)
+            if s0 and not f:
+                sTmp0 += u'<span gravity_hint="natural">'
+                f = True
+            elif not s0 and f:
+                sTmp0 += u'</span>'
+                f = False
+            sTmp0 += s
+        if f:
+            sTmp0 += u'</span>'
+        sTmp = sTmp0
+        #print sTmp0
+
         try:
             # タグスタックに積まれている書式指定を全て付す
             pos = -1
@@ -2226,15 +2291,23 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 del pc
 
             else:
+                #print sTmp
+                #layout.set_font_description(self.font)
+                pc = layout.get_context() # Pango を得る
+                # 正しいlengthを得るため、予め文字の向きを決める
+                if u'yokogumi' in dicArg:
+                    pc.set_base_gravity('south')
+                    pc.set_gravity_hint('natural')#'line')#'strong')
+                else:
+                    pc.set_base_gravity('east')
+                    pc.set_gravity_hint('strong')#'
                 layout.set_markup(sTmp)
                 length, span = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+
                 honbunxpos = int(math.ceil(span/2.))
                 pangoctx.translate(self.xpos + xposoffset + honbunxpos,
                                 self.ypos)  # 描画位置
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
-                pc = layout.get_context() # Pango を得る
-                pc.set_base_gravity('auto')
-                pc.set_gravity_hint('natural')#'line')#'strong')
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
                 del pc

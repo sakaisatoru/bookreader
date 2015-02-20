@@ -2051,6 +2051,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.ypos = ypos
         self.tagstack = []
         self.attrstack = []
+        self.hyperoffset = False # pango バグ対策
 
         #self.feed('<span font_desc="%s %f">%s</span>' % (
         #                    self.fontname, self.fontsize, s))
@@ -2142,8 +2143,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             sTmp0 += s
         if f:
             sTmp0 += u'</span>'
+
+        # pango バグ対策
+        if self.isYokoChar(data[0]) and not self.hyperoffset:
+            self.hyperoffset = True
+            self.ypos -= float(self.get_value('fontheight'))
+            sTmp0 = u' ' + sTmp0
+
         sTmp = sTmp0
-        #print sTmp0
 
         try:
             # タグスタックに積まれている書式指定を全て付す
@@ -2306,7 +2313,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 honbunxpos = int(math.ceil(span/2.))
                 pangoctx.translate(self.xpos + xposoffset + honbunxpos,
-                                self.ypos)  # 描画位置
+                                                    self.ypos)  # 描画位置
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)

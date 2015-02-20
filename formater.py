@@ -2104,7 +2104,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             f = False
             n = unicodedata.category(c)
             if n[0] == 'L':
-                if n != 'Lo':
+                if n != 'Lo' and n != 'Lm':
                     f = True # リガチャ狙い
         return f
 

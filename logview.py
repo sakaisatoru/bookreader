@@ -20,9 +20,6 @@
 
 """ ログビューワ
 """
-
-from hypertext import HyperTextView
-
 from readersub import ReaderSetting, AozoraDialog
 import sys
 import codecs
@@ -68,11 +65,9 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
 
         # 表示領域とデータモデル
         self.textbuffer_logfile = gtk.TextBuffer()
-        self.textview_logfile = HyperTextView(self.textbuffer_logfile)
-        self.textview_logfile.link['foreground'] = 'dark blue'
+        self.textview_logfile = gtk.TextView(self.textbuffer_logfile)
         self.textview_logfile.set_wrap_mode(gtk.WRAP_CHAR)
         self.textview_logfile.set_editable(False)
-        self.textview_logfile.connect('anchor-clicked', self.clicked_anchor_cb)
 
         self.sw3 = gtk.ScrolledWindow()
         self.sw3.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -105,11 +100,6 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
         self.connect("key-press-event", self.key_press_event_cb )
 
         self.ack = gtk.RESPONSE_NONE
-
-    def clicked_anchor_cb(self, widget, text, anchor, button ):
-        """ アンカー
-        """
-        webbrowser.open( anchor )
 
     def clicked_btnRefresh_cb(self, widget):
         """ 表示の更新
@@ -145,9 +135,10 @@ class Logviewer(gtk.Window, ReaderSetting, AozoraDialog):
     def readlogfile(self):
         """ ログファイルの内容をUIに得る
         """
+        itre = self.textview_logfile.get_buffer().get_iter_at_offset(0)
         with open( self.logfilename, 'r') as f0:
             for line in f0:
-                self.textview_logfile.insert( line )
+                self.textview_logfile.get_buffer().insert(itre,line)
 
     def exitall(self):
         """ 出口処理

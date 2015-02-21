@@ -496,11 +496,12 @@ class ScreenSetting(gtk.Window, ReaderSetting):
                 break
 
         fontname = self.fontsel.get_font_name().rstrip('.1234567890')
+        fontsize = float(self.fontsel.get_font_name()[len(fontname):])
         self.set_value(u'fontname', fontname.strip(u' '))
-        self.set_value(u'fontsize','%s' % round(float(
-                        self.fontsel.get_font_name().split(fontname)[1]),1))
-        self.set_value(u'rubifontsize', '%s' % round(float(
-                        self.rubifontsel.get_font_name().split(fontname)[1]),1))
+        self.set_value(u'fontsize','%s' % round(fontsize,1))
+        fontname = self.rubifontsel.get_font_name().rstrip('.1234567890')
+        fontsize = float(self.rubifontsel.get_font_name()[len(fontname):])
+        self.set_value(u'rubifontsize', '%s' % round(fontsize,1))
         self.set_value(u'topmargin',    str(int(self.topmargin.get_value())))
         self.set_value(u'bottommargin', str(int(self.bottommargin.get_value())))
         self.set_value(u'leftmargin',   str(int(self.leftmargin.get_value())))
@@ -1007,9 +1008,9 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'・連続して出現するルビの連結や位置調整は行いません。重なって'+
                     u'表示される場合はフォントサイズを小さくしてみてください。\n'+
                     u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
-                    u'［＃横組み］・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
+                    u'・割り注の途中で改行されたり、１行からはみ出したりした場合は正しく表示されません。\n'+
                     u'・閲覧履歴はプログラム終了時に開いていたテキストのみ記録されます。これは仕様です。\n'+
-                    u'［＃横組み終わり］［＃字下げ終わり］\n'+
+                    u'［＃字下げ終わり］\n'+
                     u'［＃改ページ］\n'+
                     u'\nライセンス［＃「ライセンス」は大見出し］\n'+
                     u'［＃ここから１字下げ］\n' +
@@ -1029,7 +1030,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u'along with this program; if not, write to the Free Software'+
                     u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
                     u'MA 02110-1301, USA.\n'+
-                    u'［＃字下げ終わり］')
+                    u'［＃字下げ終わり］\n')
 
             aoTmp = Aozora()
             aoTmp.set_source(s)

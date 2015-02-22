@@ -1847,7 +1847,9 @@ class Aozora(AozoraScale):
                     tagpos = honbun.rfind(chktag) # 本文中のタグ位置
                     if tagpos == -1:
                         # 本文側にタグが無い（エラー）
-                        print u'not found ',chktag
+                        logging.error(
+                            u'行の折り返し処理においてスタックに積まれたタグが本文上に存在しません。%s' % chktag )
+                        self.loggingflag = True
 
                     elif tagname == u'rubi' or tagname == u'leftrubi':
                         # ルビの分かち書きの有無
@@ -2107,7 +2109,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         rubispan = 0
         dicArg = {}
         sTmp = data
-
         # 文字タイプをチェックして gravity_hint を設定する
         sTmp = u''
         f = False
@@ -2128,12 +2129,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         # ダミーの空白を１文字挟む。その分、表示がずれるので基準位置座標(self.
         # ypos)から1文字分差し引く。後続の文字サイズが標準であればこれでよいが
         # 拡大あるいは縮小を伴っているとずれを生じる。
-        # なおこの処理は１行中に一度だけなのでフラグ(self.hyperoffset)を使って
-        # いる。
+        # なおこの処理が必要なのは１行中での行頭における1回だけなのでフラグ
+        # (self.hyperoffset)を使っている。
         if not self.hyperoffset and self.isYokoChar(data[0]):
             self.hyperoffset = True
             self.ypos -= self.fontheight
             sTmp = u' ' + sTmp
+
+        self.hyperoffset = True # 行頭の処理が終わったことを示すフラグ
 
         try:
             # タグスタックに積まれている書式指定を全て付す

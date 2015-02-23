@@ -215,6 +215,7 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
             except IndexError:
                 pass
         self.lastselectfile = None
+        self.lastselectzip = None
         self.ack = gtk.RESPONSE_NONE
 
 

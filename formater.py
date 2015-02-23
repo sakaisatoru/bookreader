@@ -256,7 +256,12 @@ class Aozora(AozoraScale):
     # 外字置換
     reGaiji3 = re.compile(ur'(［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)')
     reGaiji4 = re.compile(ur'(［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］)')
-    reGaiji5 = re.compile(ur'(［＃(?P<name>「.+?」)、.+?］)' )
+    reGaiji5 = re.compile(ur'(［＃(?P<name>.+?)、.+?］)' )
+    # このプログラムで特に予約された文字
+    dicReserveChar = {
+        u'感嘆符三つ':u'<aozora tatenakayoko="!!!"> </aozora>', # 河童、芥川龍之介
+        u'「IIII」':u'<aozora tatenakayoko="IIII"> </aozora>'   # ランボオ詩集、中原中也訳
+        }
     # 役物置換
     reKunoji = re.compile(ur'(／＼)')
     reGunoji = re.compile(ur'(／″＼)')
@@ -313,6 +318,8 @@ class Aozora(AozoraScale):
     # 未実装タグ
     reOmit = re.compile(
                 ur'(［＃(ルビの)?「(?P<name>.+?)」は底本では「(?P<name2>.+?)」］)')
+
+
 
     """ ソースに直書きしているタグ
         u'［＃ページの左右中央］'
@@ -610,8 +617,14 @@ class Aozora(AozoraScale):
                                 # ※［＃「」、底本ページ-底本行］ -> ※「」
                                 tmp2 = self.reGaiji5.match(tmp.group())
                                 if tmp2:
-                                    lnbuf = lnbuf[:tmp.start()] + \
-                                            tmp2.group(u'name') + lnbuf[tmp.end():]
+                                    if tmp2.group(u'name') in self.dicReserveChar:
+                                        k = self.dicReserveChar[tmp2.group(u'name')]
+                                    else:
+                                        k = tmp2.group(u'name').strip(u'「」')
+                                        logging.info(u'未定義文字を検出 : %s' % k )
+                                        loggingflag = True
+                                    lnbuf = u'%s%s%s' % (
+                                        lnbuf[:tmp.start()-1],k,lnbuf[tmp.end():])
                                     tmp = self.reCTRL2.search(lnbuf)
                                     continue
                         except IndexError:
@@ -2029,24 +2042,70 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         del self.tagstack
         del self.attrstack
 
-    def settext(self, s, xpos, ypos):
+    def settext(self, data, xpos, ypos):
         self.xpos = xpos
         self.ypos = ypos
         self.tagstack = []
         self.attrstack = []
         self.hyperoffset = False # pango バグ対策
-
+        s = self.pangodebug(data)
+        #print s
         self.feed(s)
         self.close()
 
-    def convcolor(self, s):
-        """ カラーコードを16進文字列からRGB(0..1)に変換して返す
+    def pangodebug(self, data):
+        """ Pangoのバグに対する対策
+            オリジナルのPangoがタグによる重力制御を振り切るケースが多々ある
+            ため、ここで文字種を判定し英文には横組タグ(aozora yokogumi)を
+            付す。
         """
-        p = (len(s)-1)/3
-        return(
-            float(eval(u'0x'+s[1:1+p])/65535.0),
-            float(eval(u'0x'+s[1+p:1+p+p])/65535.0),
-            float(eval(u'0x'+s[1+p+p:1+p+p+p])/65535.0) )
+        sTmp = u''
+        f = False
+        inTag = False
+        pos = 0
+        l = len(data)
+        stack = []
+        while pos < l:
+            if data[pos] == u'>':
+                inTag = False
+            elif data[pos] == u'<':
+                if data[pos:pos+2] == u'</':
+                    if stack[-1] == u'aozora yokogumi="dmy"':
+                        # 他の閉じタグ出現時に 横組みが挿入されていたら
+                        # 閉じる
+                        stack.pop()
+                        sTmp += u'</aozora>'
+                        f = False
+                    if data[pos+2:(data.find(u'>',pos+2))] == stack[-1]:
+                        stack.pop()
+                else:
+                    pos2 = pos+1
+                    while data[pos2] != u'>' and data[pos2] != u' ':
+                        pos2 += 1
+                    stack.append(data[pos+1:pos2])
+                    #print "debug ---%s" % stack[-1]
+                # 既存タグ読み飛ばし、青空形式［＃］は扱わないので素通りの
+                # 可能性あり。
+                inTag = True
+            elif inTag:
+                pass
+            else:
+                s0 = self.isYokoChar(data[pos])
+                if s0 and not f:
+                    sTmp += u'<aozora yokogumi="dmy">'
+                    f = True
+                    stack.append(u'aozora yokogumi="dmy"')
+                elif not s0 and f:
+                    # 他のタグが開いている間は閉じない
+                    if stack[-1] == u'aozora yokogumi="dmy"':
+                        stack.pop()
+                        sTmp += u'</aozora>'
+                        f = False
+            sTmp += data[pos]
+            pos += 1
+        if f:
+            sTmp += u'</aozora>'
+        return sTmp
 
     def setcolour(self, fore, back):
         """ 描画色・背景色を得る
@@ -2082,6 +2141,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         elif c in u'”“’‘':
             # ワイドな引用符
             f = True
+        elif c >= u'Ａ' and c <= u'Ｚ':
+            f = False
+        elif c >= u'ａ' and c <= u'ｚ':
+            f = False
         else:
             f = False
             n = unicodedata.category(c)
@@ -2109,34 +2172,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         rubispan = 0
         dicArg = {}
         sTmp = data
-        # 文字タイプをチェックして gravity_hint を設定する
-        sTmp = u''
-        f = False
-        for s in data:
-            s0 = self.isYokoChar(s)
-            if s0 and not f:
-                sTmp += u'<span gravity_hint="natural">'
-                f = True
-            elif not s0 and f:
-                sTmp += u'</span>'
-                f = False
-            sTmp += s
-        if f:
-            sTmp += u'</span>'
-
-        # pango バグ対策
-        # 何も出力されていない状態だとタグによるgravity_hintが動作しないため
-        # ダミーの空白を１文字挟む。その分、表示がずれるので基準位置座標(self.
-        # ypos)から1文字分差し引く。後続の文字サイズが標準であればこれでよいが
-        # 拡大あるいは縮小を伴っているとずれを生じる。
-        # なおこの処理が必要なのは１行中での行頭における1回だけなのでフラグ
-        # (self.hyperoffset)を使っている。
-        if not self.hyperoffset and self.isYokoChar(data[0]):
-            self.hyperoffset = True
-            self.ypos -= self.fontheight
-            sTmp = u' ' + sTmp
-
-        self.hyperoffset = True # 行頭の処理が終わったことを示すフラグ
 
         try:
             # タグスタックに積まれている書式指定を全て付す
@@ -2288,12 +2323,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # 正しいlengthを得るため、予め文字の向きを決める
                 if u'yokogumi' in dicArg:
                     pc.set_base_gravity('south')
-                    pc.set_gravity_hint('natural')#'line')#'strong')
+                    pc.set_gravity_hint('natural')
                 else:
                     pc.set_base_gravity('east')
-                    pc.set_gravity_hint('strong')#'
+                    pc.set_gravity_hint('strong')
                 layout.set_markup(sTmp)
-                length, span = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+                length, span = layout.get_pixel_size()
 
                 honbunxpos = int(math.ceil(span/2.))
                 pangoctx.translate(self.xpos + xposoffset + honbunxpos,
@@ -2439,66 +2474,6 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             r,g,b = self.drawstring.getbackgroundcolour()
             ctx.set_source_rgb(r, g, b)
             ctx.fill()
-        """
-            if self.BEDEBUG:
-            # マージンに境界線を引く（デバッグ用）
-                r,g,b = self.drawstring.getforegroundcolour()
-                ctx.set_source_rgb(r, g, b)
-                ctx.set_antialias(cairo.ANTIALIAS_NONE)
-                ctx.new_path()
-                ctx.set_line_width(1)
-                ctx.set_dash((3.5,3.5,3.5,3.5))
-                tmpwidth = self.canvas_width - int(self.get_value('leftmargin')) - self.canvas_rightmargin
-                tmpheight = self.canvas_height - self.canvas_rightmargin - int(self.get_value('bottommargin'))
-                ctx.move_to(self.canvas_width - self.canvas_rightmargin, self.canvas_topmargin)
-                ctx.rel_line_to(0, tmpheight)
-                ctx.rel_line_to(-tmpwidth, 0)
-                ctx.rel_line_to(0, -tmpheight)
-                ctx.rel_line_to(tmpwidth, 0)
-                ctx.stroke()
-
-                tmpwidth = 0
-                tmpheight = 0
-        """
-        """
-        if self.BEDEBUG:
-            # 行番号の表示（デバッグ用）
-            tmpxpos = self.canvas_width - self.canvas_rightmargin - int(math.ceil(self.canvas_linewidth/2.))
-            n = 1
-            while tmpxpos > 0:
-                with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
-                    sTmp = u'<span size="xx-small">%d</span>' % n
-                    layout = pangoctx.create_layout()
-                    layout.set_markup(sTmp)
-                    length,y = layout.get_pixel_size()
-                    pangoctx.translate(tmpxpos - int(math.ceil(length/2.)),0)
-                    pangoctx.rotate(0)
-                    pc = layout.get_context() # Pango を得る
-                    pc.set_base_gravity('auto')
-                    pangoctx.update_layout(layout)
-                    pangoctx.show_layout(layout)
-                    del pc
-                    tmpxpos -= self.canvas_linewidth
-                    n += 1
-
-            tmpxpos = self.canvas_topmargin
-            n = 1
-            while tmpxpos < self.canvas_height:
-                with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
-                    sTmp = u'<span size="xx-small">%d</span>' % n
-                    layout = pangoctx.create_layout()
-                    layout.set_markup(sTmp)
-                    length,y = layout.get_pixel_size()
-                    pangoctx.translate(0, tmpxpos )
-                    pangoctx.rotate(0)
-                    pc = layout.get_context() # Pango を得る
-                    pc.set_base_gravity('auto')
-                    pangoctx.update_layout(layout)
-                    pangoctx.show_layout(layout)
-                    del pc
-                    tmpxpos += self.fontwidth
-                    n += 1
-        """
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
             f0.seek(pageposition)

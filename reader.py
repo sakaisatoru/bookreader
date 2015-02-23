@@ -347,20 +347,12 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         # 2.5行目 -- colour selector --
         self.btFontcolor = gtk.ColorButton()
         self.btFontcolor.set_title(u'文字の色を選択してください')
-        sC = self.get_value(u'fontcolor')
-        nC = (len(sC)-1)/3
-        tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,
-                            eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
-                                eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
-        self.btFontcolor.set_color(tmpC)
+        tmp = self.convcolor(self.get_value(u'fontcolor'))
+        self.btFontcolor.set_color(gtk.gdk.Color(tmp[0],tmp[1],tmp[2]))
         self.btBackcolor = gtk.ColorButton()
         self.btBackcolor.set_title(u'背景色を選択してください')
-        sC = self.get_value(u'backcolor')
-        nC = (len(sC)-1)/3
-        tmpC = gtk.gdk.Color(eval(u'0x'+sC[1:1+nC])/65535.0,
-                            eval(u'0x'+sC[1+nC:1+nC+nC])/65535.0,
-                                eval(u'0x'+sC[1+nC+nC:1+nC+nC+nC])/65535.0,0)
-        self.btBackcolor.set_color(tmpC)
+        tmp = self.convcolor(self.get_value(u'backcolor'))
+        self.btBackcolor.set_color(gtk.gdk.Color(tmp[0],tmp[1],tmp[2]))
         self.lbFontcolor = gtk.Label(u'文字色')
         self.lbBackcolor = gtk.Label(u'背景色')
         self.hbox25 = gtk.HBox()
@@ -711,7 +703,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     # CTRL + SHIFT + D
                     # 著者をブックマーク
                     a = self.cc.get_booktitle()
-                    print a[0],u' ' ,a[1], self.cc.zipfilename
                 else:
                     # しおり
                     self.shiori_here_cb(widget)

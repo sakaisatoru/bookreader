@@ -315,6 +315,18 @@ class ReaderSetting():
         """
         return self.dicSetting[key]
 
+    def convcolor(self, s):
+        """ カラーコードの変換
+            16進文字列 (#xxxxxx or #xxxxxxxxxxxx)をRGB(0..1)に変換して返す
+        """
+        p = (len(s)-1)/3
+        f = 65535. if p > 2 else 255.
+        return(
+            float(int(s[1:1+p],16)/f),
+            float(int(s[1+p:1+p+p],16)/f),
+            float(int(s[1+p+p:1+p+p+p],16)/f) )
+
+
 
 class History():
     """ 読書履歴

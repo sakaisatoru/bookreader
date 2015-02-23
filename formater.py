@@ -2047,9 +2047,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.ypos = ypos
         self.tagstack = []
         self.attrstack = []
-        self.hyperoffset = False # pango バグ対策
         s = self.pangodebug(data)
-        #print s
         self.feed(s)
         self.close()
 
@@ -2059,6 +2057,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             ため、ここで文字種を判定し英文には横組タグ(aozora yokogumi)を
             付す。
         """
+        # 上流が作ったバグをここでフォロー（泣
+        if data[:2] == u'</':
+            data = data[data.find(u'>',2)+1:]
+
         sTmp = u''
         f = False
         inTag = False
@@ -2264,7 +2266,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 sTmp.insert(1,u'\n')
                 layout.set_markup(u'<span size="smaller">%s</span>' % ''.join(sTmp))
                 x0,y = layout.get_pixel_size()
-                pangoctx.translate(self.xpos + y//2, self.ypos + (length-x0)//2)
+                pangoctx.translate(self.xpos + y//2,
+                                self.ypos + int(round(float(length-x0)/2.)))
                 pangoctx.rotate(3.1415/2.)
                 pc = layout.get_context()
                 pc.set_base_gravity('auto')

@@ -531,16 +531,13 @@ class Aozora(AozoraScale):
                     復元する
                 """
                 if aozorastack != []:
-                    while True:
-                        try:
-                            lnbuf = aozorastack.pop() + lnbuf
-                        except IndexError:
-                            break
+                    aozorastack.append(lnbuf)
+                    lnbuf = u''.join(aozorastack)
                     aozorastack = []
 
                 """ 空行及び冒頭の処理
                 """
-                if not lnbuf:  # len(lnbuf) == 0 よりわずかに速い
+                if not lnbuf:
                     if boutoudone:
                         yield u''
                     else:
@@ -614,6 +611,7 @@ class Aozora(AozoraScale):
                                     continue
 
                                 # JISにもUnicodeにも定義されていない文字の注釈
+                                # こちらで準備するか、そうでなければ
                                 # ※［＃「」、底本ページ-底本行］ -> ※「」
                                 tmp2 = self.reGaiji5.match(tmp.group())
                                 if tmp2:
@@ -623,8 +621,7 @@ class Aozora(AozoraScale):
                                         k = tmp2.group(u'name').strip(u'「」')
                                         logging.info(u'未定義文字を検出 : %s' % k )
                                         loggingflag = True
-                                    lnbuf = u'%s%s%s' % (
-                                        lnbuf[:tmp.start()-1],k,lnbuf[tmp.end():])
+                                    lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
                                     tmp = self.reCTRL2.search(lnbuf)
                                     continue
                         except IndexError:
@@ -632,9 +629,7 @@ class Aozora(AozoraScale):
 
                         if tmp.group() in self.dicAozoraTag:
                             # 単純な Pango タグへの置換
-                            lnbuf = u'%s%s%s' % (lnbuf[:tmp.start()],
-                                    self.dicAozoraTag[tmp.group()],
-                                    lnbuf[tmp.end():] )
+                            lnbuf = lnbuf[:tmp.start()] + self.dicAozoraTag[tmp.group()] + lnbuf[tmp.end():]
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -969,18 +964,18 @@ class Aozora(AozoraScale):
                 if footerflag:
                     """ フッタにおける年月日を漢数字に置換
                     """
-                    ln = u''
+                    ln = []
                     priortail = 0
                     for tmp in self.reNenGetsuNichi.finditer(lnbuf):
-                        ln += lnbuf[priortail:tmp.start()]
+                        ln.append(lnbuf[priortail:tmp.start()])
                         priortail = tmp.end()
                         for s in tmp.group():
                             try:
-                                ln += u'〇一二三四五六七八九'[eval(s)]
+                                ln.append(u'〇一二三四五六七八九'[eval(s)])
                             except:
-                                ln += s
-                    ln += lnbuf[priortail:]
-                    lnbuf = ln
+                                ln.append(s)
+                    ln.append(lnbuf[priortail:])
+                    lnbuf = u''.join(ln)
 
                 """ ダブルクォーテーションのノノカギへの置換
                     カテゴリを調べてLo (Other_Letter)を日本語と見做して
@@ -1169,10 +1164,11 @@ class Aozora(AozoraScale):
                 IndentJitsuki = False
                 tmp = self.reCTRL2.search(lnbuf)
                 while tmp:
+                    """ 縦中横
+                        本文を書き換えることに注意
+                    """
                     tmp2 = self.reTatenakayoko.match(tmp.group())
                     if tmp2:
-                        #   縦中横
-                        #   本文を書き換えることに注意
                         tmpStart,tmpEnd = self.honbunsearch(
                                     lnbuf[:tmp.start()],tmp2.group(u'name'))
                         lnbuf = u'%s<aozora tatenakayoko="%s">　</aozora>%s%s' % (
@@ -1183,15 +1179,13 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
+                    """ 挿図
+                        キャンバスの大きさに合わせて画像を縮小する。
+                            ページからはみ出るようであれば挿図前に
+                            改ページする。
+                    """
                     matchFig = self.reFig.match(tmp.group())
                     if matchFig:
-                        #   挿図
-                        #    キャンバスの大きさに合わせて画像を縮小する。
-                        #    幅　　上限　キャンバスの半分迄
-                        #    高さ　上限　キャンバスの高さ迄
-                        #
-                        #    ページからはみ出るようであれば挿図前に
-                        #    改ページする。
                         try:
                             fname = matchFig.group(u'filename')
                             tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
@@ -1548,18 +1542,14 @@ class Aozora(AozoraScale):
                         青空形式を外して本文に残す
                     """
                     if tmp:
-                        lnbuf = u'%s%s%s' % (
-                            lnbuf[:tmp.start()],
-                            tmp.group().lstrip(u'［＃').rstrip(u'］'),
-                            lnbuf[tmp.end():] )
+                        lnbuf = lnbuf[:tmp.start()] + tmp.group().strip(u'［＃］') + lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
-
 
                 """ ルビの処理
                     文字種が変わる毎にルビ掛かり始めとみなして、anchorを
                     セットする。
                 """
-                retline = u''
+                retline = []
                 inRubi = False
                 inTag = False
                 pos = 0
@@ -1576,7 +1566,7 @@ class Aozora(AozoraScale):
                         pass
                     elif s == u'｜':
                         isSPanchor = True
-                        retline += lnbuf[anchor:pos]
+                        retline.append(lnbuf[anchor:pos])
                         anchor = pos + 1
                     elif s == u'《':
                         inRubi = True
@@ -1584,10 +1574,10 @@ class Aozora(AozoraScale):
                     elif s == u'》':
                         inRubi = False
                         isSPanchor = False
-                        retline += u'<aozora rubi="%s" length="%s">%s</aozora>' % (
+                        retline.append(u'<aozora rubi="%s" length="%s">%s</aozora>' % (
                             lnbuf[rubiTop+1:pos],
                             self.boutencount(lnbuf[anchor:rubiTop]),#本文側長さ
-                            lnbuf[anchor:rubiTop] )
+                            lnbuf[anchor:rubiTop] ))
                         anchor = pos + 1
                     elif inRubi:
                         pass
@@ -1605,12 +1595,11 @@ class Aozora(AozoraScale):
                                     tp = u'CJK'
                             if tplast != tp:
                                 # 新しいルビ掛かり始め位置
-                                retline += lnbuf[anchor:pos]
+                                retline.append(lnbuf[anchor:pos])
                                 anchor = pos
                     pos += 1
-
-                retline += lnbuf[anchor:pos]
-                lnbuf = retline
+                retline.append(lnbuf[anchor:pos])
+                lnbuf = u''.join(retline)
 
                 if isNoForming:
                     """ 行の折り返し・分割処理を無視してファイルに出力する
@@ -1730,32 +1719,37 @@ class Aozora(AozoraScale):
         honbun2 = u''       # 本文（分割時の次行）
         inTag = False       # <tag>処理のフラグ
         inSplit = False     # 行分割処理のフラグ
-
+        sTestNext = []      # 文字列連結用
+        sTestCurrent = []   # 〃
         fontsizename = u'normal'
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
-        while self.tagstack != []:
+        if self.tagstack != []:
+            #print self.tagstack
             # 行頭からの空白（字下げ等）を飛ばす
             pos = 0
             endpos = len(sline)
             while pos < endpos and sline[pos] == u'　':
                 pos += 1
-            sline = sline[:pos] + self.tagstack.pop() + sline[pos:]
+            sline = sline[:pos] + u''.join(self.tagstack) + sline[pos:]
+            self.tagstack = []
 
         for lsc in sline:
             if inSplit:
                 # 本文の分割
-                honbun2 += lsc
+                #honbun2 += lsc
+                sTestNext.append(lsc)
                 continue
 
             if smax:
                 if round(lcc) >= smax:
                     inSplit = True
-                    honbun2 += lsc
+                    #honbun2 += lsc
+                    sTestNext.append(lsc)
                     continue
 
-            honbun += lsc
+            sTestCurrent.append(lsc)
             if lsc == u'>':
                 # tagスタックの操作
                 tagname += lsc
@@ -1785,14 +1779,21 @@ class Aozora(AozoraScale):
             else:
                 # 画面上における全長を計算
                 lcc += self.charwidth(lsc) * self.fontsizefactor[fontsizename]
+        honbun = u''.join(sTestCurrent)
+        honbun2 = u''.join(sTestNext)
 
         """ 行末禁則処理
             次行先頭へ追い出す
             禁則文字が続く場合は全て追い出す
         """
-        while honbun[-1] in self.kinsoku2:
-            honbun2 = honbun[-1] + honbun2
-            honbun = honbun[:-1] + u'　'
+        pos = len(honbun) - 1
+        while pos >= 0 and honbun[pos] in self.kinsoku2:
+            #print u'行末禁則処理', honbun
+            pos -= 1
+        if pos < len(honbun) - 1:
+            pos += 1
+            honbun2 = honbun[pos:] + honbun2
+            honbun = honbun[:pos]
 
         """ 行頭禁則処理 ver 2
             前行末にぶら下げる。
@@ -1837,100 +1838,110 @@ class Aozora(AozoraScale):
                                     honbun = honbun[:-2]
                                     # 前行末を変更したので行末禁則処理を
                                     # 再度実施
-                                    while honbun[-1] in self.kinsoku2:
-                                        honbun2 = honbun[-1] + honbun2
-                                        honbun = honbun[:-1] + u'　'
-                                    honbun += u'　　'
+                                    pos = len(honbun) - 1
+                                    while pos >= 0 and honbun[pos] in self.kinsoku2:
+                                        #print u'行末禁則処理', honbun
+                                        pos -= 1
+                                    if pos < len(honbun) - 1:
+                                        pos += 1
+                                        honbun2 = honbun[pos:] + honbun2
+                                        honbun = honbun[:pos]
             except IndexError:
                 pass
 
         """ tag の処理（１）
-            行末のタグの分かち書き対策
+            閉じられていないタグを一旦閉じる。
+            行末のタグの分かち書き対策もここで行う。
         """
+        sTestCurrent = []
+        sTestNext = []
+
         substack = []
         honbunpos = 0 if honbun[-1] == u'>' else honbun.rfind(u'>') + 1
         honbuntail = honbun[honbunpos:]
         while self.tagstack:
             chktag = self.tagstack.pop()
-            # 本文側がタグだけで終わっている場合はタグを閉じるのみ
-            if honbunpos > 0:
-                if chktag.find(u'<aozora ') != -1:
-                    tagname = chktag.split(u'=')[0].split()[1]
-                    hlen = len(honbuntail) # 本文側掛かり部分の長さ
-                    tagpos = honbun.rfind(chktag) # 本文中のタグ位置
-                    if tagpos == -1:
-                        # 本文側にタグが無い（エラー）
-                        logging.error(
-                            u'行の折り返し処理においてスタックに積まれたタグが本文上に存在しません。%s' % chktag )
-                        self.loggingflag = True
+            # 本文側がタグだけで終わっている場合はタグを閉じて次行へ繰り越す
+            # Pango タグも閉じて繰り越して終わる
+            if honbunpos == 0 or chktag.find(u'<aozora ') == -1:
+                honbun += u'</%s>' % chktag.split()[0].strip(u'<>') # 行末で閉じて
+                substack.append(chktag) # 次行に繰り越す
+                continue
 
-                    elif tagname == u'rubi' or tagname == u'leftrubi':
-                        # ルビの分かち書きの有無
-                        rubi = chktag.split()[1].split(u'=')[1].strip(u'">')
-                        rubiafter = u''
-                        hlenorigin = int(chktag.split()[2].split(u'=')[1].strip(u'">'))
-                        # ルビを分割、本文の長さを勘案して分割
-                        rubilen = int(round(hlen * float(len(rubi)) /
-                                                        float(hlenorigin)) )
-                        rubiafter = rubi[rubilen:]
-                        rubi = rubi[:rubilen]
-                        # ルビを分割するなら現在行のルビを修正し、残りを次行へ持ち越し
-                        if rubiafter:
-                            honbun = u'%s<aozora %s="%s" length="%d">%s' % (
-                                        honbun[:tagpos],
-                                        tagname, rubi, hlen,
-                                        honbun[tagpos+len(chktag):] )
-                            # 次行の先頭に字下げ用の空白などが連なる場合は、
-                            # 飛ばしてルビタグを打つ
-                            pos = 0
-                            while honbun2[pos] == u'　':
-                                pos += 1
-                            honbun2 = u'%s<aozora %s="%s" length="%d">%s' % (
-                                        honbun2[:pos],
-                                        tagname, rubiafter, hlenorigin - hlen,
-                                        honbun2[pos:] )
-                        honbun += u'</aozora>'
-                        continue
+            tagname = chktag.split(u'=')[0].split()[1]
+            hlen = len(honbuntail) # 本文側掛かり部分の長さ
+            tagpos = honbun.rfind(chktag) # 本文中のタグ位置
 
-                    elif tagname == u'img':
-                        # 埋め込み画像 <aozora img="" width="" height="">
-                        # 行末に充分な表示領域が見込めれば次行へ引き継がない。
-                        # でなければ、行末側を削除して次行行頭のみ表示する
-                        h = int(chktag.split()[3].split(u'=')[1].strip('">'))
-                        if hlen * int(self.currentText.get_value('fontheight')) < h:
-                            # 行末の画像表示域が見込めなければ次行行頭へ移動
-                            pos = 0
-                            while honbun2[pos] == u'　':
-                                pos += 1
-                            sPad = u'＃' * int(math.ceil(
-                                    float(h)/float(self.currentText.get_value('fontheight'))))
-                            endpos = len(honbun2)
-                            pos2 = pos
-                            while pos2 < endpos and honbun2[pos2] == u'＃':
-                                pos2 += 1
-                            honbun2 = u'%s%s%s</aozora>%s' % (
-                                    honbun2[:pos], chktag, sPad, honbun2[pos2:] )
-                            # 本文側のタグを削除
-                            pos = tagpos
-                            pos += len(chktag)
-                            endpos = len(honbun)
-                            while pos < endpos and honbun[pos] == u'＃':
-                                pos += 1
-                            honbun = honbun[:tagpos] + honbun[pos:]
-                        continue
-                    else:
-                        pass
+            if tagname == u'rubi' or tagname == u'leftrubi':
+                # ルビの分かち書きの有無
+                rubi = chktag.split()[1].split(u'=')[1].strip(u'">')
+                rubiafter = u''
+                hlenorigin = int(chktag.split()[2].split(u'=')[1].strip(u'">'))
+                # ルビを分割、本文の長さを勘案して分割
+                rubilen = int(round(hlen * float(len(rubi)) /
+                                                float(hlenorigin)) )
+                rubiafter = rubi[rubilen:]
+                rubi = rubi[:rubilen]
+                # ルビを分割するなら現在行のルビを修正し、残りを次行へ持ち越し
+                if rubiafter:
+                    honbun = u'%s<aozora %s="%s" length="%d">%s</aozora>' % (
+                                honbun[:tagpos],
+                                tagname, rubi, hlen,
+                                honbun[tagpos+len(chktag):] )
 
-            # 分かち書き以外のタグは単純に一旦閉じる
-            honbun += u'</%s>' % chktag.split()[0].rstrip(u'>').lstrip(u'<')
-            substack.append(chktag) # 退避
+                    substack.append(u'<aozora %s="%s" length="%d">' % (
+                        tagname, rubiafter, hlenorigin - hlen ))
+                else:
+                    honbun += u'</aozora>'
+                    substack.append(u'<aozora>')
+                continue
 
+            elif tagname == u'img':
+                # 埋め込み画像 <aozora img="" width="" height="">
+                # 行末に充分な表示領域が見込めれば次行へ引き継がない。
+                # でなければ、行末側を削除して次行行頭のみ表示する
+                h = int(chktag.split()[3].split(u'=')[1].strip('">'))
+                if hlen * int(self.currentText.get_value('fontheight')) + int(self.currentText.get_value('bottommargin')) < h:
+                    # 行末の画像表示域が見込めなければ次行行頭へ移動
+                    sPad = u'＃' * int(math.ceil(
+                            float(h)/float(self.currentText.get_value('fontheight'))))
+                    substack.append(chktag + sPad)
+
+                    # 次行先頭に繰り越したダミーテキストを抜去
+                    endpos = len(honbun2)
+                    pos2 = 0
+                    while pos2 < endpos and honbun2[pos2] == u'＃':
+                        pos2 += 1
+                    honbun2 = honbun2[pos2:]
+
+                    # 本文側のタグを削除
+                    pos = tagpos
+                    pos += len(chktag)
+                    endpos = len(honbun)
+                    while pos < endpos and honbun[pos] == u'＃':
+                        pos += 1
+                    honbun = honbun[:tagpos] + honbun[pos:]
+                else:
+                    honbun += u'</aozora>'
+                    # 次行先頭に繰り越したダミーテキストを抜去
+                    endpos = len(honbun2)
+                    pos2 = 0
+                    while pos2 < endpos and honbun2[pos2] == u'＃':
+                        pos2 += 1
+                    honbun2 = honbun2[pos2:]
+                    substack.append(u'<aozora>')
+            else:
+                honbun += u'</aozora>'
+                substack.append(chktag)
 
         """ tag の処理（２）
             スタックに積み直す
         """
-        while substack:
-            self.tagstack.append(substack.pop())
+        self.tagstack = substack[::-1]
+
+        # 閉じタグが行頭に回った時のスタック内容を表示
+        #if honbun2[:2] == u'</':
+        #    print "debug ---",self.tagstack
 
         return (honbun, honbun2)
 
@@ -1941,6 +1952,14 @@ class Aozora(AozoraScale):
             出力時の正確なページ数と行数が分かるのはここだけ。
         """
         rv = False
+        fd.write(s)         # 本文
+
+        if self.loggingflag:
+            logging.debug( u'　位置：%dページ、%d行目' % (
+                                    self.currentText.pagecounter+1,
+                                    self.linecounter+1 ))
+            self.loggingflag = False
+
         if self.countpage:
             if self.inMidashi:
                 # 見出し書式
@@ -1952,8 +1971,8 @@ class Aozora(AozoraScale):
                     sMokujiForm = u'    %-s  % 4d\n'
                 # 目次作成
                 if self.inFukusuMidashi:
-                    self.midashi += s.rstrip('\n')
-
+                    # 2行目以降はインデント用（と思われる）空白を除去する。
+                    self.midashi += s.rstrip('\n').lstrip(u'　 ') if self.midashi else s.rstrip('\n')
                     if self.FukusuMidashiOwari:
                         # 複数行に及ぶ見出しが終わった場合
                         self.FukusuMidashiOwari = False
@@ -1970,13 +1989,6 @@ class Aozora(AozoraScale):
                         self.currentText.pagecounter +1))
                     self.inMidashi = False
 
-        if self.loggingflag:
-            logging.debug( u'　位置：%dページ、%d行目' % (
-                                    self.currentText.pagecounter+1,self.linecounter+1 ))
-            self.loggingflag = False
-
-        fd.write(s)         # 本文
-        if self.countpage:
             self.linecounter += 1
             if self.linecounter >= self.currentText.pagelines:
                 # 1頁出力し終えたらその位置を記録する
@@ -2037,6 +2049,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.xposoffsetold = 0
         self.oldlength = 0
         self.oldwidth = 0
+        self.rubilastYpos = 0       # 直前のルビの最末端
+        self.leftrubilastYpos = 0   # 直前の左ルビの最末端
 
     def destroy(self):
         del self.tagstack
@@ -2045,23 +2059,17 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     def settext(self, data, xpos, ypos):
         self.xpos = xpos
         self.ypos = ypos
+        self.rubilastYpos = 0       # 直前のルビの最末端
+        self.leftrubilastYpos = 0   # 直前の左ルビの最末端
         self.tagstack = []
         self.attrstack = []
-        s = self.pangodebug(data)
-        self.feed(s)
-        self.close()
 
-    def pangodebug(self, data):
         """ Pangoのバグに対する対策
             オリジナルのPangoがタグによる重力制御を振り切るケースが多々ある
             ため、ここで文字種を判定し英文には横組タグ(aozora yokogumi)を
             付す。
         """
-        # 上流が作ったバグをここでフォロー（泣
-        if data[:2] == u'</':
-            data = data[data.find(u'>',2)+1:]
-
-        sTmp = u''
+        sTmp = []
         f = False
         inTag = False
         pos = 0
@@ -2076,7 +2084,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         # 他の閉じタグ出現時に 横組みが挿入されていたら
                         # 閉じる
                         stack.pop()
-                        sTmp += u'</aozora>'
+                        sTmp.append(u'</aozora>')
                         f = False
                     if data[pos+2:(data.find(u'>',pos+2))] == stack[-1]:
                         stack.pop()
@@ -2094,20 +2102,22 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             else:
                 s0 = self.isYokoChar(data[pos])
                 if s0 and not f:
-                    sTmp += u'<aozora yokogumi="dmy">'
+                    sTmp.append(u'<aozora yokogumi="dmy">')
                     f = True
                     stack.append(u'aozora yokogumi="dmy"')
                 elif not s0 and f:
                     # 他のタグが開いている間は閉じない
                     if stack[-1] == u'aozora yokogumi="dmy"':
                         stack.pop()
-                        sTmp += u'</aozora>'
+                        sTmp.append(u'</aozora>')
                         f = False
-            sTmp += data[pos]
+            sTmp.append(data[pos])
             pos += 1
         if f:
-            sTmp += u'</aozora>'
-        return sTmp
+            sTmp.append(u'</aozora>')
+
+        self.feed(u''.join(sTmp))
+        self.close()
 
     def setcolour(self, fore, back):
         """ 描画色・背景色を得る
@@ -2174,9 +2184,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         rubispan = 0
         dicArg = {}
         sTmp = data
-
         try:
             # タグスタックに積まれている書式指定を全て付す
+            # Pangoでうまく処理できないタグはここで代替処理する
             pos = -1
             while True:
                 s = self.tagstack[pos]
@@ -2193,17 +2203,23 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     #<sup>単独ではベースラインがリセットされる為、外部で指定する
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
                     fontspan = self.fontmagnification(u'<%s>' % s)
+                    sTest = [u'<sup>', sTmp, u'</sup>']
                 elif s == u'sub':
                     #<sub>単独ではベースラインがリセットされる為、外部で指定する
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
                     fontspan = self.fontmagnification(u'<%s>' % s)
+                    sTest = [u'<sub>', sTmp, u'</sub>']
                 else:
                     # 引数復元
+                    sTest = []
+                    sTest.append(u'<%s' % s)
                     if self.attrstack[pos] != []:
                         for i in self.attrstack[pos]:
-                            s += u' %s="%s"' % (i[0],i[1])
-
-                sTmp = '<%s>%s</%s>'% (s,sTmp,self.tagstack[pos])
+                            sTest.append(u' %s="%s"' % (i[0],i[1]))
+                        sTest.append(u'>')
+                        sTest.append(sTmp)
+                        sTest.append(u'</%s>' % self.tagstack[pos])
+                sTmp = u''.join(sTest)
                 pos -= 1
         except IndexError:
             pass
@@ -2351,16 +2367,19 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 layout.set_font_description(self.font_rubi)
                 layout.set_markup(dicArg[u'rubi'])
                 rubilength,rubispan = layout.get_pixel_size()
-                # 表示位置センタリング
+                # 表示位置 垂直方向のセンタリング
                 y = self.ypos + int((length-rubilength) // 2.)
                 if y < 0:
                     y = 0
+                if y < self.rubilastYpos:
+                    y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
                 pangoctx.translate(self.xpos + honbunxpos + rubispan,y)
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
                 pc = layout.get_context() # Pango を得る
                 pc.set_base_gravity('auto')
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
+                self.rubilastYpos = y + rubilength #ルビの最末端を保存
                 del pc
                 del layout
 
@@ -2421,12 +2440,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 y = self.ypos + int((length-rubilength) // 2.)
                 if y < 0:
                     y = 0
-                pangoctx.translate(self.xpos - honbunxpos ,y)
+                if y < self.leftrubilastYpos:
+                    y = self.leftrubilastYpos # 直前のルビとの干渉をとりあえず回避するpangoctx.translate(self.xpos - honbunxpos ,y)
                 pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
                 pc = layout.get_context() # Pango を得る
                 pc.set_base_gravity('auto')
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
+                self.leftrubilastYpos = y + rubilength #左ルビの最末端を保存
                 del pc
                 del layout
 

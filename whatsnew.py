@@ -24,8 +24,8 @@
         URLのリストを得る。
 """
 
-
-from readersub import ReaderSetting, AozoraDialog, Download
+from readersub import ReaderSetting, Download
+import aozoradialog
 import sys
 import codecs
 import re
@@ -106,7 +106,9 @@ class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
         try:
             urllib.urlretrieve(url, filename)
         except IOError:
-            self.msgerrinfo( u'ダウンロードに失敗しました。ネットワークへの接続状況を確認してください。' )
+            aozoradialog.msgerrinfo(
+                u'ダウンロードに失敗しました。ネットワークへの接続状況を確認してください。',
+                self )
             return
 
         with codecs.open( filename, 'r', u'UTF-8' ) as f0:
@@ -159,13 +161,12 @@ class BookListData(gtk.TreeView):
         self.append_column(self.col_authorname)
 
 
-class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
+class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
     """ UI
     """
-    def __init__(self):
-        gtk.Window.__init__(self)
+    def __init__(self, *args, **kwargs):
+        aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
         ReaderSetting.__init__(self)
-        AozoraDialog.__init__(self)
 
         self.AOZORA_URL = u'http://www.aozora.gr.jp/index_pages' # whatsnew1.html'
 
@@ -184,27 +185,11 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
         self.sw2.add(self.bl_data)
         self.sw2.set_size_request(400,400)
 
-        # 開く・キャンセルボタン
-        self.btnOk = gtk.Button(stock=gtk.STOCK_OPEN)
-        self.btnOk.connect("clicked", self.clicked_btnOk_cb )
-        self.btnCancel = gtk.Button(stock=gtk.STOCK_CANCEL)
-        self.btnCancel.connect("clicked", self.clicked_btnCancel_cb )
-        self.bb = gtk.HButtonBox()
-        self.bb.set_size_request(640,44)
-        self.bb.set_layout(gtk.BUTTONBOX_SPREAD)
-        self.bb.pack_start(self.btnOk)
-        self.bb.pack_end(self.btnCancel)
-
-        self.vbox = gtk.VBox()
         self.vbox.pack_start(self.sw2)
-        self.vbox.pack_end(self.bb)
+        self.vbox.show_all()
 
-        self.add(self.vbox)
         self.set_title( u'青空文庫　新着情報' )
         self.set_position(gtk.WIN_POS_CENTER)
-
-        self.connect("delete_event", self.delete_event_cb)
-        self.connect("key-press-event", self.key_press_event_cb )
 
         a = ReadHTMLpage()
         a.setbaseurl( self.AOZORA_URL )
@@ -216,48 +201,14 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
                 pass
         self.lastselectfile = None
         self.lastselectzip = None
-        self.ack = gtk.RESPONSE_NONE
-
 
     def row_activated_treeview_cb(self, path, viewcol, col):
         """ 作品リストをダブルクリックした時の処理
             ダイアログを開いたまま、青空文庫のダウンロードを行う
         """
-        if self.get_selected_book():
-            self.msginfo( u'ダウンロードしました' )
-            self.ack = gtk.RESPONSE_OK
-        else:
-            pass
+        self.response_cb(self, gtk.RESPONSE_OK)
 
-    def clicked_btnOk_cb(self, widget):
-        """ 開くボタンをクリックした時の処理
-            ダウンロードして終わる
-        """
-        if self.get_selected_book():
-            self.exitall()
-            self.ack = gtk.RESPONSE_OK
-        else:
-            pass
-
-    def clicked_btnCancel_cb(self, widget):
-        self.exitall()
-        self.ack = None
-
-    def key_press_event_cb( self, widget, event ):
-        """ キー入力のトラップ
-        """
-        key = event.keyval
-        if key == 0xff1b:
-            # ESC
-            self.exitall()
-            self.ack = None
-        # デフォルトルーチンに繋ぐため False を返すこと
-        return False
-
-    def delete_event_cb(self, widget, event, data=None):
-        self.exitall()
-
-    def get_selected_book(self):
+    def get_selected_item(self):
         """ 選択された作品をダウンロードする
                 この操作で返されるのは
                 c データモデルオブジェクト、ここではgtk.ListStore
@@ -270,21 +221,13 @@ class WhatsNewUI(gtk.Window, ReaderSetting, AozoraDialog, Download):
             (f, sMes, z) = self.selected_book( u'%s/%s' % (
                             self.AOZORA_URL, c.get_value(i, 3)) )
             if not f:
-                self.msgerrinfo( sMes )
+                aozoradialog.msgerrinfo(sMes, self)
             else:
                 self.lastselectfile = sMes
                 self.lastselectzip = z
 
-        return f
+        return self.lastselectfile, self.lastselectzip
 
-    def exitall(self):
-        self.hide_all()
-        gtk.main_quit()
 
-    def run(self):
-        self.show_all()
-        self.set_modal(True)
-        gtk.main()
-        return (self.ack, self.lastselectfile, self.lastselectzip)
 
 

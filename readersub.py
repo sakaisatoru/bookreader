@@ -39,6 +39,8 @@ import pango
 import pangocairo
 import gobject
 
+import aozoradialog
+
 class Download():
     """ 作品ファイルダウンロード下請け
 
@@ -92,9 +94,8 @@ class Download():
                         """ ローカルにアーカイブが既存する場合は、
                             問い合わせる。
                         """
-                        tmpdlg = AozoraDialog()
-                        isDownload = tmpdlg.msgyesno( u'既にダウンロード' + \
-                                        u'されています。上書きしますか？')
+                        isDownload = aozoradialog.msgyesno( u'既にダウンロード' + \
+                                        u'されています。上書きしますか？',self)
                     try:
                         if isDownload == gtk.RESPONSE_YES:
                             urllib.urlretrieve( sTargetURL, sLocalfilename)
@@ -127,37 +128,6 @@ class Download():
         return (True, lastselectfile, sLocalfilename)
 
 
-class AozoraDialog():
-    """ 各種ダイアログ
-    """
-    def __init__(self):
-        pass
-
-    def msgerrinfo(self, s):
-        """ エラーダイアログ
-        """
-        dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
-            gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, s )
-        dlg.set_position(gtk.WIN_POS_CENTER)
-        dlg.run()
-        dlg.destroy()
-
-    def msginfo(self, s):
-        """ メッセージダイアログ
-        """
-        dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
-                gtk.MESSAGE_INFO, gtk.BUTTONS_OK, s )
-        dlg.set_position(gtk.WIN_POS_CENTER)
-        dlg.run()
-        dlg.destroy()
-
-    def msgyesno(self, s):
-        dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
-                gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, s )
-        dlg.set_position(gtk.WIN_POS_CENTER)
-        rv = dlg.run()
-        dlg.destroy()
-        return rv
 
 
 class ReaderSetting():

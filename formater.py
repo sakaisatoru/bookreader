@@ -33,8 +33,9 @@
 
 
 import jis3
-from readersub import ReaderSetting, AozoraDialog
+from readersub import ReaderSetting
 import aozoraaccent
+import aozoradialog
 
 import sys
 import codecs

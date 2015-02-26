@@ -34,11 +34,12 @@
 
 
 import jis3
-from readersub  import ReaderSetting, AozoraDialog, History
-from formater   import Aozora, CairoCanvas, AozoraCurrentTextinfo
-from whatsnew   import WhatsNewUI
-from logview    import Logviewer
-from bunko      import BunkoUI
+import aozoradialog
+from readersub      import ReaderSetting, History
+from formater       import Aozora, CairoCanvas, AozoraCurrentTextinfo
+from whatsnew       import WhatsNewUI
+from logview        import Logviewer
+from bunko          import BunkoUI
 
 import tempfile
 import sys
@@ -56,6 +57,7 @@ import zipfile
 import gc
 import gtk
 import gobject
+import pango
 
 sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
 
@@ -165,14 +167,14 @@ class BookmarkView(gtk.TreeView):
         self.append_column(self.col_bookmarkdate)
 
 
-class BookmarkUI(gtk.Window):
+class BookmarkUI(aozoradialog.ao_dialog):
     """ しおりの管理
         選択されたしおりの情報をタプルで返す
         選択されたしおりを削除する
         キャンセル時はNoneを返す
     """
-    def __init__(self):
-        gtk.Window.__init__(self)
+    def __init__(self, *args, **kwargs):
+        aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
         self.set_title(u'しおりの管理')
 
         self.bookmark_bv = BookmarkView(model=gtk.ListStore(
@@ -192,30 +194,14 @@ class BookmarkUI(gtk.Window):
         self.sw.add(self.bookmark_bv)
         self.sw.set_size_request(512,200)
 
-        self.btnDelete = gtk.Button(stock=gtk.STOCK_DELETE)
-        self.btnDelete.connect("clicked", self.clicked_btnDelete_cb )
-        self.btnOk = gtk.Button(stock=gtk.STOCK_OPEN)
-        self.btnOk.connect("clicked", self.clicked_btnOk_cb )
-        self.btnCancel = gtk.Button(stock=gtk.STOCK_QUIT)
-        self.btnCancel.connect("clicked", self.clicked_btnCancel_cb )
-        self.bb = gtk.HButtonBox()
-        self.bb.set_size_request(512,44)
-        self.bb.set_layout(gtk.BUTTONBOX_SPREAD)
-        self.bb.pack_start(self.btnDelete)
-        self.bb.pack_start(self.btnOk)
-        self.bb.pack_end(self.btnCancel)
-
-        self.vbox = gtk.VBox()
         self.vbox.pack_start(self.sw, True, True, 0)
-        self.vbox.pack_start(gtk.HSeparator(), False, True, 0)
-        self.vbox.pack_end(self.bb, False, True, 0 )
+        self.vbox.pack_end(gtk.HSeparator(), False, True, 0)
 
-        self.add(self.vbox)
+        self.vbox.show_all()
         self.set_size_request(512, 256)
         self.set_position(gtk.WIN_POS_CENTER)
 
-        self.connect("delete_event", self.delete_event_cb)
-        self.connect( 'key-press-event', self.key_press_event_cb )
+        self.connect('key-press-event', self.key_press_event_cb )
         bi = BookMarkInfo()
         for s in bi.itre():
             sc = s.split(',')
@@ -227,24 +213,20 @@ class BookmarkUI(gtk.Window):
                                     sc[4],          # パス
                                     sc[5] )         # zipfile
                                     )
-        self.rv = None
 
-    def delete_event_cb(self, widget, event, data=None):
-        self.exitall()
-
-    def clicked_btnDelete_cb(self, widget):
+    def removerecord(self):
         """ しおりの削除
         """
         (c,d) = self.bookmark_bv.get_selection().get_selected_rows()  # 選択された行
         iters = [c.get_iter(p) for p in d]
         for i in iters:
             c.remove(i)
+        self.savebookmark()
 
     def row_activated_treeview_cb(self, path, view_column, column ):
         """ しおりの上でダブルクリックした時の処理
         """
-        if self.get_selected_item():
-            self.exitall()
+        self.response_cb(self, gtk.RESPONSE_ACCEPT)
 
     def get_selected_item(self):
         """ 選択されたしおりをタプルで返す
@@ -254,11 +236,8 @@ class BookmarkUI(gtk.Window):
         self.rv = ('')
         (c,d) = self.bookmark_bv.get_selection().get_selected_rows()  # 選択された行
         if len(d) > 1:
-            dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL,
-                            gtk.MESSAGE_ERROR, gtk.BUTTONS_OK,
-                            u'ページを開く時は、しおりを一つしか選べません。' )
-            dlg.run()
-            dlg.destroy()
+            dlg = aozoradialog.msgerrinfo(
+                    u'ページを開く時は、しおりを一つしか選べません。' ,self)
         else:
             try:
                 iters = [c.get_iter(p) for p in d]
@@ -267,15 +246,7 @@ class BookmarkUI(gtk.Window):
                 f = True
             except IndexError:
                 pass
-        return f
-
-    def clicked_btnOk_cb(self, widget):
-        if self.get_selected_item():
-            self.exitall()
-
-    def clicked_btnCancel_cb(self, widget):
-        self.exitall()
-        self.rv = None
+        return self.rv
 
     def key_press_event_cb(self, widget, event):
         """ キー入力のトラップ
@@ -283,17 +254,16 @@ class BookmarkUI(gtk.Window):
         key = event.keyval
         if key == 0xff1b:
             # ESC
-            self.exitall()
-            self.rv = None
+            pass
         elif key == 0xffff:
             # Delete
-            self.clicked_btnDelete_cb(widget)
+            self.removerecord()
             return True
         # デフォルトルーチンに繋ぐため False を返すこと
         return False
 
-    def exitall(self):
-        """ UI上のしおりデータを保存して終了する。
+    def savebookmark(self):
+        """ UI上のしおりデータを保存する。
         """
         bi = BookMarkInfo()
         bi.remove_all()
@@ -304,21 +274,12 @@ class BookmarkUI(gtk.Window):
             i = m.iter_next(i)  # 次が無ければNoneでループを抜ける
         bi.update()
 
-        self.hide_all()
-        gtk.main_quit()
 
-    def run(self):
-        self.show_all()
-        self.set_modal(True)
-        gtk.main()
-        return self.rv
-
-
-class ScreenSetting(gtk.Window, ReaderSetting):
+class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
     """ 画面設定
     """
-    def __init__(self):
-        gtk.Window.__init__(self)
+    def __init__(self, *args, **kwargs):
+        aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
         ReaderSetting.__init__(self)
         self.set_title( u'画面設定' )
 
@@ -363,7 +324,6 @@ class ScreenSetting(gtk.Window, ReaderSetting):
 
         # 画面サイズ
         # group の先頭になるボタンが初期値となる
-        #
         a = self.get_value(u'resolution')
         self.sizelabel = gtk.Label( u'画面サイズ' )
         self.vbuttonbox = gtk.VButtonBox()
@@ -430,36 +390,14 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.hbox5.pack_start(self.vbuttonbox)
         self.hbox5.pack_end(self.vbox2)
 
-        # 4行目 -- ボタン行 --
-        self.btnOk = gtk.Button(stock=gtk.STOCK_OK)
-        self.btnOk.connect("clicked", self.clicked_btnOk_cb )
-        self.btnCancel = gtk.Button(stock=gtk.STOCK_CANCEL)
-        self.btnCancel.connect("clicked", self.clicked_btnCancel_cb )
-        self.bb = gtk.HButtonBox()
-        self.bb.set_layout(gtk.BUTTONBOX_END )
-        self.bb.pack_start(self.btnOk)
-        self.bb.pack_end(self.btnCancel)
+        # まとめ (gtk.Dialogのデフォルトの表示域 vboxへpack)
+        self.vbox.pack_start(self.hbox1)
+        self.vbox.pack_start(self.hbox2)
+        self.vbox.pack_start(self.hbox25)
+        self.vbox.pack_start(self.hbox5)
+        self.vbox.show_all()
 
-        # まとめ
-        self.vbox5 = gtk.VBox(spacing=10)
-        self.vbox5.pack_start(self.hbox1)
-        self.vbox5.pack_start(self.hbox2)
-        self.vbox5.pack_start(self.hbox25)
-        self.vbox5.pack_start(self.hbox5)
-        self.vbox5.pack_end(self.bb)
-
-        self.add(self.vbox5)
         self.set_size_request(384, 320)
-        self.connect('delete_event', self.delete_event_cb)
-
-        self.rv = False
-
-    def exitall(self):
-        self.hide_all()
-        gtk.main_quit()
-
-    def delete_event_cb(self, widget, event, data=None):
-        self.exitall()
 
     def fontsel_cb(self, widget):
         """ 本文とルビのフォント名の同期をとる
@@ -479,10 +417,13 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         fontname = widget.get_font_name().rstrip( u'.0123456789' ).lstrip(u' ')
         self.fontsel.set_font_name(u'%s %s' % (fontname,fontsize))
 
-    def clicked_btnOk_cb(self, widget):
+    def settingupdate(self):
+        """ 設定の更新
+            内部のウィジェットにはアタッチしないので呼び出し側に戻ってから
+            必要に応じて呼び出す。
+        """
         for bt in self.radiobtn:
-            """ 解像度のラジオボタンの処理
-            """
+            # 解像度のラジオボタンの処理
             if bt.get_active():
                 self.set_value(u'resolution', bt.get_label())
                 break
@@ -503,21 +444,54 @@ class ScreenSetting(gtk.Window, ReaderSetting):
         self.set_value(u'fontcolor',    self.btFontcolor.get_color() )
         self.set_value(u'backcolor',    self.btBackcolor.get_color() )
         self.update()
-        self.rv = True
-        self.exitall()
-
-    def clicked_btnCancel_cb(self, widget):
-        self.rv = False
-        self.exitall()
-
-    def run(self):
-        self.show_all()
-        self.set_modal(True)
-        gtk.main()
-        return self.rv
 
 
-class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
+class formaterUI(aozoradialog.ao_dialog, Aozora):
+    """ プログレスバーを持ったフォーマッタUI
+    """
+    def __init__(self, *args, **kwargs):
+        aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
+        Aozora.__init__(self)
+        self.set_title(u'読み込み中')
+        self.pb = gtk.ProgressBar()
+        self.pb.set_orientation(gtk.PROGRESS_LEFT_TO_RIGHT)
+        self.vbox.pack_start(self.pb)
+        self.vbox.show_all()
+        self.set_position(gtk.WIN_POS_CENTER)
+
+    def touchup(self, fn, zipname):
+        """ 本来 formater を待ちループ内において、プログレスバーをタイマー
+            駆動にして問題ないはずだが、妙な待ち時間が生じるので formaterを
+            アイドルタスクへ追加している。
+            これを実行したらすかさず run() すること。
+        """
+        self.set_source(fn, zipname)
+        self.maxlines = float(sum(1 for line in codecs.open(self.currentText.sourcefile)))
+        self.lncounter = 0
+        self.tmp = self.formater()
+        gobject.timeout_add(200, self.progressbar_update) # プログレスバー
+        gobject.idle_add(self.formater_itre)              # フォーマッタ
+
+    def formater_itre(self):
+        try:
+            next(self.tmp)
+            self.lncounter += 1
+        except StopIteration:
+            self.responsed = True
+            self.resid = None
+            return False # タスクを抜去して終わる
+        return True
+
+    def progressbar_update(self):
+        """ プログレスバーを間欠的に更新する
+        """
+        self.pb.set_text(u'%d/%d' % (self.lncounter,self.maxlines))
+        self.pb.set_fraction(self.lncounter/self.maxlines)
+        return True
+
+
+
+class ReaderUI(gtk.Window, ReaderSetting):
     """ メインウィンドウ
     """
     def __init__(self):
@@ -525,11 +499,11 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         """
         gtk.Window.__init__(self)
         ReaderSetting.__init__(self)
-        AozoraDialog.__init__(self)
 
         # フラグ類
         self.isRestart = False
         self.isBookopened = False
+        self.isNowFormatting = False
 
         # logging 設定
         logging.basicConfig(
@@ -537,7 +511,7 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             filemode='w',
             format = '%(levelname)s in %(filename)s : %(message)s',
             level=logging.DEBUG )
-        self.logwindow = Logviewer()
+        self.logwindow = None
 
         """ 読書履歴
         """
@@ -683,6 +657,8 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                         u'    cTmp.writepage(long(sys.argv[1]))\n'+
                         u'    del cTmp\n' )
 
+        self.dlgSetting = None
+
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
         """
@@ -736,11 +712,16 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     def whatsnew_cb(self, widget):
         """ 青空文庫新着情報
         """
-        dlg = WhatsNewUI()
-        res,fn,z = dlg.run()
-        dlg.destroy()
+        dlg = WhatsNewUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                    buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL,
+                                gtk.STOCK_OPEN,     gtk.RESPONSE_OK))
+        res = dlg.run()
         if res == gtk.RESPONSE_OK:
+            fn, z = dlg.get_selected_item()
+            dlg.destroy()
             self.bookopen(fn, zipname=z)
+        else:
+            dlg.destroy()
 
     def mokuji_jump(self, widget, s):
         """ 目次ジャンプの下請け
@@ -758,25 +739,46 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
         bm = BookMarkInfo()
         bm.append(s)
 
-    def shiori_list_cb( self, widget ):
+    def shiori_list_cb(self, widget):
         """ テキスト上でのポップアップ（２）
             しおり一覧
         """
-        bi = BookmarkUI()
-        s = bi.run()
-        bi.destroy()
+        bi = BookmarkUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                    buttons=(   gtk.STOCK_DELETE,   gtk.RESPONSE_REJECT,
+                                gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL,
+                                gtk.STOCK_OK,       gtk.RESPONSE_ACCEPT))
+        while True:
+            s = bi.run()
+            if s == gtk.RESPONSE_ACCEPT:
+                s = bi.get_selected_item()
+                bi.destroy()
+                break
+            elif s == gtk.RESPONSE_REJECT:
+                bi.removerecord()
+            else:
+                bi.destroy()
+                s = None
+                break
         if s:
             self.bookopen(s[4], zipname=s[5], pagenum=int(s[2])-1)
 
-    def menu_fontselect_cb( self, widget ):
-        """ 表示フォントを選択する
+    def menu_fontselect_cb(self, widget):
+        """ 画面設定
         """
-        dlg = ScreenSetting()
-        if dlg.run():
-            if self.msgyesno( u'設定を反映するには再起動が必要です。' + \
-                            u'今すぐ再起動しますか？' ) == gtk.RESPONSE_YES:
+        if self.dlgSetting:
+            # 多重起動抑止
+            return
+        self.dlgSetting = ScreenSetting(parent=self,
+                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                        buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_REJECT,
+                                    gtk.STOCK_OK,       gtk.RESPONSE_ACCEPT))
+        if self.dlgSetting.run() == gtk.RESPONSE_ACCEPT:
+            self.dlgSetting.settingupdate()
+            if aozoradialog.msgyesno( u'設定を反映するには再起動が必要です。' + \
+                            u'今すぐ再起動しますか？',self ) == gtk.RESPONSE_YES:
                 self.isRestart = True
-        dlg.destroy()
+        self.dlgSetting.destroy()
+        self.dlgSetting = None
         if self.isRestart:
             self.exitall()
 
@@ -813,7 +815,14 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
     def menu_logwindow_cb(self, widget):
         """ ログファイルの表示
         """
+        if self.logwindow != None:
+            return # 多重起動を抑止
+        self.logwindow = Logviewer(parent=self,
+                                    flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                buttons=(gtk.STOCK_CLOSE,   gtk.RESPONSE_OK))
         self.logwindow.run()
+        self.logwindow.destroy()
+        self.logwindow = None
 
     def menu_about_cb(self, widget):
         """ プログラムバージョン
@@ -848,30 +857,34 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
             self.bookopen(fn, zipname=z)
 
     def bookopen(self, fn, zipname=u'', pagenum=0):
-        aoTmp = Aozora()
+        if self.isNowFormatting:
+            return
         if self.cc.sourcefile != fn:
+            self.isNowFormatting = True
+            pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                    buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
             # 新規読み込み
             a = zipfile.ZipFile(zipname, u'r' )
             a.extractall(self.aozoratextdir)
-            aoTmp.set_source(fn, zipname)
-            m = sum(1 for line in codecs.open(fn))
-            c = 0
-            for tmp in aoTmp.formater():
-                c += 1
-                self.set_title(u'読込中 %s / %s 青空文庫リーダー' % (c,m))
+            pb.touchup(fn, zipname)
+            c = pb.run()
+            if c == gtk.RESPONSE_CANCEL:
+                # 途中終了
+                pb.destroy()
+            else:
+                # 目次の作成
+                menu = gtk.Menu()
+                for s in pb.mokuji_itre():
+                    menuitem = gtk.MenuItem(s, False)
+                    menuitem.connect( 'activate', self.mokuji_jump, s )
+                    menu.add(menuitem)
+                    menuitem.show()
+                self.menuitem_mokuji.set_submenu(menu)
 
-            # 目次の作成
-            menu = gtk.Menu()
-            for s in aoTmp.mokuji_itre():
-                menuitem = gtk.MenuItem(s, False)
-                menuitem.connect( 'activate', self.mokuji_jump, s )
-                menu.add(menuitem)
-                menuitem.show()
-            self.menuitem_mokuji.set_submenu(menu)
-
-            # ページ情報の複写
-            self.cc = copy.copy(aoTmp.currentText)
-            del aoTmp
+                # ページ情報の複写
+                self.cc = copy.copy(pb.currentText)
+                pb.destroy()
+            self.isNowFormatting = False
         self.page_common(pagenum)
 
     def button_release_event_cb( self, widget, event ):
@@ -997,7 +1010,6 @@ class ReaderUI(gtk.Window, ReaderSetting, AozoraDialog):
                     u' Python まかせにしており、このためメモリを相当使い'+
                     u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
                     u'います。\n'+
-                    u'・［＃太字］長いテキストを読み込むとデスクトップが硬直する場合があります。［＃太字終わり］\n'+
                     u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
                     u'・傍線における波線を実装していません。\n'+
                     u'・注記が重複すると正しく表示されない場合があります。\n'+

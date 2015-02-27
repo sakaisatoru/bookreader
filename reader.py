@@ -21,17 +21,7 @@
 
 """ reader.py
         UI、プログラム本体
-
-    追加予定機能
-        画像表示幅の切り替え
-            現在、画面幅の半分までに制限。絵本閲覧時に文字がつぶれて読めない。
-
-        Gravity hint の任意設定
-            現在、natural に設定しているため、回転しない文字が生じる。
-            strong にすると回転するが英文まで縦書きされてしまう。
-
 """
-
 
 import jis3
 import aozoradialog
@@ -463,6 +453,7 @@ class formaterUI(aozoradialog.ao_dialog, Aozora):
         """ 本来 formater を待ちループ内において、プログレスバーをタイマー
             駆動にして問題ないはずだが、妙な待ち時間が生じるので formaterを
             アイドルタスクへ追加している。
+            このため、待ちループがない状況で実行すると失敗する。
             これを実行したらすかさず run() すること。
         """
         self.set_source(fn, zipname)
@@ -488,7 +479,6 @@ class formaterUI(aozoradialog.ao_dialog, Aozora):
         self.pb.set_text(u'%d/%d' % (self.lncounter,self.maxlines))
         self.pb.set_fraction(self.lncounter/self.maxlines)
         return True
-
 
 
 class ReaderUI(gtk.Window, ReaderSetting):
@@ -857,9 +847,12 @@ class ReaderUI(gtk.Window, ReaderSetting):
             self.bookopen(fn, zipname=z)
 
     def bookopen(self, fn, zipname=u'', pagenum=0):
+        """ テキストを開く
+        """
         if self.isNowFormatting:
             return
         if self.cc.sourcefile != fn:
+            self.savecurrenttext()
             self.isNowFormatting = True
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
@@ -880,12 +873,12 @@ class ReaderUI(gtk.Window, ReaderSetting):
                     menu.add(menuitem)
                     menuitem.show()
                 self.menuitem_mokuji.set_submenu(menu)
-
                 # ページ情報の複写
                 self.cc = copy.copy(pb.currentText)
                 pb.destroy()
             self.isNowFormatting = False
         self.page_common(pagenum)
+
 
     def button_release_event_cb( self, widget, event ):
         return False
@@ -955,15 +948,19 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()
 
-    def exitall(self, data=None ):
-        logging.shutdown()
-        #   現在読んでいる本を履歴に保存する
+    def savecurrenttext(self):
+        """ 現在開いているテキストがあれば履歴へ保存する
+        """
         bookname,author = self.cc.get_booktitle()
-        if bookname != u'' and self.cc.zipfilename != u'':
+        if bookname and self.cc.zipfilename:
             self.bookhistory.update( u'%s,%d,%s,%s' %
                 (bookname, self.currentpage,self.cc.sourcefile,self.cc.zipfilename))
-            self.isBookopened = True # テキストを開いていた場合
+            self.isBookopened = True # テキストを開いていた、というフラグ
         self.bookhistory.save()
+
+    def exitall(self, data=None ):
+        logging.shutdown()
+        self.savecurrenttext()
         #   展開したテキストを全て削除する
         try:
             for s in os.listdir(self.aozoratextdir):
@@ -974,101 +971,106 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.hide_all()
         gtk.main_quit()
 
-    def run(self, restart=False, opened=False):
+    def run(self, opened=False):
         """ エントリー
             再起動フラグ及びテキストを開いていたかどうかを返す
         """
         self.currentpage = 0
         self.dummytitle = u'　　　青空文庫リーダー'
         self.set_title( u'青空文庫リーダー' )
-        while restart:
-            """ 再起動時の処理
-            """
-            if opened and len(self.menuitem_history):
-                self.menu_historyopen_cb(self.menuitem_history[0])
-                break
-            else:
-                restart = False
-        else:
-            s = os.path.join(self.get_value(u'workingdir'), 'titlepage.txt' )
-            with codecs.open(s,'w', 'shift_jis') as f0:
-                f0.write(
-                    self.dummytitle+'\n'+
-                    u'\n'+
-                    u'［＃本文終わり］\n'+
-                    u'バージョン［＃「バージョン」は中見出し］\n'+
-                    u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月21［＃「21」は縦中横］日\n'+
-                    u'\n'+
-                    u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
-                    u'［＃ここから１字下げ］'+
-                    u'青空文庫 http://www.aozora.gr.jp/ のテキストファイルを Pango と GTK+2 と Python2 を使って縦書きで読もう、というものです。\n'+
-                    u'［＃字下げ終わり］\n'+
-                    u'\n'+
-                    u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
-                    u'［＃ここから１字下げ、折り返して２字下げ］'+
-                    u'・プログラム内で使用する作業領域［＃「作業領域」は横組み］の解放を'+
-                    u' Python まかせにしており、このためメモリを相当使い'+
-                    u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
-                    u'います。\n'+
-                    u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
-                    u'・傍線における波線を実装していません。\n'+
-                    u'・注記が重複すると正しく表示されない場合があります。\n'+
-                    u'・傍点の本文トレースは厳密なものではありません。\n'+
-                    u'・連続して出現するルビが重なった場合、後続が下にずれます。どこにかかっているのか分かりにくくなった場合は'+
-                    u'フォントサイズを小さくしてみてください。\n'+
-                    u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
-                    u'・割り注の途中で改行したり、１行からはみ出したりした場合は正しく表示されません。\n'+
-                    u'・閲覧履歴はプログラム終了時に開いていたテキストのみ記録されます。これは仕様です。'+
-                    u'複数のテキストを行き来する場合はしおりをご利用ください。\n'+
-                    u'［＃字下げ終わり］\n'+
-                    u'［＃改ページ］\n'+
-                    u'\nライセンス［＃「ライセンス」は大見出し］\n'+
-                    u'［＃ここから１字下げ］\n' +
-                    u'Copyright 2015 sakaisatoru  endeavor2wako@gmail.com\n'+
-                    u'\n'+
-                    u'This program is free software; you can redistribute it and/or modify'+
-                    u'it under the terms of the GNU General Public License as published by'+
-                    u'the Free Software Foundation; either version 2 of the License, or'+
-                    u'(at your option) any later version.'+
-                    u'\n'+
-                    u'This program is distributed in the hope that it will be useful,'+
-                    u'but WITHOUT ANY WARRANTY; without even the implied warranty of'+
-                    u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the'+
-                    u'GNU General Public License for more details.'+
-                    u'\n'+
-                    u'You should have received a copy of the GNU General Public License'+
-                    u'along with this program; if not, write to the Free Software'+
-                    u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
-                    u'MA 02110-1301, USA.\n'+
-                    u'［＃字下げ終わり］\n')
 
-            aoTmp = Aozora()
-            aoTmp.set_source(s)
-            for tmp in aoTmp.formater():
-                pass
-            self.cc = copy.copy(aoTmp.currentText)
-            #cTmp = CairoCanvas()
-            #cTmp.writepage(0)
-            #del cTmp
-            subprocess.call(['python',self.drawingsubprocess, '0'])
-            del aoTmp
-            self.imagebuf.clear()
-            self.imagebuf.set_from_file(
-                os.path.join(self.get_value(u'workingdir'), 'thisistest.png'))
+        s = os.path.join(self.get_value(u'workingdir'), 'titlepage.txt' )
+        with codecs.open(s,'w', 'shift_jis') as f0:
+            f0.write(
+                self.dummytitle+'\n'+
+                u'\n'+
+                u'［＃本文終わり］\n'+
+                u'バージョン［＃「バージョン」は中見出し］\n'+
+                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年2［＃「2」は縦中横］月21［＃「21」は縦中横］日\n'+
+                u'\n'+
+                u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
+                u'［＃ここから１字下げ］'+
+                u'青空文庫 http://www.aozora.gr.jp/ のテキストファイルを Pango と GTK+2 と Python2 を使って縦書きで読もう、というものです。\n'+
+                u'［＃字下げ終わり］\n'+
+                u'\n'+
+                u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
+                u'［＃ここから１字下げ、折り返して２字下げ］'+
+                u'・プログラム内で使用する作業領域［＃「作業領域」は横組み］の解放を'+
+                u' Python まかせにしており、このためメモリを相当使い'+
+                u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
+                u'います。\n'+
+                u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
+                u'・傍線における波線を実装していません。\n'+
+                u'・注記が重複すると正しく表示されない場合があります。\n'+
+                u'・傍点の本文トレースは厳密なものではありません。\n'+
+                u'・連続して出現するルビが重なった場合、後続が下にずれます。どこにかかっているのか分かりにくくなった場合は'+
+                u'フォントサイズを小さくしてみてください。\n'+
+                u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
+                u'・割り注の途中で改行したり、１行からはみ出したりした場合は正しく表示されません。\n'+
+                u'・閲覧履歴はプログラム終了時に開いていたテキストのみ記録されます。これは仕様です。'+
+                u'複数のテキストを行き来する場合はしおりをご利用ください。\n'+
+                u'［＃字下げ終わり］\n'+
+                u'［＃改ページ］\n'+
+                u'\nライセンス［＃「ライセンス」は大見出し］\n'+
+                u'［＃ここから１字下げ］\n' +
+                u'Copyright 2015 sakaisatoru  endeavor2wako@gmail.com\n'+
+                u'\n'+
+                u'This program is free software; you can redistribute it and/or modify'+
+                u'it under the terms of the GNU General Public License as published by'+
+                u'the Free Software Foundation; either version 2 of the License, or'+
+                u'(at your option) any later version.'+
+                u'\n'+
+                u'This program is distributed in the hope that it will be useful,'+
+                u'but WITHOUT ANY WARRANTY; without even the implied warranty of'+
+                u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the'+
+                u'GNU General Public License for more details.'+
+                u'\n'+
+                u'You should have received a copy of the GNU General Public License'+
+                u'along with this program; if not, write to the Free Software'+
+                u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
+                u'MA 02110-1301, USA.\n'+
+                u'［＃字下げ終わり］\n')
+
+        aoTmp = Aozora()
+        aoTmp.set_source(s)
+        for tmp in aoTmp.formater():
+            pass
+        self.cc = copy.copy(aoTmp.currentText)
+        #cTmp = CairoCanvas()
+        #cTmp.writepage(0)
+        #del cTmp
+        subprocess.call(['python',self.drawingsubprocess, '0'])
+        del aoTmp
+        self.imagebuf.clear()
+        self.imagebuf.set_from_file(
+            os.path.join(self.get_value(u'workingdir'), 'thisistest.png'))
+
         self.show_all()
+
+        """ テキスト読み込み指示があった
+            メインループ開始前でこのままだとformaterUIがすべってしまうので
+            アイドル待ちループに登録してメインループ後に動かす
+        """
+        if opened and len(self.menuitem_history):
+            gobject.idle_add(self.restart_sub)
+
         gtk.main()
         return self.isRestart, self.isBookopened
 
+    def restart_sub(self):
+        """ gobject.idle_add 用のサブ
+            1回だけ実行すれば良いのでFalse で戻る
+        """
+        self.menu_historyopen_cb(self.menuitem_history[0])
+        return False
 
 if __name__ == '__main__':
     gc.enable()
-    restart = False
-    book = False
-    while True:
+    restart = True
+    bookopened = False
+    while restart:
         ui = ReaderUI()
-        restart, book = ui.run(restart, book)
+        restart, bookopened = ui.run(bookopened)
         ui.destroy()
         del ui
-        if not restart:
-            break
 

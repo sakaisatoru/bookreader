@@ -53,9 +53,15 @@ class ao_dialog(gtk.Dialog):
         self.responsed = True
         self.resid = resid
 
+    def beforerun(self):
+        """ run で入力待ちになる前に呼ばれる
+        """
+        pass
+
     def run(self):
         """
         """
+        self.beforerun()
         self.responsed = False
         self.resid = None
         self.show()

@@ -1163,7 +1163,7 @@ import csv
             999 国際語による文学
 """
 
-class NDC():
+class NDC(object):
 
     """ 類
     """

@@ -43,7 +43,7 @@ import pango
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
 
-class AozorabunkoIndex():
+class AozorabunkoIndex(object):
     """
         公開中　作家別作品一覧拡充版
         http://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip

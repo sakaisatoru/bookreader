@@ -191,7 +191,6 @@ class BookmarkUI(aozoradialog.ao_dialog):
         self.set_size_request(512, 256)
         self.set_position(gtk.WIN_POS_CENTER)
 
-        self.connect('key-press-event', self.key_press_event_cb )
         bi = BookMarkInfo()
         for s in bi.itre():
             sc = s.split(',')
@@ -203,6 +202,8 @@ class BookmarkUI(aozoradialog.ao_dialog):
                                     sc[4],          # パス
                                     sc[5] )         # zipfile
                                     )
+
+        self.connect('key-press-event', self.key_press_event_cb )
 
     def removerecord(self):
         """ しおりの削除
@@ -484,6 +485,41 @@ class formaterUI(aozoradialog.ao_dialog, Aozora):
 class ReaderUI(gtk.Window, ReaderSetting):
     """ メインウィンドウ
     """
+    menutmp = '''<ui>
+        <menubar name="MenuBar">
+            <menu action="File">
+                <menuitem action="open"/>
+                <menuitem action="new"/>
+                <menu action="history"/>
+                <separator/>
+                <menuitem action="quit"/>
+            </menu>
+            <menu action="Page">
+                {0}
+            </menu>
+            <menu action="Index">
+            </menu>
+            <menu action="Setting">
+                <menuitem action="preference"/>
+            </menu>
+            <menu action="Help">
+                <menuitem action="view"/>
+                <menuitem action="info"/>
+            </menu>
+        </menubar>
+        <popup name="popmain">
+            {0}
+        </popup>
+    </ui>'''
+
+    menupagemove = '''
+            <menuitem action="jump"/>
+            <menuitem action="top"/>
+            <menuitem action="end"/>
+            <menuitem action="setbookmark"/>
+            <separator/>
+            <menuitem action="listbookmark"/>
+    '''
     def __init__(self):
         """
         """
@@ -503,113 +539,61 @@ class ReaderUI(gtk.Window, ReaderSetting):
             level=logging.DEBUG )
         self.logwindow = None
 
-        """ 読書履歴
-        """
+        # 読書履歴を保持する
         self.bookhistory = History(os.path.join(self.dicSetting[u'settingdir'],
                                                             u'history.txt' ))
-        self.menuitem_history = []
-        count = 1
-        for item in self.bookhistory.iter():
-            self.menuitem_history.append(gtk.MenuItem('_%d: %s' %
-                                            (count, item.split(',')[0]),True) )
-            self.menuitem_history[-1].connect('activate',
-                                                    self.menu_historyopen_cb)
-            count += 1
+        # メニュー
+        self.uimanager = gtk.UIManager()
+        accelgroup = self.uimanager.get_accel_group()
+        self.add_accel_group(accelgroup)
 
-        """ アクセラレータ
-        """
-        self.accelgroup = gtk.AccelGroup()
-        self.add_accel_group(self.accelgroup)
+        actiongroup0 = gtk.ActionGroup('UIMergeExampleBase')
+        actiongroup0.add_actions([
+            ('File',    None, u'ファイル(_F)'),
+                    ('open', gtk.STOCK_OPEN, u'開く(_O)',
+                                '<Control>O', None, self.menu_fileopen_cb),
+                    ('new',  None,           u'新着情報(_N)',
+                                '<Control>N', None, self.whatsnew_cb),
+                    ('history', None, u'履歴',
+                                None,         None, None ),
+                    ('quit', gtk.STOCK_QUIT, u'終了(_Q)',
+                                '<Control>Q', None, self.menu_quit),
+            ('Page',    None, u'ページ(_P)'),
+                    ('jump', gtk.STOCK_JUMP_TO, u'移動(_J)',
+                                '<Control>J', None, self.menu_pagejump_cb),
+                    ('top', gtk.STOCK_GOTO_LAST, u'先頭(_T)',
+                                '<Control>T', None, self.menu_gototop_cb),
+                    ('end', gtk.STOCK_GOTO_FIRST, u'最終(_E)',
+                                '<Control>E', None, self.menu_gotoend_cb),
+                    ('setbookmark', None, u'しおりを挟む(_D)',
+                                '<Control>D', None, self.shiori_here_cb),
+                    ('listbookmark', None, u'しおりの管理(_L)',
+                                '<Control>L', None, self.shiori_list_cb),
+            ('Index',   None, u'目次(_I)'),
+            ('Setting', None, u'設定(_S)'),
+                    ('preference', gtk.STOCK_PREFERENCES, u'設定(_P)',
+                                '<Control>P', None, self.menu_fontselect_cb),
+            ('Help',    None, u'ヘルプ(_H)'),
+                    ('view', gtk.STOCK_INFO, None,
+                                '<Control>I', None, self.menu_logwindow_cb),
+                    ('info', gtk.STOCK_ABOUT, None,
+                                None, None, self.menu_about_cb)
+            ])
+        self.uimanager.insert_action_group(actiongroup0, 0)
 
-        """ メインメニュー - ファイル
-        """
-        self.menuitem_file = gtk.MenuItem(u'ファイル(_F)', True )
-        self.menuitem_open = gtk.ImageMenuItem(gtk.STOCK_OPEN, self.accelgroup)
-        self.menuitem_open.connect('activate', self.menu_fileopen_cb )
-        self.menuitem_whatsnew = gtk.MenuItem(u'青空文庫新着情報(_N)', True )
-        self.menuitem_whatsnew.connect('activate', self.whatsnew_cb )
-        self.menuitem_quit = gtk.ImageMenuItem(gtk.STOCK_QUIT, self.accelgroup)
-        self.menuitem_quit.connect('activate', self.menu_quit )
-        self.menu_file = gtk.Menu()
-        self.menu_file.add(self.menuitem_open)
-        self.menu_file.add(self.menuitem_whatsnew)
-        self.menu_file.add(gtk.SeparatorMenuItem())
-        for item in self.menuitem_history:
-            self.menu_file.add(item)
-        self.menu_file.add(gtk.SeparatorMenuItem())
-        self.menu_file.add(self.menuitem_quit)
-        self.menuitem_file.set_submenu(self.menu_file)
+        actiongroup = gtk.ActionGroup('UIMergeExampleBase')
+        self.actiongroup = actiongroup
 
-        """ メインメニュー - ページ
-        """
-        self.menuitem_tool = gtk.MenuItem(u'ページ(_P)', True)
-        self.menuitem_pagejump = gtk.ImageMenuItem(gtk.STOCK_JUMP_TO,
-                                                            self.accelgroup)
-        self.menuitem_pagejump.connect('activate', self.menu_pagejump_cb)
-        self.menuitem_bookmark = gtk.MenuItem( u'しおりの管理(_L)', True)
-        self.menuitem_bookmark.connect('activate', self.shiori_list_cb)
-        self.menuitem_bookmarkregist = gtk.MenuItem( u'しおりを挟む(_D)', True)
-        self.menuitem_bookmarkregist.connect('activate', self.shiori_here_cb)
-        self.menuitem_gototop = gtk.MenuItem( u'先頭(_T)', True )
-        self.menuitem_gototop.connect('activate', self.menu_gototop_cb)
-        self.menuitem_gotoend = gtk.MenuItem( u'最後(_E)', True )
-        self.menuitem_gotoend.connect('activate', self.menu_gotoend_cb)
-        self.menu_tool = gtk.Menu()
-        self.menu_tool.add(self.menuitem_pagejump)
-        self.menu_tool.add(self.menuitem_gototop)
-        self.menu_tool.add(self.menuitem_gotoend)
-        self.menu_tool.add(self.menuitem_bookmarkregist)
-        self.menu_tool.add(self.menuitem_bookmark)
-        self.menuitem_tool.set_submenu(self.menu_tool)
+        merge_id = self.uimanager.add_ui_from_string(
+                                    self.menutmp.format(self.menupagemove))
+        self.menubar = self.uimanager.get_widget("/MenuBar")
 
-        """ メインメニュー - 目次
-        """
-        self.menuitem_mokuji = gtk.MenuItem( u'目次(_I)', True )
-        self.menu_mokuji = gtk.Menu()
+        # 履歴用のフラグ
+        self.menuhis_id = -1
+        self.menu_history_update()
 
-        """ メインメニュー - 設定
-        """
-        self.menuitem_fontselect = gtk.MenuItem( u'フォント(_F)', True )
-        self.menuitem_fontselect = gtk.ImageMenuItem( gtk.STOCK_SELECT_FONT,
-                                                            self.accelgroup )
-        self.menuitem_fontselect.connect( 'activate', self.menu_fontselect_cb )
-
-        self.menuitem_setting = gtk.MenuItem( u'設定(_S)', True )
-
-        self.menu_setting = gtk.Menu()
-        self.menu_setting.add(self.menuitem_fontselect)
-        self.menuitem_setting.set_submenu(self.menu_setting)
-
-        """ メインメニュー - ヘルプ
-        """
-        self.menuitem_help = gtk.MenuItem( u'ヘルプ(_H)', True )
-        self.menuitem_logwindow = gtk.ImageMenuItem(gtk.STOCK_INFO, self.accelgroup)
-        self.menuitem_logwindow.connect( 'activate', self.menu_logwindow_cb )
-        self.menuitem_info = gtk.ImageMenuItem(gtk.STOCK_ABOUT, self.accelgroup)
-        self.menuitem_info.connect( 'activate', self.menu_about_cb )
-        self.menu_help = gtk.Menu()
-        self.menu_help.add(self.menuitem_logwindow)
-        self.menu_help.add(self.menuitem_info)
-        self.menuitem_help.set_submenu(self.menu_help)
-
-        self.mainmenu = gtk.MenuBar()
-        self.mainmenu.append(self.menuitem_file)
-        self.mainmenu.append(self.menuitem_tool)
-        self.mainmenu.append(self.menuitem_mokuji)
-        self.mainmenu.append(self.menuitem_setting)
-        self.mainmenu.append(self.menuitem_help)
-
-        """ ポップアップメニュー
-        """
-        self.pmenu_book_do = gtk.MenuItem(u'このページにしおりを挟む(_S)', True)
-        self.pmenu_book_do.connect('activate', self.shiori_here_cb )
-        self.pmenu_book_list = gtk.MenuItem( u'しおりの管理(_L)', True)
-        self.pmenu_book_list.connect('activate', self.shiori_list_cb )
-
-        self.popupmenu_bookmark = gtk.Menu()
-        self.popupmenu_bookmark.append(self.pmenu_book_do)
-        self.popupmenu_bookmark.append(self.pmenu_book_list)
-        self.popupmenu_bookmark.show_all()
+        #   ポップアップメニュー
+        self.popupmenu_bookmark = self.uimanager.get_widget('/popmain')
 
         #   テキスト情報
         self.cc = AozoraCurrentTextinfo()
@@ -623,7 +607,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
         #   ビルド
         self.vbox = gtk.VBox()
-        self.vbox.pack_start(self.mainmenu, expand=False)
+        self.vbox.pack_start(self.menubar)
         self.vbox.pack_end(self.ebox)
         self.add(self.vbox)
 
@@ -644,58 +628,34 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         u'from formater import CairoCanvas\n'+
                         u'if __name__ == "__main__":\n'+
                         u'    cTmp = CairoCanvas()\n'+
-                        u'    cTmp.writepage(long(sys.argv[1]))\n'+
-                        u'    del cTmp\n' )
+                        u'    cTmp.writepage(long(sys.argv[1]))' )
 
         self.dlgSetting = None
 
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
         """
-        if event.state & gtk.gdk.CONTROL_MASK:
-            key = event.hardware_keycode #event.keyval
-            if key == 57:
-                # CTRL_N
-                self.whatsnew_cb(widget)
-            elif key == 41:
-                # CTRL_F
-                self.menu_fileopen_cb(widget)
-            elif key == 46:
-                # CTRL_L
-                self.shiori_list_cb(widget)
-            elif key == 40:
-                # CTRL_D
-                if event.state & gtk.gdk.SHIFT_MASK:
-                    # CTRL + SHIFT + D
-                    # 著者をブックマーク
-                    a = self.cc.get_booktitle()
-                else:
-                    # しおり
-                    self.shiori_here_cb(widget)
-
-            elif key == 44:
-                # CTRL_J
-                self.menu_pagejump_cb(widget)
-        else:
-            key = event.keyval
-            if key == 32:
-                 # space
-                if event.state & gtk.gdk.SHIFT_MASK:
-                    self.prior_page()
-                else:
-                    self.next_page()
-            elif key == 65361 or key == 0xff56:
-                # left arrow cursor or PgUp
-                self.next_page()
-            elif key == 65363 or key == 0xff55:
-                # right arrow cursor or PgDn
+        #if event.state & gtk.gdk.CONTROL_MASK:
+        #    key = event.hardware_keycode #event.keyval
+        key = event.keyval
+        if key == 32:
+             # space
+            if event.state & gtk.gdk.SHIFT_MASK:
                 self.prior_page()
-            elif key == 0xff50:
-                # Home
-                self.page_common(0)
-            elif key == 0xff57:
-                # End
-                self.page_common(self.cc.pagecounter)
+            else:
+                self.next_page()
+        elif key == 65361 or key == 0xff56:
+            # left arrow cursor or PgUp
+            self.next_page()
+        elif key == 65363 or key == 0xff55:
+            # right arrow cursor or PgDn
+            self.prior_page()
+        elif key == 0xff50:
+            # Home
+            self.page_common(0)
+        elif key == 0xff57:
+            # End
+            self.page_common(self.cc.pagecounter)
         # デフォルトルーチンに繋ぐため False を返すこと
         return False
 
@@ -751,6 +711,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 break
         if s:
             self.bookopen(s[4], zipname=s[5], pagenum=int(s[2])-1)
+
 
     def menu_fontselect_cb(self, widget):
         """ 画面設定
@@ -824,18 +785,19 @@ class ReaderUI(gtk.Window, ReaderSetting):
         dlg.run()
         dlg.destroy()
 
+    def menu_quit(self,widget,data=None):
+        self.exitall()
+
+    def menu_fileopen_cb( self, widget ):
+        self.menu_fileopen()
+
     def menu_historyopen_cb(self, widget):
         """ 読書履歴
         """
         i = int(widget.get_label().split(u':')[0][1:]) - 1
         (nm, pg, fn, z) = self.bookhistory.get_item(i).split(u',')
         self.bookopen(fn, zipname=z, pagenum=int(pg))
-
-    def menu_quit(self,widget,data=None):
-        self.exitall()
-
-    def menu_fileopen_cb( self, widget ):
-        self.menu_fileopen()
+        self.menu_history_update() # メニューバーのアイテム書き換え
 
     def menu_fileopen(self):
         """ 青空文庫ファイルを開く
@@ -852,7 +814,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         if self.isNowFormatting:
             return
         if self.cc.sourcefile != fn:
-            self.savecurrenttext()
+            self.savecurrenttexthistory() # 履歴に保存,UIも書き換えないと齟齬を生じる
             self.isNowFormatting = True
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
@@ -863,22 +825,50 @@ class ReaderUI(gtk.Window, ReaderSetting):
             c = pb.run()
             if c == gtk.RESPONSE_CANCEL:
                 # 途中終了
-                pb.destroy()
+                pass
             else:
                 # 目次の作成
-                menu = gtk.Menu()
-                for s in pb.mokuji_itre():
-                    menuitem = gtk.MenuItem(s, False)
-                    menuitem.connect( 'activate', self.mokuji_jump, s )
-                    menu.add(menuitem)
-                    menuitem.show()
-                self.menuitem_mokuji.set_submenu(menu)
+
                 # ページ情報の複写
                 self.cc = copy.copy(pb.currentText)
-                pb.destroy()
+            pb.destroy()
             self.isNowFormatting = False
         self.page_common(pagenum)
 
+    def menu_history_update(self):
+        """ 読書履歴をメニューへ登録する
+        """
+        if self.menuhis_id != -1:
+            self.uimanager.remove_ui(self.menuhis_id )
+            self.uimanager.remove_action_group(self.historyaction)
+            self.uimanager.ensure_update()
+            del self.historyaction
+
+        count = 1
+        menu = []
+        action = []
+        for item in self.bookhistory.iter():
+            a_name = 'history%d' % count
+            action.append((a_name, None,
+                u'_%d:%s' % (count,item.split(',')[0]),
+                None, None, self.menu_historyopen_cb))
+            menu.append('<menuitem action="%s"/>' % a_name)
+            count += 1
+        self.historyaction = gtk.ActionGroup('historymenuaction')
+        self.historyaction.add_actions(action)
+        menustr = '''<ui>
+                <menubar name="MenuBar">
+                    <menu action="File">
+                        <menu action="history">
+                            {0}
+                        </menu>
+                    </menu>
+                </menubar>
+        </ui>'''
+        self.uimanager.insert_action_group(self.historyaction, -1)
+        self.menuhis_id = self.uimanager.add_ui_from_string(
+                                    menustr.format(''.join(menu)))
+        self.uimanager.ensure_update()
 
     def button_release_event_cb( self, widget, event ):
         return False
@@ -948,7 +938,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def delete_event_cb(self, widget, event, data=None):
         self.exitall()
 
-    def savecurrenttext(self):
+    def savecurrenttexthistory(self):
         """ 現在開いているテキストがあれば履歴へ保存する
         """
         bookname,author = self.cc.get_booktitle()
@@ -960,7 +950,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
     def exitall(self, data=None ):
         logging.shutdown()
-        self.savecurrenttext()
+        self.savecurrenttexthistory()
         #   展開したテキストを全て削除する
         try:
             for s in os.listdir(self.aozoratextdir):
@@ -1061,7 +1051,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """ gobject.idle_add 用のサブ
             1回だけ実行すれば良いのでFalse で戻る
         """
-        self.menu_historyopen_cb(self.menuitem_history[0])
+        rv = self.bookhistory.get_item(0)
+        if rv:
+            (nm, pg, fn, z) = rv.split(u',')
+            self.bookopen(fn, zipname=z, pagenum=int(pg))
         return False
 
 if __name__ == '__main__':

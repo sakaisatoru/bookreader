@@ -41,7 +41,7 @@ import gobject
 
 import aozoradialog
 
-class Download():
+class Download(object):
     """ 作品ファイルダウンロード下請け
 
             テキストファイルへのリンクURLが . で始まる場合は
@@ -128,9 +128,7 @@ class Download():
         return (True, lastselectfile, sLocalfilename)
 
 
-
-
-class ReaderSetting():
+class ReaderSetting(object):
     """ 設定等
             参照及び作業ディレクトリ
                 $HOME/.cahce/aozora         一時ファイル、キャッシュ
@@ -138,7 +136,6 @@ class ReaderSetting():
                 $HOME/.config/aozora        各種設定
                 $HOME/aozora                青空文庫ディレクトリ
     """
-
     def __init__(self, name=u'aozora'):
         """ 設定の初期化
             設定情報が既存であれば読み込み、なければ初期化する。
@@ -297,8 +294,7 @@ class ReaderSetting():
             float(int(s[1+p+p:1+p+p+p],16)/f) )
 
 
-
-class History():
+class History(object):
     """ 読書履歴
         history.txt に格納されている読書履歴を操作する。
         書籍名, ページ数, フルパス, zipファイル名

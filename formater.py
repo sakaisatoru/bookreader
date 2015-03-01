@@ -84,7 +84,7 @@ class AozoraCurrentTextinfo(ReaderSetting):
         return (self.booktitle, self.bookauthor)
 
 
-class AozoraTag():
+class AozoraTag(object):
     """ 青空タグの検出　ネスティング対応版
     """
     def __init__(self, regex=ur'［＃.*?］'):
@@ -121,7 +121,8 @@ class AozoraTag():
         index = self.sub_1(s,pos)
         return None if index == -1 else self.reTmp.search(s,index)
 
-class AozoraScale():
+class AozoraScale(object):
+    #__slots__ = ['charwidth_serif','fontsizefactor','reFontsizefactor']
     """ 描画時のピクセル長の計算等
     """
     # Serif(TakaoEx明朝)における、対全角文字比
@@ -2112,6 +2113,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         stack.pop()
                         sTmp.append(u'</aozora>')
                         f = False
+                if not f:
+                    # 縦書き時の二重不等号を二重山括弧に戻す
+                    s1 = u'《' if data[pos] == u'≪' else u'》' if data[pos] == u'≫' else data[pos]
+                    sTmp.append(s1)
+                    pos+=1
+                    continue
             sTmp.append(data[pos])
             pos += 1
         if f:
@@ -2460,8 +2467,6 @@ class CairoCanvas(ReaderSetting, AozoraScale):
     """
     def __init__(self):
         ReaderSetting.__init__(self)
-
-        self.BEDEBUG = False #True
 
     def writepage(self, pageposition, buffname=u''):
         """ 指定したページを描画する

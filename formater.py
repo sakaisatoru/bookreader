@@ -2516,10 +2516,10 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         KeikakomiYendpos = self.canvas_height - self.canvas_topmargin - int(self.get_value(u'bottommargin'))
 
         # キャンバスの確保
-        #self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
-        #                                self.canvas_width, self.canvas_height)
-        self.sf = cairo.PDFSurface('tmp.pdf',
-                        self.canvas_width*1.0, self.canvas_height*1.0)
+        self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
+                                        self.canvas_width, self.canvas_height)
+        #self.sf = cairo.PDFSurface('tmp.pdf',
+        #                self.canvas_width*1.0, self.canvas_height*1.0)
 
         # 文字列表示クラス
         self.drawstring = expango(self.sf)

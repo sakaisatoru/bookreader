@@ -2239,113 +2239,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             layout = pangoctx.create_layout()
             layout.set_font_description(self.font)
             honbunxpos = 0
-            if u'img' in dicArg:
-                sTmp = sTmp.replace(u'＃',u'　')
-                layout.set_markup(sTmp)
-                # 段落埋め込みの画像
-                # 描画位置の調整
-                length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
-                imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
-                imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
-                pangoctx.translate(self.xpos + xposoffset - imgtmpx,
-                                        self.ypos+imgtmpy)
-                pangoctx.rotate(0)
-                img = cairo.ImageSurface.create_from_png(
-                        os.path.join(self.aozoratextdir,dicArg[u'img']) )
-                ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
-                ctx.paint()
-                del img
-
-            elif u'img2' in dicArg:
-                # 画像
-                pangoctx.translate(self.xpos + xposoffset,
-                    self.ypos + int(self.get_value(u'fontheight'))*1)
-                pangoctx.rotate(0)
-                img = cairo.ImageSurface.create_from_png(
-                            os.path.join(self.aozoratextdir,dicArg[u'img2']) )
-
-                ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
-                # scaleで画像を縮小すると座標系全てが影響を受ける為、
-                # translate で指定したものを活かす
-                sp = cairo.SurfacePattern(self.sf)
-                sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
-                ctx.set_source_surface(img,0,0)
-                ctx.paint()
-                length = int(float(self.get_value(u'fontheight'))*1 +
-                    math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
-                # 後続のキャプション用に退避
-                self.oldlength = length
-                self.oldwidth = int(round(float(dicArg[u'width']) *
-                                                    float(dicArg[u'rasio'])))
-                del img
-
-            elif u'warichu' in dicArg:
-                # 割り注
-                layout.set_markup(data)
-                length,y = layout.get_pixel_size()
-                sTmp = dicArg[u'warichu'].split(u'［＃改行］')
-                if len(sTmp) < 2:
-                    l = int(dicArg[u'height'])
-                    sTmp = [ dicArg[u'warichu'][:l],dicArg[u'warichu'][l:] ]
-                sTmp.insert(1,u'\n')
-                layout.set_markup(u'<span size="smaller">%s</span>' % ''.join(sTmp))
-                x0,y = layout.get_pixel_size()
-                pangoctx.translate(self.xpos + y//2,
-                                self.ypos + int(round(float(length-x0)/2.)))
-                pangoctx.rotate(3.1415/2.)
-                pc = layout.get_context()
-                pc.set_base_gravity('auto')
-                pangoctx.update_layout(layout)
-                pangoctx.show_layout(layout)
-                del pc
-
-            elif u'caption' in dicArg:
-                # キャプション
-                # 直前に画像がなかったり改ページされている場合は失敗するので、
-                # 処理そのものをキャンセルする
-                #
-                # set_widthが思うようにいかないので手動で改行位置を求める
-                # ch : １行あたりの文字数
-                if self.oldwidth > 0:
-                    ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
-                            self.fontmagnification( u'size="smaller"' )) ))
-                    sTmp = u''
-                    for s0 in dicArg[u'caption'].split(u'\\n'):
-                        while len(s0) > ch:
-                            sTmp += s0[:ch] + u'\n'
-                            s0 = s0[ch:]
-                        sTmp += s0[:ch] + u'\n'
-                    sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
-                    layout.set_markup(sTmp)
-                    length, y = layout.get_pixel_size()
-                    pangoctx.translate(
-                        self.xpos + int(self.get_value(u'linewidth')) + (self.oldwidth - length)//2,
-                                                self.ypos + 5 + self.oldlength)
-                    pangoctx.rotate(0)
-                    pc = layout.get_context() # Pango を得る
-                    pc.set_base_gravity('auto')
-                    pangoctx.update_layout(layout)
-                    pangoctx.show_layout(layout)
-                    del pc
-                    length = y
-                else:
-                    logging.info( u'キャプションが出力されませんでした: %s' %  dicArg[u'caption'])
-                    length = 0
-
-            elif u'tatenakayoko' in dicArg:
-                # 縦中横 直前の表示位置を元にセンタリングする
-                layout.set_markup(sTmp)
-                y, length = layout.get_pixel_size() #x,yを入れ替えることに注意
-                pangoctx.translate(self.xpos + xposoffset - int(math.ceil(y/2.)),
-                                                    self.ypos)
-                pangoctx.rotate(0)
-                pc = layout.get_context() # Pango を得る
-                pc.set_base_gravity('auto')
-                pangoctx.update_layout(layout)
-                pangoctx.show_layout(layout)
-                del pc
-
-            else:
+            if not dicArg:
                 pc = layout.get_context() # Pango を得る
                 # 正しいlengthを得るため、予め文字の向きを決める
                 if u'yokogumi' in dicArg:
@@ -2364,100 +2258,234 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
                 del pc
+                del sTmp
+                del layout
+            else:
+                if u'img' in dicArg:
+                    sTmp = sTmp.replace(u'＃',u'　')
+                    layout.set_markup(sTmp)
+                    # 段落埋め込みの画像
+                    # 描画位置の調整
+                    length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
+                    imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
+                    imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
+                    pangoctx.translate(self.xpos + xposoffset - imgtmpx,
+                                            self.ypos+imgtmpy)
+                    pangoctx.rotate(0)
+                    img = cairo.ImageSurface.create_from_png(
+                            os.path.join(self.aozoratextdir,dicArg[u'img']) )
+                    ctx.set_source_surface(img,0,0) # 直前のtranslateが有効
+                    ctx.paint()
+                    del img
 
-            del sTmp
-            del layout
+                elif u'img2' in dicArg:
+                    # 画像
+                    pangoctx.translate(self.xpos + xposoffset,
+                        self.ypos + int(self.get_value(u'fontheight'))*1)
+                    pangoctx.rotate(0)
+                    img = cairo.ImageSurface.create_from_png(
+                                os.path.join(self.aozoratextdir,dicArg[u'img2']) )
 
-        if u'rubi' in dicArg:
-            with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
-                # ルビ
-                layout = pangoctx.create_layout()
-                layout.set_font_description(self.font_rubi)
-                layout.set_markup(dicArg[u'rubi'])
-                rubilength,rubispan = layout.get_pixel_size()
-                # 表示位置 垂直方向のセンタリング
-                y = self.ypos + int((length-rubilength) // 2.)
-                if y < 0:
-                    y = 0
-                if y < self.rubilastYpos:
-                    y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
-                pangoctx.translate(self.xpos + honbunxpos + rubispan,y)
-                pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
-                pc = layout.get_context() # Pango を得る
-                pc.set_base_gravity('auto')
-                pangoctx.update_layout(layout)
-                pangoctx.show_layout(layout)
-                self.rubilastYpos = y + rubilength #ルビの最末端を保存
-                del pc
+                    ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
+                    # scaleで画像を縮小すると座標系全てが影響を受ける為、
+                    # translate で指定したものを活かす
+                    sp = cairo.SurfacePattern(self.sf)
+                    sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
+                    ctx.set_source_surface(img,0,0)
+                    ctx.paint()
+                    length = int(float(self.get_value(u'fontheight'))*1 +
+                        math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
+                    # 後続のキャプション用に退避
+                    self.oldlength = length
+                    self.oldwidth = int(round(float(dicArg[u'width']) *
+                                                        float(dicArg[u'rasio'])))
+                    del img
+
+                elif u'warichu' in dicArg:
+                    # 割り注
+                    layout.set_markup(data)
+                    length,y = layout.get_pixel_size()
+                    sTmp = dicArg[u'warichu'].split(u'［＃改行］')
+                    if len(sTmp) < 2:
+                        l = int(dicArg[u'height'])
+                        sTmp = [ dicArg[u'warichu'][:l],dicArg[u'warichu'][l:] ]
+                    sTmp.insert(1,u'\n')
+                    pc = layout.get_context()
+                    pc.set_base_gravity('east')
+                    pc.set_gravity_hint('natural')
+                    layout.set_markup(u'<span size="smaller">%s</span>' % ''.join(sTmp))
+                    x0,y = layout.get_pixel_size()
+                    pangoctx.translate(self.xpos + y//2,
+                                    self.ypos + int(round(float(length-x0)/2.)))
+                    pangoctx.rotate(3.1415/2.)
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del pc
+
+                elif u'caption' in dicArg:
+                    # キャプション
+                    # 直前に画像がなかったり改ページされている場合は失敗するので、
+                    # 処理そのものをキャンセルする
+                    #
+                    # set_widthが思うようにいかないので手動で改行位置を求める
+                    # ch : １行あたりの文字数
+                    if self.oldwidth > 0:
+                        ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
+                                self.fontmagnification( u'size="smaller"' )) ))
+                        sTmp = u''
+                        for s0 in dicArg[u'caption'].split(u'\\n'):
+                            while len(s0) > ch:
+                                sTmp += s0[:ch] + u'\n'
+                                s0 = s0[ch:]
+                            sTmp += s0[:ch] + u'\n'
+                        sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
+                        pc = layout.get_context() # Pango を得る
+                        pc.set_base_gravity('south')
+                        pc.set_gravity_hint('natural')
+                        layout.set_markup(sTmp)
+                        length, y = layout.get_pixel_size()
+                        pangoctx.translate(
+                            self.xpos + int(self.get_value(u'linewidth')) + (self.oldwidth - length)//2,
+                                                    self.ypos + 5 + self.oldlength)
+                        pangoctx.rotate(0)
+                        pangoctx.update_layout(layout)
+                        pangoctx.show_layout(layout)
+                        del pc
+                        length = y
+                    else:
+                        logging.info( u'キャプションが出力されませんでした: %s' %  dicArg[u'caption'])
+                        length = 0
+
+                elif u'tatenakayoko' in dicArg:
+                    # 縦中横 直前の表示位置を元にセンタリングする
+                    pc = layout.get_context() # Pango を得る
+                    pc.set_base_gravity('south')
+                    pc.set_gravity_hint('natural')
+                    layout.set_markup(sTmp)
+                    y, length = layout.get_pixel_size() #x,yを入れ替えることに注意
+                    pangoctx.translate(self.xpos + xposoffset - int(math.ceil(y/2.)),
+                                                        self.ypos)
+                    pangoctx.rotate(0)
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del pc
+
+                else:
+                    pc = layout.get_context() # Pango を得る
+                    # 正しいlengthを得るため、予め文字の向きを決める
+                    if u'yokogumi' in dicArg:
+                        pc.set_base_gravity('south')
+                        pc.set_gravity_hint('natural')
+                    else:
+                        pc.set_base_gravity('east')
+                        pc.set_gravity_hint('strong')
+                    layout.set_markup(sTmp)
+                    length, span = layout.get_pixel_size()
+
+                    honbunxpos = int(math.ceil(span/2.))
+                    pangoctx.translate(self.xpos + xposoffset + honbunxpos,
+                                                        self.ypos)  # 描画位置
+                    pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del pc
+
+                del sTmp
                 del layout
 
-        if u'bousen' in dicArg:
-            # 傍線 但し波線を実装していません
-            with cairocontext(self.sf) as ctx:
-                ctx.set_antialias(cairo.ANTIALIAS_NONE)
-                if dicArg[u'bousen'][-1] == u'線':
-                    ctx.new_path()
-                    ctx.set_line_width(1)
-                    if dicArg[u'bousen'] == u'破線':
-                        ctx.set_dash((3.5,3.5,3.5,3.5))
-                    elif dicArg[u'bousen'] == u'鎖線':
-                        ctx.set_dash((1.5,1.5,1.5,1.5))
-                    elif dicArg[u'bousen'] == u'二重傍線':
-                        ctx.move_to(self.xpos + honbunxpos +2, self.ypos)
-                        ctx.rel_line_to(0, length)
-                        ctx.stroke()
-                    elif dicArg[u'bousen'] == u'波線':
-                        pass
-                    ctx.move_to(self.xpos + honbunxpos, self.ypos)
-                    ctx.rel_line_to(0, length)
-                    ctx.stroke()
-                else:
-                    # 傍点
-                    # 本文表示長さ(ピクセル長)を文字数で割ったステップに
-                    # 1文字づつ描画する。このためかなりメモリを費消する。
-                    sB = u''
-                    step = int(round(length / float(len(data))))
-                    offset = step - self.fontheight
-                    offset = -1 if offset <= 0 else offset // 2
-                    tmpypos = self.ypos
-                    for s in data:
-                        with cairocontext(self.sf) as ctx2, pangocairocontext(ctx2) as panctx:
-                            layout = pangoctx.create_layout()
-                            layout.set_font_description(self.font)
-                            layout.set_text(self.dicBouten[dicArg[u'bousen']])
-                            panctx.translate(
-                                self.xpos + honbunxpos + rubispan + int(round(honbunxpos*1.3)),
-                                tmpypos + offset)
-                            tmpypos += step
-                            panctx.rotate(3.1515/2.)
-                            pc = layout.get_context()
-                            pc.set_base_gravity('auto')
-                            panctx.update_layout(layout)
-                            panctx.show_layout(layout)
+                if u'rubi' in dicArg:
+                    with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
+                        # ルビ
+                        layout = pangoctx00.create_layout()
+                        pc = layout.get_context()       # Pango を得る
+                        pc.set_base_gravity('east')     # markup 前に実行
+                        pc.set_gravity_hint('natural')   # markup 前に実行
+                        layout.set_font_description(self.font_rubi)
+                        layout.set_markup(dicArg[u'rubi'])
+                        rubilength,rubispan = layout.get_pixel_size()
+                        # 表示位置 垂直方向のセンタリング
+                        y = self.ypos + int((length-rubilength) // 2.)
+                        if y < 0:
+                            y = 0
+                        if y < self.rubilastYpos:
+                            y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
+                        pangoctx00.translate(self.xpos + honbunxpos + rubispan,y)
+                        pangoctx00.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                        pangoctx00.update_layout(layout)
+                        pangoctx00.show_layout(layout)
+                        self.rubilastYpos = y + rubilength #ルビの最末端を保存
                         del pc
                         del layout
 
-        if u'leftrubi' in dicArg:
-            with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
-                # 左ルビ
-                layout = pangoctx.create_layout()
-                layout.set_font_description(self.font_rubi)
-                layout.set_markup(dicArg[u'leftrubi'])
-                rubilength,rubispan = layout.get_pixel_size()
-                # 表示位置センタリング
-                y = self.ypos + int((length-rubilength) // 2.)
-                if y < 0:
-                    y = 0
-                if y < self.leftrubilastYpos:
-                    y = self.leftrubilastYpos # 直前のルビとの干渉をとりあえず回避するpangoctx.translate(self.xpos - honbunxpos ,y)
-                pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
-                pc = layout.get_context() # Pango を得る
-                pc.set_base_gravity('auto')
-                pangoctx.update_layout(layout)
-                pangoctx.show_layout(layout)
-                self.leftrubilastYpos = y + rubilength #左ルビの最末端を保存
-                del pc
-                del layout
+                if u'bousen' in dicArg:
+                    # 傍線 但し波線を実装していません
+                    with cairocontext(self.sf) as ctx00:
+                        ctx00.set_antialias(cairo.ANTIALIAS_NONE)
+                        if dicArg[u'bousen'][-1] == u'線':
+                            ctx00.new_path()
+                            ctx00.set_line_width(1)
+                            if dicArg[u'bousen'] == u'破線':
+                                ctx00.set_dash((3.5,3.5,3.5,3.5))
+                            elif dicArg[u'bousen'] == u'鎖線':
+                                ctx00.set_dash((1.5,1.5,1.5,1.5))
+                            elif dicArg[u'bousen'] == u'二重傍線':
+                                ctx00.move_to(self.xpos + honbunxpos +2, self.ypos)
+                                ctx00.rel_line_to(0, length)
+                                ctx00.stroke()
+                            elif dicArg[u'bousen'] == u'波線':
+                                pass
+                            ctx00.move_to(self.xpos + honbunxpos, self.ypos)
+                            ctx00.rel_line_to(0, length)
+                            ctx00.stroke()
+                        else:
+                            # 傍点
+                            # 本文表示長さ(ピクセル長)を文字数で割ったステップに
+                            # 1文字づつ描画する。このためかなりメモリを費消する。
+                            sB = u''
+                            step = int(round(length / float(len(data))))
+                            offset = step - self.fontheight
+                            offset = -1 if offset <= 0 else offset // 2
+                            tmpypos = self.ypos
+                            for s in data:
+                                with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
+                                    layout = panctx00.create_layout()
+                                    layout.set_font_description(self.font)
+                                    pc = layout.get_context()
+                                    pc.set_base_gravity('east')
+                                    pc.set_gravity_hint('natural')
+                                    layout.set_text(self.dicBouten[dicArg[u'bousen']])
+                                    panctx00.translate(
+                                        self.xpos + honbunxpos + rubispan + int(round(honbunxpos*1.3)),
+                                        tmpypos + offset)
+                                    tmpypos += step
+                                    panctx00.rotate(3.1515/2.)
+                                    panctx00.update_layout(layout)
+                                    panctx00.show_layout(layout)
+                                del pc
+                                del layout
+
+                if u'leftrubi' in dicArg:
+                    with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
+                        # 左ルビ
+                        layout = pangoctx00.create_layout()
+                        pc = layout.get_context()       # Pango を得る
+                        pc.set_base_gravity('east')     # markup 前に実行
+                        pc.set_gravity_hint('natural')   # markup 前に実行
+                        layout.set_font_description(self.font_rubi)
+                        layout.set_markup(dicArg[u'leftrubi'])
+                        rubilength,rubispan = layout.get_pixel_size()
+                        # 表示位置センタリング
+                        y = self.ypos + int((length-rubilength) // 2.)
+                        if y < 0:
+                            y = 0
+                        if y < self.leftrubilastYpos:
+                            y = self.leftrubilastYpos # 直前のルビとの干渉をとりあえず回避するpangoctx00.translate(self.xpos - honbunxpos ,y)
+                        pangoctx00.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                        pangoctx00.update_layout(layout)
+                        pangoctx00.show_layout(layout)
+                        self.leftrubilastYpos = y + rubilength #左ルビの最末端を保存
+                        del pc
+                        del layout
 
         # ypos 更新
         self.ypos += length
@@ -2488,17 +2516,18 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         KeikakomiYendpos = self.canvas_height - self.canvas_topmargin - int(self.get_value(u'bottommargin'))
 
         # キャンバスの確保
-        self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
-                                        self.canvas_width, self.canvas_height)
-        # 文字列表示
+        #self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
+        #                                self.canvas_width, self.canvas_height)
+        self.sf = cairo.PDFSurface('tmp.pdf',
+                        self.canvas_width*1.0, self.canvas_height*1.0)
 
+        # 文字列表示クラス
         self.drawstring = expango(self.sf)
         self.drawstring.setcolour(self.get_value(u'fontcolor'),
                                                 self.get_value(u'backcolor'))
         self.drawstring.setfont(self.canvas_fontname, self.canvas_fontsize,
                                                     self.canvas_rubifontsize )
-        """ 画面クリア
-        """
+        # 画面クリア
         with cairocontext(self.sf) as ctx:
             ctx.rectangle(0, 0, self.canvas_width, self.canvas_height)
             r,g,b = self.drawstring.getbackgroundcolour()

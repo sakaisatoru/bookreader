@@ -242,16 +242,10 @@ class BookmarkUI(aozoradialog.ao_dialog):
     def key_press_event_cb(self, widget, event):
         """ キー入力のトラップ
         """
-        key = event.keyval
-        if key == 0xff1b:
-            # ESC
-            pass
-        elif key == 0xffff:
-            # Delete
+        if event.keyval == 0xffff:  # Delete
             self.removerecord()
             return True
-        # デフォルトルーチンに繋ぐため False を返すこと
-        return False
+        return False                # False を返してデフォルトルーチンに繋ぐ
 
     def savebookmark(self):
         """ UI上のしおりデータを保存する。
@@ -482,6 +476,59 @@ class formaterUI(aozoradialog.ao_dialog, Aozora):
         return True
 
 
+class MenuItemUI(object):
+    """ メニュー項目を更新する
+    """
+    def __init__(self, uimanager, menustr, namestr, labelfunc, func_cb):
+        """
+            uimanager   UIマネージャ
+            menustr     メニュー生成用文字列
+            namestr     アクション名生成用文字列
+            labelfunc   メニューラベル生成用関数
+            func_cb     コールバック関数
+        """
+        self.uimanager = uimanager
+        self.merge_id = -1  # マージ番号
+        self.menustr = menustr
+        self.namestr = namestr
+        self.labelfunc = labelfunc
+        self.func_cb = func_cb
+
+    def remove(self):
+        """ 既存のメニュー項目を抜去する
+        """
+        if self.merge_id != -1:
+            self.uimanager.remove_ui(self.merge_id)
+            self.uimanager.remove_action_group(self.action)
+            self.uimanager.ensure_update()
+            del self.action
+
+    def update(self, itr):
+        """ イテレータを受け取ってアップデートする
+        """
+        self.remove() # 最初に既存部分を抜去する
+        count = 1
+        menu = []
+        action = []
+        while True:
+            try:
+                item = itr.next()
+                a_name = '%s%d' % (self.namestr,count)   # アクション名
+                a_label = self.labelfunc(count, item)
+                # name, stockitem,label, shortcut, tooltip, callback
+                action.append((a_name, None, a_label, None, None, self.func_cb))
+                menu.append('<menuitem action="%s"/>' % a_name )
+                count += 1
+            except StopIteration:
+                break
+        self.action = gtk.ActionGroup('ag_%s' % self.namestr)
+        self.action.add_actions(action)
+        self.uimanager.insert_action_group(self.action, -1)
+        self.merge_id = self.uimanager.add_ui_from_string(
+                            self.menustr.format(''.join(menu)))
+        self.uimanager.ensure_update()
+
+
 class ReaderUI(gtk.Window, ReaderSetting):
     """ メインウィンドウ
     """
@@ -520,6 +567,27 @@ class ReaderUI(gtk.Window, ReaderSetting):
             <separator/>
             <menuitem action="listbookmark"/>
     '''
+
+    sHistoryMenu = '''<ui>
+                <menubar name="MenuBar">
+                    <menu action="File">
+                        <menu action="history">
+                            {0}
+                        </menu>
+                    </menu>
+                </menubar>
+        </ui>
+    '''
+
+    sIndexMenu = '''<ui>
+                <menubar name="MenuBar">
+                    <menu action="Index">
+                            {0}
+                    </menu>
+                </menubar>
+        </ui>
+    '''
+
     def __init__(self):
         """
         """
@@ -588,9 +656,14 @@ class ReaderUI(gtk.Window, ReaderSetting):
                                     self.menutmp.format(self.menupagemove))
         self.menubar = self.uimanager.get_widget("/MenuBar")
 
-        # 履歴用のフラグ
-        self.menuhis_id = -1
-        self.menu_history_update()
+        # 履歴項目UI
+        self.miHistory = MenuItemUI(self.uimanager, self.sHistoryMenu,
+                    'history', self.history_label, self.menu_historyopen_cb)
+        self.miHistory.update(self.bookhistory.iter())
+
+        # 目次UI
+        self.miIndex = MenuItemUI(self.uimanager, self.sIndexMenu,
+                    'index', self.index_label, self.mokuji_jump_cb)
 
         #   ポップアップメニュー
         self.popupmenu_bookmark = self.uimanager.get_widget('/popmain')
@@ -607,7 +680,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
         #   ビルド
         self.vbox = gtk.VBox()
-        self.vbox.pack_start(self.menubar)
+        self.vbox.pack_start(self.menubar, expand=False)
         self.vbox.pack_end(self.ebox)
         self.add(self.vbox)
 
@@ -638,26 +711,20 @@ class ReaderUI(gtk.Window, ReaderSetting):
         #if event.state & gtk.gdk.CONTROL_MASK:
         #    key = event.hardware_keycode #event.keyval
         key = event.keyval
-        if key == 32:
-             # space
+        if key == 32:                           # space
             if event.state & gtk.gdk.SHIFT_MASK:
                 self.prior_page()
             else:
                 self.next_page()
-        elif key == 65361 or key == 0xff56:
-            # left arrow cursor or PgUp
+        elif key == 65361 or key == 0xff56:     # left arrow cursor or PgUp
             self.next_page()
-        elif key == 65363 or key == 0xff55:
-            # right arrow cursor or PgDn
+        elif key == 65363 or key == 0xff55:     # right arrow cursor or PgDn
             self.prior_page()
-        elif key == 0xff50:
-            # Home
+        elif key == 0xff50:                     # Home
             self.page_common(0)
-        elif key == 0xff57:
-            # End
+        elif key == 0xff57:                     # End
             self.page_common(self.cc.pagecounter)
-        # デフォルトルーチンに繋ぐため False を返すこと
-        return False
+        return False    # Falseを返してデフォルトルーチンに繋ぐ
 
     def whatsnew_cb(self, widget):
         """ 青空文庫新着情報
@@ -673,18 +740,17 @@ class ReaderUI(gtk.Window, ReaderSetting):
         else:
             dlg.destroy()
 
-    def mokuji_jump(self, widget, s):
-        """ 目次ジャンプの下請け
-            ページ番号の指定が手抜き
+    def mokuji_jump_cb(self, widget):
+        """ 目次ジャンプ
         """
-        self.page_common(int(s.split()[1])-1)
+        self.page_common(int(widget.get_label().split()[1])-1)
 
     def shiori_here_cb(self, widget):
         """ テキスト上でのポップアップ（１）
             しおりを挟む
         """
         n = self.cc.get_booktitle()
-        s = u'%s,%s,%d,%s,%s,%s\n' % ( n[0], n[1], self.currentpage+1,
+        s = u'%s,%s,%d,%s,%s,%s\n' % (n[0], n[1], self.currentpage+1,
                 datetime.date.today(), self.cc.sourcefile, self.cc.zipfilename)
         bm = BookMarkInfo()
         bm.append(s)
@@ -712,13 +778,11 @@ class ReaderUI(gtk.Window, ReaderSetting):
         if s:
             self.bookopen(s[4], zipname=s[5], pagenum=int(s[2])-1)
 
-
     def menu_fontselect_cb(self, widget):
         """ 画面設定
         """
         if self.dlgSetting:
-            # 多重起動抑止
-            return
+            return # 多重起動抑止
         self.dlgSetting = ScreenSetting(parent=self,
                         flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                         buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_REJECT,
@@ -788,7 +852,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def menu_quit(self,widget,data=None):
         self.exitall()
 
-    def menu_fileopen_cb( self, widget ):
+    def menu_fileopen_cb(self, widget):
         self.menu_fileopen()
 
     def menu_historyopen_cb(self, widget):
@@ -797,7 +861,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         i = int(widget.get_label().split(u':')[0][1:]) - 1
         (nm, pg, fn, z) = self.bookhistory.get_item(i).split(u',')
         self.bookopen(fn, zipname=z, pagenum=int(pg))
-        self.menu_history_update() # メニューバーのアイテム書き換え
+        self.miHistory.update(self.bookhistory.iter())
 
     def menu_fileopen(self):
         """ 青空文庫ファイルを開く
@@ -814,7 +878,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
         if self.isNowFormatting:
             return
         if self.cc.sourcefile != fn:
-            self.savecurrenttexthistory() # 履歴に保存,UIも書き換えないと齟齬を生じる
+            self.savecurrenttexthistory() # 履歴に保存
+            self.miHistory.update(self.bookhistory.iter())
             self.isNowFormatting = True
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
@@ -823,52 +888,22 @@ class ReaderUI(gtk.Window, ReaderSetting):
             a.extractall(self.aozoratextdir)
             pb.touchup(fn, zipname)
             c = pb.run()
-            if c == gtk.RESPONSE_CANCEL:
-                # 途中終了
-                pass
-            else:
-                # 目次の作成
-
-                # ページ情報の複写
-                self.cc = copy.copy(pb.currentText)
+            if c != gtk.RESPONSE_CANCEL:
+                self.miIndex.update(pb.mokuji_itre())   # 目次UI
+                self.cc = copy.copy(pb.currentText)     # ページ情報の複写
             pb.destroy()
             self.isNowFormatting = False
         self.page_common(pagenum)
 
-    def menu_history_update(self):
-        """ 読書履歴をメニューへ登録する
+    def index_label(self, count, item):
+        """ 目次UIのラベルを返す
         """
-        if self.menuhis_id != -1:
-            self.uimanager.remove_ui(self.menuhis_id )
-            self.uimanager.remove_action_group(self.historyaction)
-            self.uimanager.ensure_update()
-            del self.historyaction
+        return item
 
-        count = 1
-        menu = []
-        action = []
-        for item in self.bookhistory.iter():
-            a_name = 'history%d' % count
-            action.append((a_name, None,
-                u'_%d:%s' % (count,item.split(',')[0]),
-                None, None, self.menu_historyopen_cb))
-            menu.append('<menuitem action="%s"/>' % a_name)
-            count += 1
-        self.historyaction = gtk.ActionGroup('historymenuaction')
-        self.historyaction.add_actions(action)
-        menustr = '''<ui>
-                <menubar name="MenuBar">
-                    <menu action="File">
-                        <menu action="history">
-                            {0}
-                        </menu>
-                    </menu>
-                </menubar>
-        </ui>'''
-        self.uimanager.insert_action_group(self.historyaction, -1)
-        self.menuhis_id = self.uimanager.add_ui_from_string(
-                                    menustr.format(''.join(menu)))
-        self.uimanager.ensure_update()
+    def history_label(self, count, item):
+        """ 読書履歴UI のラベルを返す
+        """
+        return u'_%d:%s' % (count, item.split(',')[0])
 
     def button_release_event_cb( self, widget, event ):
         return False
@@ -944,7 +979,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
         bookname,author = self.cc.get_booktitle()
         if bookname and self.cc.zipfilename:
             self.bookhistory.update( u'%s,%d,%s,%s' %
-                (bookname, self.currentpage,self.cc.sourcefile,self.cc.zipfilename))
+                            (bookname, self.currentpage,
+                                    self.cc.sourcefile, self.cc.zipfilename))
             self.isBookopened = True # テキストを開いていた、というフラグ
         self.bookhistory.save()
 
@@ -997,8 +1033,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'フォントサイズを小さくしてみてください。\n'+
                 u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
                 u'・割り注の途中で改行したり、１行からはみ出したりした場合は正しく表示されません。\n'+
-                u'・閲覧履歴はプログラム終了時に開いていたテキストのみ記録されます。これは仕様です。'+
-                u'複数のテキストを行き来する場合はしおりをご利用ください。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'［＃改ページ］\n'+
                 u'\nライセンス［＃「ライセンス」は大見出し］\n'+
@@ -1041,7 +1075,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
             メインループ開始前でこのままだとformaterUIがすべってしまうので
             アイドル待ちループに登録してメインループ後に動かす
         """
-        if opened and len(self.menuitem_history):
+        if opened:
             gobject.idle_add(self.restart_sub)
 
         gtk.main()

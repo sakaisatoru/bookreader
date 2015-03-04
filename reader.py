@@ -735,9 +735,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                                 gtk.STOCK_OPEN,     gtk.RESPONSE_OK))
         res = dlg.run()
         if res == gtk.RESPONSE_OK:
-            fn, z, worksid = dlg.get_selected_item()
+            fn, z, worksid = dlg.get_selected_item() # 選択行がないのに呼ぶとエラー
             dlg.destroy()
-            self.bookopen(fn, zipname=z, works=worksid)
+            self.bookopen(fn, zipname=z, works=worksid) # destory後に呼ぶ
         else:
             dlg.destroy()
 
@@ -880,14 +880,20 @@ class ReaderUI(gtk.Window, ReaderSetting):
         if self.dlgBookopen == None:
             self.dlgBookopen = BunkoUI(parent=self,
                                         flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                            buttons=(gtk.STOCK_CANCEL,  gtk.RESPONSE_NO,#CANCEL,
+                            buttons=(gtk.STOCK_CANCEL,  gtk.RESPONSE_CANCEL,
                                      gtk.STOCK_OPEN,    gtk.RESPONSE_ACCEPT))
         if mode == u'A':
             self.dlgBookopen.filter_works2author(self.cc.worksid)
         a = self.dlgBookopen.run()
         if a == gtk.RESPONSE_ACCEPT:
             fn, z, w = self.dlgBookopen.get_filename()
-        self.dlgBookopen.hide_all()
+            self.dlgBookopen.hide_all()
+        elif a == gtk.RESPONSE_DELETE_EVENT:
+            # ダイアログが閉じられた
+            self.dlgBookopen.destroy()
+            self.dlgBookopen = None
+        else:
+            self.dlgBookopen.hide_all()
         if fn != u'':
             self.bookopen(fn, zipname=z, works=w)
 

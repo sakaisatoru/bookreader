@@ -27,12 +27,30 @@ import gtk
 import gobject
 
 class ao_dialog(gtk.Dialog):
+    """ gtk.Dialogの拡張
+        実行後に呼び出し側の操作が可能なように、gtk.mainによる待ちを
+        行わない。
+        また、デフォルトのdelete_eventの発生を抑止する。（ウィンドウ
+        マネージャで破壊された場合はこの限りでない）
+    """
     def __init__(self, *args, **kwargs):
         gtk.Dialog.__init__(self, *args, **kwargs)
         self.connect('response', self.response_cb)
+        self.connect('key-press-event', self.key_press_event_cb)
+
+    def key_press_event_cb(self,widget,event):
+        """ デフォルトのESC押下は delete_event を発生させるので
+            ここで抑止する。
+        """
+        if event.keyval == 0xff1b:
+            self.response_cb(widget, gtk.RESPONSE_CANCEL)
+            return True
+        return False
 
     def response_cb(self, widget, resid):
         """ レスポンスがあればフラグで保存
+            ダイアログがウィンドウマネージャで破壊される際は
+            resid は gtk.RESPONSE_DELETE_EVENTとなる。
         """
         self.responsed = True
         self.resid = resid
@@ -53,16 +71,35 @@ class ao_dialog(gtk.Dialog):
         # 既存ループのイテレータを回しながらレスポンスを待つ。
         while not self.responsed and not gtk.main_iteration():
             pass
+        print "debug2"
         return self.resid
 
 
 class ao_messagedialog(gtk.MessageDialog):
+    """ gtk.MessageDialogの拡張
+        実行後に呼び出し側の操作が可能なように、gtk.mainによる待ちを
+        行わない。
+        また、デフォルトのdelete_eventの発生を抑止する。（ウィンドウ
+        マネージャで破壊された場合はこの限りでない）
+    """
     def __init__(self, *args, **kwargs):
         gtk.MessageDialog.__init__(self, *args, **kwargs)
         self.connect('response', self.response_cb)
+        self.connect('key-press-event', self.key_press_event_cb)
+
+    def key_press_event_cb(self,widget,event):
+        """ デフォルトのESC押下は delete_event を発生させるので
+            ここで抑止する。
+        """
+        if event.keyval == 0xff1b:
+            self.response_cb(widget, gtk.RESPONSE_CANCEL)
+            return True
+        return False
 
     def response_cb(self, widget, resid):
         """ レスポンスがあればフラグで保存
+            ダイアログがウィンドウマネージャで破壊される際は
+            resid は gtk.RESPONSE_DELETE_EVENTとなる。
         """
         self.responsed = True
         self.resid = resid

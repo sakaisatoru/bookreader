@@ -26,7 +26,6 @@ import codecs
 import re
 import os.path
 import datetime
-import unicodedata
 import urllib
 import zipfile
 import logging
@@ -34,9 +33,6 @@ import math
 import errno
 
 import gtk
-import cairo
-import pango
-import pangocairo
 import gobject
 
 import aozoradialog
@@ -69,11 +65,12 @@ class Download(object):
         lastselectfile = u''
 
         sTmpfile = os.path.join(self.get_value(u'workingdir'), u'a.html')
+        #print url, sTmpfile
         try:
             urllib.urlretrieve(url, sTmpfile)
         except IOError:
             return (False, u'ダウンロードできません。' + \
-                            u'ネットワークへの接続状況を確認してください。')
+                            u'ネットワークへの接続状況を確認してください。','')
 
         with codecs.open( sTmpfile, 'r', readcodecs ) as f0:
             for line in f0:
@@ -101,13 +98,12 @@ class Download(object):
                             urllib.urlretrieve( sTargetURL, sLocalfilename)
                     except IOError:
                         return (False, u'ダウンロードできません。' + \
-                            u'ネットワークへの接続状況を確認してください。' )
+                            u'ネットワークへの接続状況を確認してください。','' )
 
                     try:
                         a = zipfile.ZipFile( sLocalfilename, u'r' )
                         a.extractall( self.get_value(u'aozoracurrent'))
                         for b in a.namelist():
-                            print b
                             if os.path.split(b)[1][-4:] == '.txt':
                                 lastselectfile = os.path.join(
                                     self.get_value(u'aozoracurrent'), b )
@@ -115,16 +111,16 @@ class Download(object):
                         else:
                             return (False, u'アーカイブを' + \
                                             u'展開しましたがテキスト' + \
-                                            u'ファイルが含まれていません。')
+                                            u'ファイルが含まれていません。','')
                     except RuntimeError:
                         return (False, u'ファイルの展開時にエラーが発生' + \
                                         u'しました。ディスク容量等を確認' + \
-                                        u'してください。')
+                                        u'してください。','')
 
         if not flag:
             return (False, u'ダウンロードできません。この作品はルビあり' + \
-                            u'テキストファイルで登録されていません。' )
-        print sLocalfilename
+                            u'テキストファイルで登録されていません。','' )
+        #print sLocalfilename
         return (True, lastselectfile, sLocalfilename)
 
 
@@ -143,7 +139,7 @@ class ReaderSetting(object):
         #   スクリーンサイズ
         #             XGA   WXGA    WSVGA   SVGA
         screendata = [(996 , 656) , (1240 , 736) , (880 , 448) , (740 , 448)]
-        self.currentversion = u'0.3' # 設定ファイルのバージョン
+        self.currentversion = u'0.31' # 設定ファイルのバージョン
         self.dicScreen = {}
         for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
             self.dicScreen[k] = screendata.pop()
@@ -207,7 +203,9 @@ class ReaderSetting(object):
                 u'scrnheight':u'448',
                 u'scrnwidth':u'740',
                 u'topmargin':u'8',
-                u'workingdir':cachedir
+                u'workingdir':cachedir,
+                u'idxfileURL':u'http://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip',
+                u'idxfile':u'list_person_all_extended_utf8.csv'
                 }
             self.update()
 
@@ -297,7 +295,7 @@ class ReaderSetting(object):
 class History(object):
     """ 読書履歴
         history.txt に格納されている読書履歴を操作する。
-        書籍名, ページ数, フルパス, zipファイル名
+        書籍名, ページ数, フルパス, zipファイル名, 作品ID
 
         使い方
             プログラム開始時にインスタンスを生成することで、
@@ -341,7 +339,7 @@ class History(object):
                     pass
 
     def update(self, item):
-        """ zipファイル名をキーにして既存レコードを更新する。
+        """ 作品IDをキーにして既存レコードを更新する。
         　　無ければ新規追加する。
         """
         k = item.split(',')[-1]

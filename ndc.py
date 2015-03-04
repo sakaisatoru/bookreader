@@ -23,16 +23,6 @@
 """ NDC (日本十進分類法）
 """
 
-import sys
-import codecs
-import re
-import os.path
-import datetime
-import unicodedata
-import logging
-import bisect
-import csv
-
 """
     ウィキペディア　フリー百科事典　日本十進分類法より　引用
 

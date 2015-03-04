@@ -19,7 +19,6 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-import re
 """
     外字変換
     ※［＃タグで指定される、面区点コードから該当する

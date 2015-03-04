@@ -26,21 +26,18 @@
 
 from readersub import ReaderSetting, Download
 import aozoradialog
+
 import sys
 import codecs
-import re
 import os.path
 import datetime
-import unicodedata
 import urllib
 from HTMLParser import HTMLParser
+
 import gtk
-import cairo
-import pango
-import pangocairo
 import gobject
 
-sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
+sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
 
 
 class ReadHTMLpage(HTMLParser, ReaderSetting, Download):
@@ -201,6 +198,7 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
                 pass
         self.lastselectfile = None
         self.lastselectzip = None
+        self.worksid = None
 
     def row_activated_treeview_cb(self, path, viewcol, col):
         """ 作品リストをダブルクリックした時の処理
@@ -210,9 +208,7 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
 
     def get_selected_item(self):
         """ 選択された作品をダウンロードする
-                この操作で返されるのは
-                c データモデルオブジェクト、ここではgtk.ListStore
-                d 選択された行
+            ファイル名、ZIP名、(URLから類推した)作品ID
         """
         (c,d) = self.bl_data.get_selection().get_selected_rows()  # 選択された行
         f = False
@@ -220,13 +216,15 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
         for i in iters:
             (f, sMes, z) = self.selected_book( u'%s/%s' % (
                             self.AOZORA_URL, c.get_value(i, 3)) )
+            worksid = c.get_value(i, 3).split(u'/')[-1].split(u'.')[0].lstrip(u'card')
             if not f:
                 aozoradialog.msgerrinfo(sMes, self)
             else:
                 self.lastselectfile = sMes
                 self.lastselectzip = z
+                self.worksid = u'%06d' % int(worksid)
 
-        return self.lastselectfile, self.lastselectzip
+        return self.lastselectfile, self.lastselectzip, self.worksid
 
 
 

@@ -23,21 +23,18 @@
         UI、プログラム本体
 """
 
-import jis3
 import aozoradialog
 from readersub      import ReaderSetting, History
 from formater       import Aozora, CairoCanvas, AozoraCurrentTextinfo
 from whatsnew       import WhatsNewUI
 from logview        import Logviewer
-from bunko          import BunkoUI
+from bunko3         import BunkoUI
 
 import tempfile
 import sys
 import codecs
-import re
 import os.path
 import datetime
-import unicodedata
 import logging
 import copy
 import subprocess
@@ -47,7 +44,6 @@ import zipfile
 import gc
 import gtk
 import gobject
-import pango
 
 sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
 
@@ -173,6 +169,7 @@ class BookmarkUI(aozoradialog.ao_dialog):
                                                     gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING,
+                                                    gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING ))
         self.bookmark_bv.set_rules_hint(True)
         self.bookmark_bv.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -200,8 +197,8 @@ class BookmarkUI(aozoradialog.ao_dialog):
                                     sc[2],          # ページ番号
                                     sc[3],          # 日付
                                     sc[4],          # パス
-                                    sc[5] )         # zipfile
-                                    )
+                                    sc[5],          # zipfile
+                                    sc[6]))         # 作品ID
 
         self.connect('key-press-event', self.key_press_event_cb )
 
@@ -233,7 +230,7 @@ class BookmarkUI(aozoradialog.ao_dialog):
             try:
                 iters = [c.get_iter(p) for p in d]
                 for i in iters:
-                    self.rv = [c.get_value(i, k) for k in xrange(6)]
+                    self.rv = [c.get_value(i, k) for k in xrange(7)]
                 f = True
             except IndexError:
                 pass
@@ -255,7 +252,7 @@ class BookmarkUI(aozoradialog.ao_dialog):
         m = self.bookmark_bv.get_model()
         i = m.get_iter_first()
         while i:
-            bi.append2(u'%s,%s,%s,%s,%s,%s\n' % m.get(i, 0, 1, 2, 3, 4, 5))
+            bi.append2(u'%s,%s,%s,%s,%s,%s,%s\n' % m.get(i, 0, 1, 2, 3, 4, 5, 6))
             i = m.iter_next(i)  # 次が無ければNoneでループを抜ける
         bi.update()
 
@@ -444,14 +441,14 @@ class formaterUI(aozoradialog.ao_dialog, Aozora):
         self.vbox.show_all()
         self.set_position(gtk.WIN_POS_CENTER)
 
-    def touchup(self, fn, zipname):
+    def touchup(self, fn, zipname, works):
         """ 本来 formater を待ちループ内において、プログレスバーをタイマー
             駆動にして問題ないはずだが、妙な待ち時間が生じるので formaterを
             アイドルタスクへ追加している。
             このため、待ちループがない状況で実行すると失敗する。
             これを実行したらすかさず run() すること。
         """
-        self.set_source(fn, zipname)
+        self.set_source(fn, zipname, works)
         self.maxlines = float(sum(1 for line in codecs.open(self.currentText.sourcefile)))
         self.lncounter = 0
         self.tmp = self.formater()
@@ -538,6 +535,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 <menuitem action="open"/>
                 <menuitem action="new"/>
                 <menu action="history"/>
+                <menuitem action="author"/>
                 <separator/>
                 <menuitem action="quit"/>
             </menu>
@@ -622,7 +620,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                                 '<Control>O', None, self.menu_fileopen_cb),
                     ('new',  None,           u'新着情報(_N)',
                                 '<Control>N', None, self.whatsnew_cb),
-                    ('history', None, u'履歴',
+                    ('author',None,          u'この作者の他の作品(_A)',
+                                '<Control>A', None, self.menu_association_cb),
+                    ('history', None, u'履歴(_H)',
                                 None,         None, None ),
                     ('quit', gtk.STOCK_QUIT, u'終了(_Q)',
                                 '<Control>Q', None, self.menu_quit),
@@ -703,7 +703,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         u'    cTmp = CairoCanvas()\n'+
                         u'    cTmp.writepage(long(sys.argv[1]))' )
 
-        self.dlgSetting = None
+        self.dlgSetting = None  # 設定ダイアログ
+        self.dlgBookopen = None # テキストオープンダイアログ
 
     def key_press_event_cb( self, widget, event ):
         """ キー入力のトラップ
@@ -734,9 +735,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                                 gtk.STOCK_OPEN,     gtk.RESPONSE_OK))
         res = dlg.run()
         if res == gtk.RESPONSE_OK:
-            fn, z = dlg.get_selected_item()
+            fn, z, worksid = dlg.get_selected_item()
             dlg.destroy()
-            self.bookopen(fn, zipname=z)
+            self.bookopen(fn, zipname=z, works=worksid)
         else:
             dlg.destroy()
 
@@ -750,8 +751,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
             しおりを挟む
         """
         n = self.cc.get_booktitle()
-        s = u'%s,%s,%d,%s,%s,%s\n' % (n[0], n[1], self.currentpage+1,
-                datetime.date.today(), self.cc.sourcefile, self.cc.zipfilename)
+        s = u'%s,%s,%d,%s,%s,%s,%s\n' % (n[0], n[1], self.currentpage+1,
+                datetime.date.today(), self.cc.sourcefile,
+                self.cc.zipfilename, self.cc.worksid)
         bm = BookMarkInfo()
         bm.append(s)
 
@@ -776,7 +778,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 s = None
                 break
         if s:
-            self.bookopen(s[4], zipname=s[5], pagenum=int(s[2])-1)
+            self.bookopen(s[4], zipname=s[5], works=s[-1], pagenum=int(s[2])-1)
 
     def menu_fontselect_cb(self, widget):
         """ 画面設定
@@ -855,28 +857,46 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def menu_fileopen_cb(self, widget):
         self.menu_fileopen()
 
+    def menu_association_cb(self, widget):
+        """ 開いているテキストの作者に関連したテキストを
+            検索する
+        """
+        self.menu_fileopen(mode=u'A')
+
     def menu_historyopen_cb(self, widget):
         """ 読書履歴
         """
         i = int(widget.get_label().split(u':')[0][1:]) - 1
-        (nm, pg, fn, z) = self.bookhistory.get_item(i).split(u',')
-        self.bookopen(fn, zipname=z, pagenum=int(pg))
+        (nm, pg, fn, z, w) = self.bookhistory.get_item(i).split(u',')
+        self.bookopen(fn, zipname=z, works=w, pagenum=int(pg))
         self.miHistory.update(self.bookhistory.iter())
 
-    def menu_fileopen(self):
+    def menu_fileopen(self, mode=u''):
         """ 青空文庫ファイルを開く
+            ダイアログは一度開いたら、呼び出し側が終了するまで破壊されない。
+            mode = 'A' 関連付けモード（カレントテキストの作者関連を見る）
         """
-        dlg = BunkoUI()
-        dlg.run()
-        fn, z = dlg.get_filename()
+        fn = u''
+        if self.dlgBookopen == None:
+            self.dlgBookopen = BunkoUI(parent=self,
+                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CANCEL,  gtk.RESPONSE_NO,#CANCEL,
+                                     gtk.STOCK_OPEN,    gtk.RESPONSE_ACCEPT))
+        if mode == u'A':
+            self.dlgBookopen.filter_works2author(self.cc.worksid)
+        a = self.dlgBookopen.run()
+        if a == gtk.RESPONSE_ACCEPT:
+            fn, z, w = self.dlgBookopen.get_filename()
+        self.dlgBookopen.hide_all()
         if fn != u'':
-            self.bookopen(fn, zipname=z)
+            self.bookopen(fn, zipname=z, works=w)
 
-    def bookopen(self, fn, zipname=u'', pagenum=0):
+    def bookopen(self, fn, zipname=u'', works=0, pagenum=0):
         """ テキストを開く
+            fn ファイル名, zipname ZIP名, works 作品ID, pagenum ページ番号
         """
         if self.isNowFormatting:
-            return
+            return # フォーマット中の読み込みを抑止
         if self.cc.sourcefile != fn:
             self.savecurrenttexthistory() # 履歴に保存
             self.miHistory.update(self.bookhistory.iter())
@@ -886,7 +906,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
             # 新規読み込み
             a = zipfile.ZipFile(zipname, u'r' )
             a.extractall(self.aozoratextdir)
-            pb.touchup(fn, zipname)
+            pb.touchup(fn, zipname, works)
             c = pb.run()
             if c != gtk.RESPONSE_CANCEL:
                 self.miIndex.update(pb.mokuji_itre())   # 目次UI
@@ -978,9 +998,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         bookname,author = self.cc.get_booktitle()
         if bookname and self.cc.zipfilename:
-            self.bookhistory.update( u'%s,%d,%s,%s' %
-                            (bookname, self.currentpage,
-                                    self.cc.sourcefile, self.cc.zipfilename))
+            self.bookhistory.update( u'%s,%d,%s,%s,%s' %
+                        (bookname, self.currentpage, self.cc.sourcefile,
+                         self.cc.zipfilename, self.cc.worksid))
             self.isBookopened = True # テキストを開いていた、というフラグ
         self.bookhistory.save()
 

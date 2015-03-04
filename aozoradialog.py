@@ -23,23 +23,7 @@
 """ 各種ダイアログ
     呼び出し側を閉じた時に同時に閉じる
 """
-
-import sys
-import codecs
-import re
-import os.path
-import datetime
-import unicodedata
-import urllib
-import zipfile
-import logging
-import math
-import errno
-
 import gtk
-import cairo
-import pango
-import pangocairo
 import gobject
 
 class ao_dialog(gtk.Dialog):
@@ -64,7 +48,7 @@ class ao_dialog(gtk.Dialog):
         self.beforerun()
         self.responsed = False
         self.resid = None
-        self.show()
+        self.show_all()
         # 入力待ち gtk.mainで新規にループを起こすと先に進まないので
         # 既存ループのイテレータを回しながらレスポンスを待つ。
         while not self.responsed and not gtk.main_iteration():
@@ -88,7 +72,7 @@ class ao_messagedialog(gtk.MessageDialog):
         """
         self.responsed = False
         self.resid = None
-        self.show()
+        self.show_all()
         # 入力待ち gtk.mainで新規にループを起こすと先に進まないので
         # 既存ループのイテレータを回しながらレスポンスを待つ。
         while not self.responsed and not gtk.main_iteration():

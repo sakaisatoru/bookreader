@@ -77,6 +77,7 @@ class AozoraCurrentTextinfo(ReaderSetting):
         self.bookauthor = u''
         self.booktranslator = u''
         self.zipfilename = u''
+        self.worksid = 0
 
     def get_booktitle(self):
         """ 処理したファイルの書名、著者名を返す。
@@ -427,11 +428,12 @@ class Aozora(AozoraScale):
         self.set_source()
         self.charsmax = self.currentText.chars - 1 # 最後の1文字は禁則処理用に確保
 
-    def set_source( self, s=u'', z=u'' ):
+    def set_source( self, s=u'', z=u'', w=0 ):
         """ 青空文庫ファイルをセット
         """
         self.currentText.sourcefile= s
         self.currentText.zipfilename = z
+        self.currentText.worksid = w
 
     def get_form( self ):
         """ ページ設定を返す。
@@ -1541,10 +1543,12 @@ class Aozora(AozoraScale):
                         continue
 
                     """ 未定義タグ
-                        青空形式を外して本文に残す
+                        本文より抜去してログへ書き出す。
                     """
                     if tmp:
-                        lnbuf = lnbuf[:tmp.start()] + tmp.group().strip(u'［＃］') + lnbuf[tmp.end():]
+                        logging.info(u'未定義のタグを検出： %s' % tmp.group().strip(u'［＃］'))
+                        loggingflag = True
+                        lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
 
                 """ ルビの処理

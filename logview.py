@@ -22,18 +22,13 @@
 """
 from readersub import ReaderSetting
 import aozoradialog
+
 import sys
 import codecs
 import os.path
-import datetime
-import unicodedata
-import urllib
 import logging
-import webbrowser
+
 import gtk
-import cairo
-import pango
-import pangocairo
 import gobject
 
 sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)

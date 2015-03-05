@@ -71,7 +71,6 @@ class ao_dialog(gtk.Dialog):
         # 既存ループのイテレータを回しながらレスポンスを待つ。
         while not self.responsed and not gtk.main_iteration():
             pass
-        print "debug2"
         return self.resid
 
 

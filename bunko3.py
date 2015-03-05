@@ -183,13 +183,13 @@ class aozoraDB(ReaderSetting):
         self.idxYomiWorks = []
 
 
-class authorlistUI(gtk.VBox):
+class authorlistUI(gtk.ScrolledWindow):
     """ 著者リストUI
         ListStoreには全てのフィールドを格納する。[]は非表示
         [人物ID], 氏名, [よみがな], 役割
     """
     def __init__(self):
-        gtk.VBox.__init__(self)
+        gtk.ScrolledWindow.__init__(self)
         self.tree_author = gtk.TreeView()
         self.tree_author.set_model(gtk.ListStore(
                                 gobject.TYPE_STRING, gobject.TYPE_STRING,
@@ -210,20 +210,9 @@ class authorlistUI(gtk.VBox):
         self.tree_author.set_rules_hint(True)
         self.tree_author.get_selection().set_mode(gtk.SELECTION_SINGLE)
 
-        lv = gtk.Label()
-        lv.set_text(u'よみがな')
-        hv = gtk.HBox()
-        self.entYomi = gtk.Entry()
-        self.entYomi.connect('key_press_event',self.yomi_key_press_event_cb)
-        self.entYomi.set_size_request(180,20)
-        hv.pack_start(lv,expand=False)
-        hv.pack_end(self.entYomi)
-        self.sw = gtk.ScrolledWindow()
-        self.sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        self.sw.add(self.tree_author)
-        self.pack_start(hv, expand=False)
-        self.pack_end(self.sw)
-        #self.set_size_request(240,100)
+        self.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.add(self.tree_author)
+        self.set_size_request(160,300)
 
         self.selectfile = u''
 
@@ -289,7 +278,7 @@ class workslistUI(gtk.ScrolledWindow):
     def __init__(self):
         gtk.ScrolledWindow.__init__(self)
 
-        # 作品リスト
+
         self.tv = gtk.TreeView(model=gtk.ListStore(
                         gobject.TYPE_STRING, gobject.TYPE_STRING,
                         gobject.TYPE_STRING, gobject.TYPE_STRING,
@@ -389,21 +378,27 @@ class AuthorWorksUI(gtk.HPaned):
         gtk.HPaned.__init__(self)
 
         self.authorlist = authorlistUI()
-        self.authorlist.sw.child.connect('row_activated',
+        self.authorlist.child.connect('row_activated',
                                         self.author_row_activated_treeview_cb)
         self.workslist = workslistUI()
         self.workslist.child.connect('row_activated',
                                         self.works_row_activated_treeview_cb)
+
         self.add1(self.authorlist)
         self.add2(self.workslist)
         self.worksID = None
         self.worksURL = None
         self.exit_cb = exit_cb  # 処理終了用出口関数
 
+    def author_set_yomi(self, yomi):
+        """
+        """
+        self.authorlist.set_list(yomi)
+
     def author_listup(self, authorIDs):
         """ 人物IDをリストで受取り、関連する作品を全てリストアップする
         """
-        self.authorlist.sw.child.get_model().clear()
+        self.authorlist.child.get_model().clear()
         self.workslist.child.get_model().clear()
         for i in authorIDs:
             self.authorlist.set_author(i)
@@ -445,6 +440,45 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.works = AuthorWorksUI(self.response_cb)
         self.works.set_database(self.db)
 
+
+        # 検索フィルタ
+        lvAuthor = gtk.Label(u'人物よみ')
+        self.entAuthor = gtk.Entry()
+        self.entAuthor.set_width_chars(16)
+        self.entAuthor.set_icon_from_stock(gtk.POS_RIGHT,gtk.STOCK_CLEAR)
+        self.entAuthor.connect('icon_press',self.entAuthor_icon_press_cb)
+        self.entAuthor.connect('key_press_event',self.entAuthor_key_press_event_cb)
+        lv = gtk.Label()
+        lv.set_text(u'作品よみ')
+        self.entYomi = gtk.Entry()
+        self.entYomi.set_width_chars(16)
+        self.entYomi.set_icon_from_stock(gtk.POS_RIGHT,gtk.STOCK_CLEAR)
+        self.entYomi.connect('icon_press',self.entYomi_icon_press_cb)
+        self.entYomi.connect('key_press_event',self.entYomi_key_press_event_cb)
+        self.entYomi.set_sensitive(False)
+
+        lvNDC = gtk.Label()
+        lvNDC.set_text(u'NDC')
+        self.entNDC = gtk.Entry(max=3)
+        self.entNDC.set_width_chars(4)
+        self.entNDC.set_icon_from_stock(gtk.POS_RIGHT,gtk.STOCK_FIND)
+        self.entNDC.connect('icon_press',self.NDC_icon_press_cb)
+        #self.entNDC.connect('key_press_event',self.yomi_key_press_event_cb)
+        self.entNDC.set_sensitive(False)
+
+        self.chkDL = gtk.CheckButton(label=u'上書きダウンロード')
+        self.chkDL.connect('toggled',self.chkDL_toggled_cb)
+
+        hv = gtk.HBox()
+        hv.pack_start(lvAuthor)
+        hv.pack_start(self.entAuthor,padding=10)
+        hv.pack_start(lv)
+        hv.pack_start(self.entYomi, fill=True,padding=10)
+        hv.pack_start(lvNDC)
+        hv.pack_start(self.entNDC,padding=10)
+        hv.pack_end(self.chkDL,padding=10)
+
+        self.vbox.pack_start(hv,expand=False)
         self.vbox.pack_start(self.works)
         self.vbox.show_all()
 
@@ -454,6 +488,30 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.selectfile = u''
         self.selectzip = u''
         self.selectworksid = 0
+
+    def chkDL_toggled_cb(self, widget, data=None):
+        print widget.get_active()
+
+    def entAuthor_key_press_event_cb(self, wiget, event):
+        if event.keyval == 0xff0d: # enter
+            self.works.author_set_yomi(wiget.get_text())
+        return False
+
+    def entYomi_key_press_event_cb(self, wiget, event):
+        if event.keyval == 0xff0d: # enter
+            pass
+        return False
+
+    def entAuthor_icon_press_cb(self, icon_pos, event, data):
+        self.entAuthor.set_text(u'')
+
+    def entYomi_icon_press_cb(self, icon_pos, event, data):
+        self.entYomi.set_text(u'')
+
+    def NDC_icon_press_cb(entry, icon_pos, event, data):
+        """
+        """
+        print "test code"
 
     def filter_works2author(self, worksID):
         """ 作品IDを渡してその作者を得、関連作品全てをリストアップする
@@ -473,11 +531,13 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         if ow:
             os.remove(localfile)
         if not os.path.isfile(localfile):
-            rv = self.download(self.get_value(u'idxfileURL'), localfile)
+            rv = self.download(self.get_value(u'idxfileURL'), localfile, ow=True)
             if not rv:
                 aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。',self)
                 return None
-
+        if os.path.isfile(localfile):
+            # ZIPがダウンロードされただけで展開されていない場合があるので、
+            # 展開処理を別に立てる
             a = zipfile.ZipFile( localfile, u'r' )
             a.extractall(self.aozoradir)
             self.set_value(u'idxfile', a.namelist()[0])
@@ -490,11 +550,11 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         rv = True
         if localfile == u'':
             localfile = os.path.join(self.aozoradir, os.path.basename(url))
-        if not ow and os.path.isfile(localfile):
-            # ファイルがあればダウンロードしない
-            rv = aozoradialog.msgyesno(u'既にダウンロードされています。上書きしますか？',self)
-            if rv != gtk.RESPONSE_YES:
-                return (True, localfile)
+        if not ow:
+            # 上書きダウンロードしない場合、目的のファイルが存在しない場合は
+            # False を返す
+            if not os.path.isfile(localfile):
+                return (False, localfile)
         try:
             urllib.urlretrieve(url, localfile)
         except IOError:
@@ -507,7 +567,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         """ ダウンロードしてファイル名、ZIP名、作品IDを返す
         """
         self.selectworksid, self.selectzip = self.works.get_value()
-        f, sMes = self.download(self.selectzip, ow=False)
+        f, sMes = self.download(self.selectzip, ow=self.chkDL.get_active())
         if not f:
             aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。', self)
             self.selectfile = u''

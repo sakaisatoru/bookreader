@@ -2258,7 +2258,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 honbunxpos = int(math.ceil(span/2.))
                 pangoctx.translate(self.xpos + xposoffset + honbunxpos,
                                                     self.ypos)  # 描画位置
-                pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
                 del pc
@@ -2321,7 +2321,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     x0,y = layout.get_pixel_size()
                     pangoctx.translate(self.xpos + y//2,
                                     self.ypos + int(round(float(length-x0)/2.)))
-                    pangoctx.rotate(3.1415/2.)
+                    pangoctx.rotate(1.57075)
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)
                     del pc
@@ -2389,7 +2389,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     honbunxpos = int(math.ceil(span/2.))
                     pangoctx.translate(self.xpos + xposoffset + honbunxpos,
                                                         self.ypos)  # 描画位置
-                    pangoctx.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                    pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)
                     del pc
@@ -2414,7 +2414,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         if y < self.rubilastYpos:
                             y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
                         pangoctx00.translate(self.xpos + honbunxpos + rubispan,y)
-                        pangoctx00.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                        pangoctx00.rotate(1.57075)
                         pangoctx00.update_layout(layout)
                         pangoctx00.show_layout(layout)
                         self.rubilastYpos = y + rubilength #ルビの最末端を保存
@@ -2449,18 +2449,22 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             step = int(round(length / float(len(data))))
                             offset = step - self.fontheight
                             offset = -1 if offset <= 0 else offset // 2
-                            tmpypos = self.ypos
+                            tmpypos = self.ypos + offset
+                            xoffset = honbunxpos + rubispan + int(round(honbunxpos*1.3))
+                            if dicArg[u'bousen'] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
+                                boutenfont = self.font
+                            else:
+                                boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
                             for s in data:
                                 with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
                                     layout = panctx00.create_layout()
-                                    layout.set_font_description(self.font)
+                                    layout.set_font_description(boutenfont)
                                     pc = layout.get_context()
                                     pc.set_base_gravity('east')
                                     pc.set_gravity_hint('natural')
                                     layout.set_text(self.dicBouten[dicArg[u'bousen']])
-                                    panctx00.translate(
-                                        self.xpos + honbunxpos + rubispan + int(round(honbunxpos*1.3)),
-                                        tmpypos + offset)
+                                    panctx00.translate( self.xpos + xoffset,
+                                                                    tmpypos)
                                     tmpypos += step
                                     panctx00.rotate(3.1515/2.)
                                     panctx00.update_layout(layout)
@@ -2483,8 +2487,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         if y < 0:
                             y = 0
                         if y < self.leftrubilastYpos:
-                            y = self.leftrubilastYpos # 直前のルビとの干渉をとりあえず回避するpangoctx00.translate(self.xpos - honbunxpos ,y)
-                        pangoctx00.rotate(3.1415/2.) # 90度右回転、即ち左->右を上->下へ
+                            y = self.leftrubilastYpos # 直前のルビとの干渉をとりあえず回避する
+                        pangoctx00.translate(self.xpos - honbunxpos ,y)
+                        pangoctx00.rotate(1.57075)
                         pangoctx00.update_layout(layout)
                         pangoctx00.show_layout(layout)
                         self.leftrubilastYpos = y + rubilength #左ルビの最末端を保存

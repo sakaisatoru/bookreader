@@ -31,8 +31,7 @@ import os.path
 import os
 import urllib
 import zipfile
-import datetime
-import unicodedata
+#import datetime
 import bisect
 import csv
 
@@ -373,6 +372,7 @@ class workslistUI(gtk.ScrolledWindow):
         else:
             return None, None
 
+
 class AuthorWorksUI(gtk.HPaned):
     def __init__(self, exit_cb):
         gtk.HPaned.__init__(self)
@@ -404,6 +404,11 @@ class AuthorWorksUI(gtk.HPaned):
             self.authorlist.set_author(i)
             self.workslist.set_list(i, aozoraDB.keyAUTHOR)
 
+    def works_listup(self, key, keytype):
+        """
+        """
+        self.workslist.set_list(key, keytype)
+
     def author_row_activated_treeview_cb(self, path, viewcol, col):
         """ 人物をクリックした時の処理
         """
@@ -427,6 +432,114 @@ class AuthorWorksUI(gtk.HPaned):
         self.workslist.set_database(self.currentDB)
 
 
+class ndcUI(gtk.Table, ndc.NDC):
+    """ 日本十進分類による検索UI
+    """
+    def __init__(self):
+        ndc.NDC.__init__(self)
+        gtk.Table.__init__(self)
+
+        self.evbox = []
+
+        self.restore_rui(True)
+        self.restore_kou(0, True)
+        self.restore_moku(0, True)
+
+        # ヘッダ
+        self.lvtmp = []
+        x = 0
+        y = 0
+        for j in [1, 7, 1, 22, 1, 22]:
+            self.lvtmp.append(gtk.Label(u'　'*j))
+            self.lvtmp[-1].set_alignment(0.0, 0.5)
+            self.attach(self.lvtmp[-1], x, x+1, y, y+1)
+            x += 1
+
+    def button_press_event_cb(self, widget, event):
+        """
+        """
+        rv = False
+        if event.button == 1:
+            """ マウス左ボタン
+            """
+            lv = widget.child.get_text()
+            k = lv.split(u' ')[0]
+            if len(k) == 1:
+                # 類が選択された
+                self.restore_rui()
+                widget.child.set_markup(u'<b>%s</b>' % lv)
+                self.restore_kou(int(k))
+                self.restore_moku(0)
+                rv = True
+            elif len(k) == 3:
+                if widget.get_name().split(u' ')[0] == u'3':
+                    # 綱が選択された
+                    self.restore_kou()
+                    widget.child.set_markup(u'<b>%s</b>' % lv)
+                    self.restore_moku(int(k[1]))
+                    rv = True
+                else:
+                    # 要目が選択された
+                    self.restore_moku()
+                    widget.child.set_markup(u'<b>%s</b>' % lv)
+                    self.moku = k
+        return rv
+
+    def restore_colunm(self, x, y, pos, itre, init=False):
+        for i in itre:
+            if init:
+                self.evbox.append(gtk.EventBox())
+                self.evbox[-1].set_name( u'%s %s' % (x, y))
+                self.evbox[-1].add(gtk.Label(i))
+                self.evbox[-1].child.set_alignment(0.0, 0.5)
+                self.evbox[-1].connect('button_press_event',
+                                            self.button_press_event_cb)
+                self.attach(self.evbox[-1], x, x+1, y, y+1)
+            else:
+                self.evbox[pos].child.set_text(i)
+                pos += 1
+            y += 1
+
+    def restore_rui(self, init=False):
+        """ 類をセット
+        """
+        self.restore_colunm(1,0,0,self.rui_itre(), init)
+
+    def restore_kou(self, rui=-1, init=False):
+        """ 綱をセット
+        """
+        if rui != -1:
+            self.rui = rui
+        self.restore_colunm(3,0,10,self.moku_itre(self.rui,-1), init)
+
+    def restore_moku(self, kou=-1, init=False):
+        """ 目をセット
+        """
+        if kou != -1:
+            self.kou = kou
+        self.restore_colunm(5,0,20,self.moku_itre(self.rui,self.kou), init)
+
+    def get_value(self):
+        """ 選択された類、綱、要目を返す
+        """
+        return (self.rui, self.kou, self.moku)
+
+
+class selectNDCsub(aozoradialog.ao_dialog):
+    def __init__(self, *args, **kwargs):
+        aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
+        self.ndc = ndcUI()
+        self.vbox.pack_start(self.ndc)
+        self.connect('button_press_event',self.button_press_event_cb)
+        self.vbox.show_all()
+        self.set_title(u'NDCを選んでください')
+
+    def button_press_event_cb(self, widget, event):
+        self.response_cb(widget, gtk.RESPONSE_ACCEPT)
+
+    def get_value(self):
+        return self.ndc.get_value()
+
 
 class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
     def __init__(self, *args, **kwargs):
@@ -440,34 +553,32 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.works = AuthorWorksUI(self.response_cb)
         self.works.set_database(self.db)
 
-
         # 検索フィルタ
         lvAuthor = gtk.Label(u'人物よみ')
         self.entAuthor = gtk.Entry()
         self.entAuthor.set_width_chars(16)
-        self.entAuthor.set_icon_from_stock(gtk.POS_RIGHT,gtk.STOCK_CLEAR)
-        self.entAuthor.connect('icon_press',self.entAuthor_icon_press_cb)
+        self.entAuthor.set_icon_from_stock(gtk.ENTRY_ICON_SECONDARY,gtk.STOCK_CLEAR)
+        self.entAuthor.connect('icon_press',lambda a,b,c:a.set_text(u''))
         self.entAuthor.connect('key_press_event',self.entAuthor_key_press_event_cb)
         lv = gtk.Label()
         lv.set_text(u'作品よみ')
         self.entYomi = gtk.Entry()
         self.entYomi.set_width_chars(16)
-        self.entYomi.set_icon_from_stock(gtk.POS_RIGHT,gtk.STOCK_CLEAR)
-        self.entYomi.connect('icon_press',self.entYomi_icon_press_cb)
+        self.entYomi.set_icon_from_stock(gtk.ENTRY_ICON_SECONDARY,gtk.STOCK_CLEAR)
+        self.entYomi.connect('icon_press', lambda a,b,c:a.set_text(u''))
         self.entYomi.connect('key_press_event',self.entYomi_key_press_event_cb)
-        self.entYomi.set_sensitive(False)
+        #self.entYomi.set_sensitive(False)
 
         lvNDC = gtk.Label()
         lvNDC.set_text(u'NDC')
         self.entNDC = gtk.Entry(max=3)
         self.entNDC.set_width_chars(4)
-        self.entNDC.set_icon_from_stock(gtk.POS_RIGHT,gtk.STOCK_FIND)
+        self.entNDC.set_icon_from_stock(gtk.ENTRY_ICON_SECONDARY,gtk.STOCK_FIND)
         self.entNDC.connect('icon_press',self.NDC_icon_press_cb)
-        #self.entNDC.connect('key_press_event',self.yomi_key_press_event_cb)
-        self.entNDC.set_sensitive(False)
+        self.entNDC.connect('key_press_event',self.entNDC_key_press_event_cb)
+        #self.entNDC.set_sensitive(False)
 
         self.chkDL = gtk.CheckButton(label=u'上書きダウンロード')
-        self.chkDL.connect('toggled',self.chkDL_toggled_cb)
 
         hv = gtk.HBox()
         hv.pack_start(lvAuthor)
@@ -489,55 +600,75 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.selectzip = u''
         self.selectworksid = 0
 
-    def chkDL_toggled_cb(self, widget, data=None):
-        print widget.get_active()
-
     def entAuthor_key_press_event_cb(self, wiget, event):
+        """ 人物よみ検索
+        """
         if event.keyval == 0xff0d: # enter
             self.works.author_set_yomi(wiget.get_text())
         return False
 
     def entYomi_key_press_event_cb(self, wiget, event):
+        """ 作品よみ検索
+        """
         if event.keyval == 0xff0d: # enter
-            pass
+            self.works.works_listup(wiget.get_text(), aozoraDB.keyYOMIWORKS)
         return False
 
-    def entAuthor_icon_press_cb(self, icon_pos, event, data):
-        self.entAuthor.set_text(u'')
-
-    def entYomi_icon_press_cb(self, icon_pos, event, data):
-        self.entYomi.set_text(u'')
-
-    def NDC_icon_press_cb(entry, icon_pos, event, data):
+    def entNDC_key_press_event_cb(self, wiget, event):
+        """ NDC検索
         """
+        if event.keyval == 0xff0d: # enter
+            self.works.works_listup(wiget.get_text(), aozoraDB.keyNDC)
+        return False
+
+    def NDC_icon_press_cb(self, icon_pos, event, data):
+        """ ダイアログを表示してNDCを選択する
         """
-        print "test code"
+        dlg = selectNDCsub(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                            buttons=(gtk.STOCK_CLOSE,  gtk.RESPONSE_CLOSE))
+        while dlg.run() == gtk.RESPONSE_ACCEPT:
+            key = dlg.get_value()[2]
+            self.entNDC.set_text(key)
+            self.works.works_listup(key, aozoraDB.keyNDC)
+        dlg.destroy()
 
     def filter_works2author(self, worksID):
         """ 作品IDを渡してその作者を得、関連作品全てをリストアップする
+            インデックスに作品IDが登録されていればTrueを返す。
         """
         try:
             self.works.author_listup(self.db.idxWorksAuthor[worksID])
         except KeyError:
-            pass
+            rv = aozoradialog.msgyesno(u'テキストを新着情報から開きましたか？登録情報がインデックス内に見当たりません。インデックスを更新しますか？',self)
+            if rv == gtk.RESPONSE_YES:
+                # インデックスファイルダウンロード
+                self.checkindexfile(True)
+                self.db.setup(ow=True)
+                if worksID in self.db.idxWorksAuthor:
+                    self.works.author_listup(self.db.idxWorksAuthor[worksID])
+                else:
+                    return False
+        return True
 
     def checkindexfile(self, ow=False):
         """ インデックスファイルのチェック
             ow True であれば上書き
         """
-        indexfileurl = ''
         localfile = os.path.join(self.aozoradir,
                             os.path.basename(self.get_value(u'idxfileURL')))
+        targetfile = os.path.join(self.aozoradir, self.get_value(u'idxfile'))
         if ow:
-            os.remove(localfile)
-        if not os.path.isfile(localfile):
-            rv = self.download(self.get_value(u'idxfileURL'), localfile, ow=True)
-            if not rv:
-                aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。',self)
-                return None
-        if os.path.isfile(localfile):
-            # ZIPがダウンロードされただけで展開されていない場合があるので、
-            # 展開処理を別に立てる
+            try:
+                os.remove(targetfile)
+                os.remove(localfile)
+            except OSError:
+                pass
+        if not os.path.isfile(targetfile):
+            if not os.path.isfile(localfile):
+                rv = self.download(self.get_value(u'idxfileURL'), localfile, ow=True)
+                if not rv:
+                    aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。',self)
+                    return None
             a = zipfile.ZipFile( localfile, u'r' )
             a.extractall(self.aozoradir)
             self.set_value(u'idxfile', a.namelist()[0])
@@ -554,13 +685,13 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
             # 上書きダウンロードしない場合、目的のファイルが存在しない場合は
             # False を返す
             if not os.path.isfile(localfile):
-                return (False, localfile)
-        try:
-            urllib.urlretrieve(url, localfile)
-        except IOError:
-            # ダウンロードに失敗
-            #logging.error( u'Download error : ' % url )
-            rv = False
+                rv = False
+        else:
+            try:
+                urllib.urlretrieve(url, localfile)
+            except IOError:
+                # ダウンロードに失敗
+                rv = False
         return (rv, localfile)
 
     def get_filename(self):

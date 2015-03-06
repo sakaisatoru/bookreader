@@ -164,12 +164,8 @@ class BookmarkUI(aozoradialog.ao_dialog):
         self.set_title(u'しおりの管理')
 
         self.bookmark_bv = BookmarkView(model=gtk.ListStore(
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING,
-                                                    gobject.TYPE_STRING,
+            gobject.TYPE_STRING,gobject.TYPE_STRING,gobject.TYPE_STRING,
+            gobject.TYPE_STRING,gobject.TYPE_STRING,gobject.TYPE_STRING,
                                                     gobject.TYPE_STRING ))
         self.bookmark_bv.set_rules_hint(True)
         self.bookmark_bv.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
@@ -616,36 +612,36 @@ class ReaderUI(gtk.Window, ReaderSetting):
         actiongroup0 = gtk.ActionGroup('UIMergeExampleBase')
         actiongroup0.add_actions([
             ('File',    None, u'ファイル(_F)'),
-                    ('open', gtk.STOCK_OPEN, u'開く(_O)',
-                                '<Control>O', None, self.menu_fileopen_cb),
-                    ('new',  None,           u'新着情報(_N)',
-                                '<Control>N', None, self.whatsnew_cb),
-                    ('author',None,          u'この作者の他の作品(_A)',
-                                '<Control>A', None, self.menu_association_cb),
-                    ('history', None, u'履歴(_H)',
-                                None,         None, None ),
-                    ('quit', gtk.STOCK_QUIT, u'終了(_Q)',
-                                '<Control>Q', None, self.menu_quit),
+                ('open', gtk.STOCK_OPEN, u'開く(_O)',
+                        '<Control>O', None, lambda a:self.menu_fileopen()),
+                ('new',  None,           u'新着情報(_N)',
+                        '<Control>N', None, self.whatsnew_cb),
+                ('author',None,          u'この作者の他の作品(_A)',
+                        '<Control>A', None, lambda a:self.menu_fileopen(mode=u'A')),
+                ('history', None, u'履歴(_H)',
+                            None,         None, None ),
+                ('quit', gtk.STOCK_QUIT, u'終了(_Q)',
+                        '<Control>Q', None, lambda a:self.exitall()),
             ('Page',    None, u'ページ(_P)'),
-                    ('jump', gtk.STOCK_JUMP_TO, u'移動(_J)',
-                                '<Control>J', None, self.menu_pagejump_cb),
-                    ('top', gtk.STOCK_GOTO_LAST, u'先頭(_T)',
-                                '<Control>T', None, self.menu_gototop_cb),
-                    ('end', gtk.STOCK_GOTO_FIRST, u'最終(_E)',
-                                '<Control>E', None, self.menu_gotoend_cb),
-                    ('setbookmark', None, u'しおりを挟む(_D)',
-                                '<Control>D', None, self.shiori_here_cb),
-                    ('listbookmark', None, u'しおりの管理(_L)',
-                                '<Control>L', None, self.shiori_list_cb),
+                ('jump', gtk.STOCK_JUMP_TO, u'移動(_J)',
+                        '<Control>J', None, self.menu_pagejump_cb),
+                ('top', gtk.STOCK_GOTO_LAST, u'先頭(_T)',
+                        '<Control>T', None, lambda a:self.page_common(0)),
+                ('end', gtk.STOCK_GOTO_FIRST, u'最終(_E)',
+                        '<Control>E', None, lambda a:self.page_common(self.cc.pagecounter)),
+                ('setbookmark', None, u'しおりを挟む(_D)',
+                        '<Control>D', None, self.shiori_here_cb),
+                ('listbookmark', None, u'しおりの管理(_L)',
+                        '<Control>L', None, self.shiori_list_cb),
             ('Index',   None, u'目次(_I)'),
             ('Setting', None, u'設定(_S)'),
-                    ('preference', gtk.STOCK_PREFERENCES, u'設定(_P)',
-                                '<Control>P', None, self.menu_fontselect_cb),
+                ('preference', gtk.STOCK_PREFERENCES, u'設定(_P)',
+                            '<Control>P', None, self.menu_fontselect_cb),
             ('Help',    None, u'ヘルプ(_H)'),
-                    ('view', gtk.STOCK_INFO, None,
-                                '<Control>I', None, self.menu_logwindow_cb),
-                    ('info', gtk.STOCK_ABOUT, None,
-                                None, None, self.menu_about_cb)
+                ('view', gtk.STOCK_INFO, None,
+                            '<Control>I', None, self.menu_logwindow_cb),
+                ('info', gtk.STOCK_ABOUT, None,
+                            None, None, self.menu_about_cb)
             ])
         self.uimanager.insert_action_group(actiongroup0, 0)
 
@@ -675,8 +671,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.imagebuf = gtk.Image()
         self.ebox = gtk.EventBox()
         self.ebox.add(self.imagebuf) # image がイベントを見ないのでeventboxを使う
-        self.ebox.connect('button-press-event', self.button_press_event_cb )
-        self.ebox.connect('button-release-event', self.button_release_event_cb )
+        self.ebox.connect('button-press-event', self.button_press_event_cb)
+        self.ebox.connect('button-release-event', self.button_release_event_cb)
 
         #   ビルド
         self.vbox = gtk.VBox()
@@ -819,16 +815,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
             self.page_common(int(a)-1)
         dlg.destroy()
 
-    def menu_gototop_cb(self, widget):
-        """ 先頭ページへ
-        """
-        self.page_common(0)
-
-    def menu_gotoend_cb(self, widget):
-        """ 最終ページへ
-        """
-        self.page_common(self.cc.pagecounter)
-
     def menu_logwindow_cb(self, widget):
         """ ログファイルの表示
         """
@@ -850,18 +836,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
         dlg.set_copyright(u'by sakai satoru 2015')
         dlg.run()
         dlg.destroy()
-
-    def menu_quit(self,widget,data=None):
-        self.exitall()
-
-    def menu_fileopen_cb(self, widget):
-        self.menu_fileopen()
-
-    def menu_association_cb(self, widget):
-        """ 開いているテキストの作者に関連したテキストを
-            検索する
-        """
-        self.menu_fileopen(mode=u'A')
 
     def menu_historyopen_cb(self, widget):
         """ 読書履歴
@@ -922,7 +896,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.page_common(pagenum)
 
     def index_label(self, count, item):
-        """ 目次UIのラベルを返す
+        """ 目次UIのラベルを返す この関数は消さない
         """
         return item
 
@@ -1059,6 +1033,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'フォントサイズを小さくしてみてください。\n'+
                 u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
                 u'・割り注の途中で改行したり、１行からはみ出したりした場合は正しく表示されません。\n'+
+                u'・「この作者の他の作品」において、現在開いているテキストがインデックスファイルに含まれていないと検索に失敗します。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'［＃改ページ］\n'+
                 u'\nライセンス［＃「ライセンス」は大見出し］\n'+
@@ -1113,8 +1088,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         rv = self.bookhistory.get_item(0)
         if rv:
-            (nm, pg, fn, z) = rv.split(u',')
-            self.bookopen(fn, zipname=z, pagenum=int(pg))
+            (nm, pg, fn, z, worksid) = rv.split(u',')
+            self.bookopen(fn, zipname=z, works=worksid, pagenum=int(pg))
         return False
 
 if __name__ == '__main__':

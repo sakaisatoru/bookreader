@@ -682,6 +682,14 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         """
         f = False
         self.selectworksid, self.selectzip = self.works.get_value()
+        if self.selectworksid == None:
+            # テキストが選択されていない
+            aozoradialog.msgerrinfo(u'テキストを選択してください。', self)
+            self.selectfile = u''
+            self.selectzip = u''
+            self.selectworksid = 0
+            return self.selectfile, self.selectzip, self.selectworksid
+
         dlg = DownloadUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
         if dlg.set_download_url(self.selectzip, ow=self.chkDL.get_active()):

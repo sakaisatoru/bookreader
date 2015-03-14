@@ -91,14 +91,14 @@ class AozoraTag(object):
     def __init__(self, regex=ur'［＃.*?］'):
         self.reTmp = re.compile(regex)
 
-    def sub_1(self, s, pos=0):
+    def __sub_1(self, s, pos=0):
         """ s[pos]から終わり迄、［＃ を探してインデックスを返す。
             見つからない場合は -1 を返す。
         """
         try:
             while 1:
                 if s[pos:pos+2] == u'［＃':
-                    index = self.sub_1(s, pos+2)
+                    index = self.__sub_1(s, pos+2)
                     if index != -1:
                         if s[index] == u'］':
                             """ 例えば[# [# ] の場合、最初の[# のペアとして
@@ -119,7 +119,7 @@ class AozoraTag(object):
     def search(self, s, pos=0):
         """ re.search の代替
         """
-        index = self.sub_1(s,pos)
+        index = self.__sub_1(s,pos)
         return None if index == -1 else self.reTmp.search(s,index)
 
 class AozoraScale(object):
@@ -446,7 +446,7 @@ class Aozora(AozoraScale):
             for s in f0:
                 yield s.strip('\n')
 
-    def get_booktitle_sub( self, sourcefile=u'' ):
+    def __get_booktitle_sub( self, sourcefile=u'' ):
         """ 書名・著者名を取得する。
 
             青空文庫収録ファイルへの記載事項
@@ -503,7 +503,7 @@ class Aozora(AozoraScale):
 
         return (sBookTitle.rstrip(), sBookAuthor)
 
-    def formater_pass1( self, sourcefile=u''):
+    def __formater_pass1( self, sourcefile=u''):
         """ フォーマッタ（第1パス）
             formater より呼び出されるジェネレータ。1行読み込んでもっぱら
             置換処理を行う。
@@ -694,7 +694,7 @@ class Aozora(AozoraScale):
                         tmp2 = self.reYokogumi.match(tmp.group())
                         if tmp2:
                             # 横組み
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<aozora yokogumi="dmy">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
@@ -707,7 +707,7 @@ class Aozora(AozoraScale):
                         tmp2 = self.reLeftrubi.match(tmp.group())
                         if tmp2:
                             # 左注記
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<aozora leftrubi="%s" length="%s">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
@@ -723,7 +723,7 @@ class Aozora(AozoraScale):
                         if tmp2:
                             #   キャプション
                             #   暫定処理：小文字で表示
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             # 横書きにするので内容への修飾を外す
                             sTmp = lnbuf[tmpStart:tmpEnd]
@@ -751,7 +751,7 @@ class Aozora(AozoraScale):
                             except KeyError:
                                 sSizeTmp = u'xx-small' if sNameTmp[:2] == u'小さ' else u'xx-large'
 
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name2'))
                             lnbuf = u'%s<span size="%s">%s</span>%s%s' % (
                                         lnbuf[:tmpStart],
@@ -781,7 +781,7 @@ class Aozora(AozoraScale):
                         tmp2 = self.reLeftBousen.match(tmp.group())
                         if tmp2:
                             #   左に（二重）傍線
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span underline="%s">%s</span>%s%s' % (
                                 lnbuf[:tmpStart],
@@ -824,7 +824,7 @@ class Aozora(AozoraScale):
                             #   傍点・傍線
                             #   rstrip では必要以上に削除する場合があるので
                             #   reのsubで消す
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                             reTmp = re.compile(ur'%s$' % tmp2.group('name'))
                             lnbuf = u'%s<aozora bousen="%s">%s</aozora>%s%s' % (
@@ -877,7 +877,7 @@ class Aozora(AozoraScale):
                         if tmp2:
                             #   太字
                             #   pango のタグを流用
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span font_desc="Sans">%s</span>%s%s' % (
                                         lnbuf[:tmpStart],
@@ -891,7 +891,7 @@ class Aozora(AozoraScale):
                         if tmp2:
                             #   斜体
                             #   pango のタグを流用
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                     lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span style="italic">%s</span>%s%s' % (
                                         lnbuf[:tmpStart],
@@ -933,7 +933,7 @@ class Aozora(AozoraScale):
                             self.inMidashi = True
                             self.sMidashiSize = matchMidashi.group('midashisize')
                             self.midashi = matchMidashi.group(u'midashi')
-                            tmpStart,tmpEnd = self.honbunsearch(
+                            tmpStart,tmpEnd = self.__honbunsearch(
                                     lnbuf[:tmp.start()],self.midashi)
                             lnbuf = u'%s<span face="Sans"%s>%s</span>%s%s' % (
                                 lnbuf[:tmpStart],
@@ -1007,7 +1007,7 @@ class Aozora(AozoraScale):
         if not boutoudone:
             yield u'［＃改ページ］'
 
-    def boutencount(self, honbun):
+    def __boutencount(self, honbun):
         """ 本文を遡って傍点の打込位置を探し、キャラクタ数を返す
         """
         c = 0
@@ -1041,7 +1041,7 @@ class Aozora(AozoraScale):
             pos -= 1
         return c
 
-    def honbunsearch(self, honbun, name):
+    def __honbunsearch(self, honbun, name):
         """ 本文を遡って name を検索し、その出現範囲を返す。
             name との比較に際して
                 ルビ、<tag></tag>、［］は無視される。
@@ -1118,7 +1118,7 @@ class Aozora(AozoraScale):
         if mokuji_file:
             self.mokujifile = mokuji_file
 
-        (self.currentText.booktitle, self.currentText.bookauthor) = self.get_booktitle_sub()
+        (self.currentText.booktitle, self.currentText.bookauthor) = self.__get_booktitle_sub()
         logging.info( u'****** %s ******' % self.currentText.sourcefile)
 
         with file(self.currentText.destfile, 'w') as fpMain, file(self.currentText.mokujifile, 'w') as self.mokuji_f:
@@ -1151,13 +1151,13 @@ class Aozora(AozoraScale):
             isNoForming = False                 # 行の整形を抑止する
             warichupos = 0                      # 割り注用フラグ兼ポインタ
 
-            for lnbuf in self.formater_pass1():
+            for lnbuf in self.__formater_pass1():
                 lnbuf = lnbuf.rstrip('\n')
                 yield
                 """ 空行の処理
                 """
                 if not lnbuf: #len(lnbuf) == 0:
-                    self.write2file( dfile, '\n' )
+                    self.__write2file( dfile, '\n' )
                     continue
 
                 """ 制御文字列の処理
@@ -1172,7 +1172,7 @@ class Aozora(AozoraScale):
                     """
                     tmp2 = self.reTatenakayoko.match(tmp.group())
                     if tmp2:
-                        tmpStart,tmpEnd = self.honbunsearch(
+                        tmpStart,tmpEnd = self.__honbunsearch(
                                     lnbuf[:tmp.start()],tmp2.group(u'name'))
                         lnbuf = u'%s<aozora tatenakayoko="%s">　</aozora>%s%s' % (
                                     lnbuf[:tmpStart],
@@ -1223,12 +1223,12 @@ class Aozora(AozoraScale):
 
                         if self.linecounter + figspan >= self.currentText.pagelines:
                             # 画像がはみ出すようなら改ページする
-                            while not self.write2file(dfile, '\n'):
+                            while not self.__write2file(dfile, '\n'):
                                 pass
                         while figspan > 0:
-                            self.write2file(dfile, '\n')
+                            self.__write2file(dfile, '\n')
                             figspan -= 1
-                        self.write2file( dfile,
+                        self.__write2file( dfile,
                             u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f">　</aozora>\n' % (
                                 fname, figwidth, figheight, tmpRasio ))
 
@@ -1350,20 +1350,20 @@ class Aozora(AozoraScale):
                             for sCenter in dfile:
                                 iCenter -= 1
                             while iCenter > 1:
-                                self.write2file(workfilestack[-1], '\n')
+                                self.__write2file(workfilestack[-1], '\n')
                                 iCenter -= 2
                             # 一時ファイルの内容を、退避してあるハンドル先へ
                             # コピーする
                             dfile.seek(0)
                             iCenter = 0
                             for sCenter in dfile:
-                                self.write2file(workfilestack[-1], sCenter)
+                                self.__write2file(workfilestack[-1], sCenter)
                             dfile.close()
                             dfile = workfilestack.pop()
 
                         if self.linecounter != 0:
                             # ページ先頭に出現した場合は改ページしない
-                            while not self.write2file(dfile, '\n'):
+                            while not self.__write2file(dfile, '\n'):
                                 pass
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
@@ -1528,14 +1528,14 @@ class Aozora(AozoraScale):
                             # 罫囲みが次ページへまたがる場合は改ページする。
                             # 但し、１ページを越える場合は無視する。
                             if self.linecounter + iCenter >= self.currentText.pagelines:
-                                while not self.write2file(workfilestack[-1], '\n' ):
+                                while not self.__write2file(workfilestack[-1], '\n' ):
                                     pass
 
                         # 一時ファイルからコピー
                         dfile.seek(0)
                         iCenter = 0
                         for sCenter in dfile:
-                            self.write2file(workfilestack[-1], sCenter)
+                            self.__write2file(workfilestack[-1], sCenter)
                         dfile.close()
                         dfile = workfilestack.pop()
                         tmp = self.reCTRL2.search(lnbuf, tmp.end())
@@ -1581,7 +1581,7 @@ class Aozora(AozoraScale):
                         isSPanchor = False
                         retline.append(u'<aozora rubi="%s" length="%s">%s</aozora>' % (
                             lnbuf[rubiTop+1:pos],
-                            self.boutencount(lnbuf[anchor:rubiTop]),#本文側長さ
+                            self.__boutencount(lnbuf[anchor:rubiTop]),#本文側長さ
                             lnbuf[anchor:rubiTop] ))
                         anchor = pos + 1
                     elif inRubi:
@@ -1609,7 +1609,7 @@ class Aozora(AozoraScale):
                 if isNoForming:
                     """ 行の折り返し・分割処理を無視してファイルに出力する
                     """
-                    self.write2file(dfile, "%s\n" % lnbuf)
+                    self.__write2file(dfile, "%s\n" % lnbuf)
                     continue
 
                 """ インデント一式 (字下げ、字詰、字上げ、地付き)
@@ -1689,11 +1689,11 @@ class Aozora(AozoraScale):
                                 lnbuf = sP + sPad + lnbuf[tmp2.start('tag'):]
 
                     #   画面上の1行で収まらなければ分割して次行を得る
-                    self.ls, lnbuf = self.linesplit(lnbuf, currchars)
+                    self.ls, lnbuf = self.__linesplit(lnbuf, currchars)
 
                     """ 行をバッファ(中間ファイル)へ掃き出す
                     """
-                    self.write2file(dfile, "%s\n" % self.ls)
+                    self.__write2file(dfile, "%s\n" % self.ls)
 
                     #   折り返しインデント
                     if lnbuf != '':
@@ -1712,7 +1712,7 @@ class Aozora(AozoraScale):
                     if not inJiage:
                         jiage = 0
 
-    def linesplit(self, sline, smax=0.0):
+    def __linesplit(self, sline, smax=0.0):
         """ 文字列を分割する
             禁則処理、行末におけるルビ及び挿入画像の分ち書きの調整も行う。
             sline   : 本文
@@ -1950,7 +1950,7 @@ class Aozora(AozoraScale):
 
         return (honbun, honbun2)
 
-    def write2file(self, fd, s):
+    def __write2file(self, fd, s):
         """ formater 下請け
             1行出力後、改ページしたらその位置を記録して True を返す。
             目次作成もここで行う。

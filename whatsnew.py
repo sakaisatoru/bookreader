@@ -24,7 +24,7 @@
         URLのリストを得る。
 """
 
-from readersub import ReaderSetting, Download
+from readersub import ReaderSetting, Download, DownloadUI
 import aozoradialog
 
 import sys
@@ -32,6 +32,7 @@ import codecs
 import os.path
 import datetime
 import urllib
+import zipfile
 from HTMLParser import HTMLParser
 
 import gtk
@@ -174,7 +175,7 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
                                                         gobject.TYPE_STRING,
                                                         gobject.TYPE_STRING ))
         self.bl_data.set_rules_hint(True)
-        self.bl_data.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
+        self.bl_data.get_selection().set_mode(gtk.SELECTION_SINGLE)
         self.bl_data.connect("row-activated", self.row_activated_treeview_cb)
 
         self.sw2 = gtk.ScrolledWindow()
@@ -210,7 +211,7 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
         """ 選択された作品をダウンロードする
             ファイル名、ZIP名、(URLから類推した)作品ID
         """
-        (c,d) = self.bl_data.get_selection().get_selected_rows()  # 選択された行
+        (c,d) = self.bl_data.get_selection().get_selected_rows() # 選択された行
         f = False
         iters = [c.get_iter(p) for p in d]
         for i in iters:
@@ -223,9 +224,5 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
                 self.lastselectfile = sMes
                 self.lastselectzip = z
                 self.worksid = u'%06d' % int(worksid)
-
         return self.lastselectfile, self.lastselectzip, self.worksid
-
-
-
 

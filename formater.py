@@ -123,7 +123,6 @@ class AozoraTag(object):
         return None if index == -1 else self.reTmp.search(s,index)
 
 class AozoraScale(object):
-    #__slots__ = ['charwidth_serif','fontsizefactor','reFontsizefactor']
     """ 描画時のピクセル長の計算等
     """
     # Serif(TakaoEx明朝)における、対全角文字比

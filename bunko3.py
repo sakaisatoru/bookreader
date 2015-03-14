@@ -20,7 +20,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-from readersub  import ReaderSetting
+from readersub  import ReaderSetting, DownloadUI
 import aozoradialog
 import ndc
 
@@ -540,66 +540,6 @@ class selectNDCsub(aozoradialog.ao_dialog):
         return self.ndc.get_value()
 
 
-class DownloadUI(aozoradialog.ao_dialog, ReaderSetting):
-    """ ダウンロードダイアログ
-    """
-    def __init__(self, *args, **kwargs):
-        aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
-        ReaderSetting.__init__(self)
-        self.set_title(u'ダウンロード')
-        self.pb = gtk.ProgressBar()
-        self.pb.set_orientation(gtk.PROGRESS_LEFT_TO_RIGHT)
-        self.vbox.pack_start(self.pb)
-        self.vbox.show_all()
-        self.set_position(gtk.WIN_POS_CENTER)
-
-    def set_download_files(self, files, ow):
-        """ このルーチンを読んだらすかさずrunすること
-            files : url が入ったリスト
-            ow : True で上書き
-        """
-        self.files = files
-        self.ow = ow
-        self.maxlines = len(files)
-        self.lncounter = 0
-        self.tmp = self.download_itre_sub()
-        gobject.timeout_add(200, self.progressbar_update) # プログレスバー
-        gobject.idle_add(self.download_itre)              # フォーマッタ
-
-    def download_itre_sub(self):
-        for url in self.files:
-            rv = True
-            localfile = os.path.join(self.aozoradir, os.path.basename(url))
-            if not os.path.isfile(localfile) or self.ow:
-                # ファイルがないか、上書き指示があればダウンロード
-                rv = True
-                try:
-                    urllib.urlretrieve(url, localfile)
-                except IOError:
-                    # ダウンロードに失敗
-                    rv = False
-            else:
-                rv = os.path.isfile(localfile)
-            yield (rv, localfile)
-
-    def download_itre(self):
-        try:
-            next(self.tmp)
-            self.lncounter += 1
-        except StopIteration:
-            self.responsed = True
-            self.resid = None
-            return False # タスクを抜去して終わる
-        return True
-
-    def progressbar_update(self):
-        """ プログレスバーを間欠的に更新する
-        """
-        self.pb.set_text(u'%d/%d' % (self.lncounter,self.maxlines))
-        self.pb.set_fraction(self.lncounter/self.maxlines)
-        return True
-
-
 class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
     def __init__(self, *args, **kwargs):
         ReaderSetting.__init__(self)
@@ -713,8 +653,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         """ インデックスファイルのチェック
             ow True であれば上書き
         """
-        localfile = os.path.join(self.aozoradir,
-                            os.path.basename(self.get_value(u'idxfileURL')))
+        rv = False
         targetfile = os.path.join(self.aozoradir, self.get_value(u'idxfile'))
         if ow:
             try:
@@ -726,10 +665,9 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
             if not os.path.isfile(localfile):
                 dlg = DownloadUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                             buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
-                dlg.set_download_files([self.get_value(u'idxfileURL')], ow)
-                c = dlg.run()
-                if c == gtk.RESPONSE_CANCEL:
-                    rv = False # 途中終了
+                if dlg.set_download_url(self.get_value(u'idxfileURL'), ow):
+                    rv = False if dlg.run() == gtk.RESPONSE_CANCEL else True
+                localfile = dlf.get_localfilename()
                 dlg.destroy()
                 if not rv:
                     aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。',self)
@@ -742,15 +680,15 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
     def get_filename(self):
         """ ダウンロードしてファイル名、ZIP名、作品IDを返す
         """
+        f = False
         self.selectworksid, self.selectzip = self.works.get_value()
         dlg = DownloadUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
-        dlg.set_download_files([self.selectzip], ow=self.chkDL.get_active())
-        f = False if dlg.run() == gtk.RESPONSE_CANCEL else True
+        if dlg.set_download_url(self.selectzip, ow=self.chkDL.get_active()):
+            f = False if dlg.run() == gtk.RESPONSE_CANCEL else True
+        localfile = dlg.get_localfilename()
         dlg.destroy()
         if f:
-            localfile = os.path.join(self.aozoradir,
-                            os.path.basename(self.selectzip))
             a = zipfile.ZipFile(localfile, u'r' )
             a.extractall(self.aozoratextdir)
             for b in a.namelist():

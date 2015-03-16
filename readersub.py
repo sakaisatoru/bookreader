@@ -436,8 +436,8 @@ class DownloadUI(aozoradialog.ao_dialog, ReaderSetting):
                 if a == '':
                     break # eof
                 f0.write(a)
-                yield
                 self.readsize += bufsize
+                yield
             else:
                 pass
         self.targethandle.close()

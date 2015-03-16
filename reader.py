@@ -40,6 +40,7 @@ import copy
 import subprocess
 import os
 import zipfile
+import inspect
 
 import gc
 import gtk
@@ -540,7 +541,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
             </menu>
             <menu action="Index">
             </menu>
-            <menu action="Setting">
+            <menu action="View">
+                <menuitem action="fullscreen"/>
                 <menuitem action="preference"/>
             </menu>
             <menu action="Help">
@@ -634,7 +636,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 ('listbookmark', None, u'しおりの管理(_L)',
                         '<Control>L', None, self.shiori_list_cb),
             ('Index',   None, u'目次(_I)'),
-            ('Setting', None, u'設定(_S)'),
+            ('View', None, u'表示(_V)'),
+                ('fullscreen', gtk.STOCK_FULLSCREEN, u'全画面表示',
+                            'F11', None, lambda a:self.toggle_fullscreen()),
                 ('preference', gtk.STOCK_PREFERENCES, u'設定(_P)',
                             '<Control>P', None, self.menu_fontselect_cb),
             ('Help',    None, u'ヘルプ(_H)'),
@@ -685,6 +689,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.connect('realize', self.realize_event_cb)
         self.connect('expose-event', self.expose_event_cb)
         self.connect('key-press-event', self.key_press_event_cb)
+        self.connect('window_state_event', self.window_state_event_cb)
         self.set_position(gtk.WIN_POS_CENTER)
 
         #   下請けサブプロセス用スクリプトの書き出し
@@ -701,8 +706,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
         self.dlgSetting = None  # 設定ダイアログ
         self.dlgBookopen = None # テキストオープンダイアログ
+        self.window_current_state = None # ウィンドウ状態を保持
 
-    def key_press_event_cb( self, widget, event ):
+    def key_press_event_cb(self, widget, event):
         """ キー入力のトラップ
         """
         #if event.state & gtk.gdk.CONTROL_MASK:
@@ -721,7 +727,22 @@ class ReaderUI(gtk.Window, ReaderSetting):
             self.page_common(0)
         elif key == 0xff57:                     # End
             self.page_common(self.cc.pagecounter)
+        elif key == 0xffc8:                     # F11
+            self.toggle_fullscreen()
         return False    # Falseを返してデフォルトルーチンに繋ぐ
+
+    def toggle_fullscreen(self):
+        """ 全画面表示の切り替え
+        """
+        if self.window_current_state == gtk.gdk.WINDOW_STATE_FULLSCREEN:
+            self.unfullscreen()
+        else:
+            self.fullscreen()
+
+    def window_state_event_cb(self, widget, event, data=None):
+        """ ウィンドウ状態の追跡
+        """
+        self.window_current_state = event.new_window_state
 
     def whatsnew_cb(self, widget):
         """ 青空文庫新着情報

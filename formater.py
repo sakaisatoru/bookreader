@@ -583,7 +583,7 @@ class Aozora(AozoraScale):
                                     # 外字置換（JIS第3、第4水準）
                                     k = jis3.sconv(tmp2.group('number'))
                                     if not k:
-                                        logging.info( u'未登録の外字を検出：%s' % tmp.group())
+                                        logging.info( u'JIS未登録の外字を検出：%s' % tmp.group())
                                         k = u'［'+tmp.group()[2:]
                                     lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
                                     tmp = self.reCTRL2.search(lnbuf)
@@ -592,13 +592,13 @@ class Aozora(AozoraScale):
                                 tmp2 = self.reGaiji4.match(tmp.group())
                                 if tmp2:
                                     # 外字置換（Unicode文字）
-                                    try:
-                                        k = unicodedata.lookup(
-                                            u'CJK UNIFIED IDEOGRAPH-' + tmp2.group('number'))
-                                    except KeyError:
-                                        k = u'［'+tmp.group()[2:]
-                                        logging.info( u'未定義の外字を検出：%s' % k )
-                                    lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
+                                    #try:
+                                        #k = unicodedata.lookup(
+                                        #    u'CJK UNIFIED IDEOGRAPH-' + tmp2.group('number'))
+                                    #except KeyError:
+                                    #    k = u'［'+tmp.group()[2:]
+                                    #    logging.info( u'unicode未定義の外字を検出：%s' % k )
+                                    lnbuf = lnbuf[:tmp.start()-1] + unichr(int(tmp2.group('number'),16)) + lnbuf[tmp.end():]
                                     tmp = self.reCTRL2.search(lnbuf)
                                     continue
 

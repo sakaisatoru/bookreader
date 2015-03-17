@@ -220,12 +220,6 @@ class authorlistUI(gtk.ScrolledWindow):
         self.currentDB = db
         self.set_list(u'') # とりあえず人物全員を表示
 
-    def yomi_key_press_event_cb(self, wiget, event):
-        k = event.keyval
-        if k == 0xff0d: # enter
-            self.set_list(wiget.get_text())
-        return False
-
     def set_list(self, yomi):
         """ よみがなに合致する作家名をセットする
         """
@@ -275,7 +269,6 @@ class workslistUI(gtk.ScrolledWindow):
     """
     def __init__(self):
         gtk.ScrolledWindow.__init__(self)
-
 
         self.tv = gtk.TreeView(model=gtk.ListStore(
                         gobject.TYPE_STRING, gobject.TYPE_STRING,
@@ -566,7 +559,6 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.entYomi.set_icon_from_stock(gtk.ENTRY_ICON_SECONDARY,gtk.STOCK_CLEAR)
         self.entYomi.connect('icon_press', lambda a,b,c:a.set_text(u''))
         self.entYomi.connect('key_press_event',self.entYomi_key_press_event_cb)
-        #self.entYomi.set_sensitive(False)
 
         lvNDC = gtk.Label()
         lvNDC.set_text(u'NDC')
@@ -575,7 +567,6 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.entNDC.set_icon_from_stock(gtk.ENTRY_ICON_SECONDARY,gtk.STOCK_FIND)
         self.entNDC.connect('icon_press',self.NDC_icon_press_cb)
         self.entNDC.connect('key_press_event',self.entNDC_key_press_event_cb)
-        #self.entNDC.set_sensitive(False)
 
         self.chkDL = gtk.CheckButton(label=u'上書きダウンロード')
 

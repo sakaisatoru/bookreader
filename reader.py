@@ -215,10 +215,9 @@ class BookmarkUI(aozoradialog.ao_dialog):
 
     def get_selected_item(self):
         """ 選択されたしおりをタプルで返す
-            複数個選択時は無効とし、Falseを返す
+            複数個選択時は無効とし、('')を返す
         """
-        f = False
-        self.rv = ('')
+        rv = ('')
         (c,d) = self.bookmark_bv.get_selection().get_selected_rows()  # 選択された行
         if len(d) > 1:
             dlg = aozoradialog.msgerrinfo(
@@ -227,11 +226,10 @@ class BookmarkUI(aozoradialog.ao_dialog):
             try:
                 iters = [c.get_iter(p) for p in d]
                 for i in iters:
-                    self.rv = [c.get_value(i, k) for k in xrange(7)]
-                f = True
+                    rv = [c.get_value(i, k) for k in xrange(7)]
             except IndexError:
                 pass
-        return self.rv
+        return rv
 
     def key_press_event_cb(self, widget, event):
         """ キー入力のトラップ
@@ -628,9 +626,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 ('jump', gtk.STOCK_JUMP_TO, u'移動(_J)',
                         '<Control>J', None, self.menu_pagejump_cb),
                 ('top', gtk.STOCK_GOTO_LAST, u'先頭(_T)',
-                        '<Control>T', None, lambda a:self.page_common(0)),
+                        'Home', None, lambda a:self.page_common(0)),
                 ('end', gtk.STOCK_GOTO_FIRST, u'最終(_E)',
-                        '<Control>E', None, lambda a:self.page_common(self.cc.pagecounter)),
+                        'End', None, lambda a:self.page_common(self.cc.pagecounter)),
                 ('setbookmark', None, u'しおりを挟む(_D)',
                         '<Control>D', None, self.shiori_here_cb),
                 ('listbookmark', None, u'しおりの管理(_L)',
@@ -723,12 +721,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
             self.next_page()
         elif key == 65363 or key == 0xff55:     # right arrow cursor or PgDn
             self.prior_page()
-        elif key == 0xff50:                     # Home
-            self.page_common(0)
-        elif key == 0xff57:                     # End
-            self.page_common(self.cc.pagecounter)
-        elif key == 0xffc8:                     # F11
-            self.toggle_fullscreen()
         return False    # Falseを返してデフォルトルーチンに繋ぐ
 
     def toggle_fullscreen(self):

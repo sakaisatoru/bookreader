@@ -2504,7 +2504,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
     def __init__(self):
         ReaderSetting.__init__(self)
 
-    def writepage(self, pageposition, buffname=u''):
+    def writepage(self, pageposition, buffname=u'', currentpage=0, maxpage=0):
         """ 指定したページを描画する
             pageposition : 表示ページのフォーマット済ファイル上での絶対位置
         """
@@ -2594,6 +2594,23 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                 self.drawstring.settext(s0, xpos, self.canvas_topmargin)
                 #self.drawstring.destroy()
                 xpos -= self.canvas_linewidth
+
+        # ページ番号
+        if currentpage:
+            with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                layout = pangoctx.create_layout()
+                #pc = layout.get_context()       # Pango を得る
+                #pc.set_base_gravity('south')     # markup 前に実行
+                #pc.set_gravity_hint('natural')   # markup 前に実行
+                #layout.set_font_description(self.font)
+                layout.set_markup( u'<span size="x-small">%d (全%d頁)</span>' % (currentpage, maxpage))
+                #wx,wy = layout.get_pixel_size() # 左下時必要
+                pangoctx.translate(int(self.get_value('leftmargin')), 4) # 表示位置 (左上)
+                #pangoctx.translate(int(self.get_value('leftmargin')), self.canvas_height - wy -4) # 左下時のY位置
+                pangoctx.update_layout(layout)
+                pangoctx.show_layout(layout)
+                #del pc
+                del layout
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
                                                             'thisistest.png'))

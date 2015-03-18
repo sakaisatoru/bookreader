@@ -140,8 +140,8 @@ class ReaderSetting(object):
         """
         #   スクリーンサイズ
         #             XGA   WXGA    WSVGA   SVGA
-        screendata = [(996 , 656) , (1240 , 736) , (880 , 448) , (740 , 448)]
-        self.currentversion = u'0.31' # 設定ファイルのバージョン
+        screendata = [(996 , 672) , (1240 , 752) , (880 , 460) , (740 , 460)]
+        self.currentversion = u'0.32' # 設定ファイルのバージョン
         self.dicScreen = {}
         for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
             self.dicScreen[k] = screendata.pop()
@@ -187,10 +187,10 @@ class ReaderSetting(object):
                 u'settingdir':configdir,
                 u'aozoracurrent':aozoracurrent,
                 u'aozoradir':aozoradir,
-                u'backcolor':u'#fffffdade03d',
+                u'backcolor':u'#fffffec4ef28',
                 u'bottommargin':u'8',
                 u'column':u'26',
-                u'fontcolor':u'#514050800000',
+                u'fontcolor':u'#1cae1c5e0000',
                 u'fontname':u'Serif',
                 u'fontsize':u'12',
                 u'fontheight':u'',
@@ -204,7 +204,7 @@ class ReaderSetting(object):
                 u'rubiwidth':u'7',
                 u'scrnheight':u'448',
                 u'scrnwidth':u'740',
-                u'topmargin':u'8',
+                u'topmargin':u'32',
                 u'workingdir':cachedir,
                 u'idxfileURL':u'http://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip',
                 u'idxfile':u'list_person_all_extended_utf8.csv'

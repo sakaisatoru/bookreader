@@ -684,7 +684,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.ebox = gtk.EventBox()
         self.ebox.add(self.imagebuf) # image がイベントを見ないのでeventboxを使う
         self.ebox.connect('button-press-event', self.button_press_event_cb)
-        self.ebox.connect('button-release-event', self.button_release_event_cb)
 
         #   ビルド
         self.vbox = gtk.VBox()
@@ -709,8 +708,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         u'import sys\n'+
                         u'from formater import CairoCanvas\n'+
                         u'if __name__ == "__main__":\n'+
+                        u'    n = sys.argv[1].split()\n'+
                         u'    cTmp = CairoCanvas()\n'+
-                        u'    cTmp.writepage(long(sys.argv[1]))' )
+                        u'    cTmp.writepage(long(n[0]), currentpage=int(n[1]), maxpage=int(n[2]))' )
 
         self.dlgSetting = None  # 設定ダイアログ
         self.dlgBookopen = None # テキストオープンダイアログ
@@ -727,12 +727,13 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 self.prior_page()
             else:
                 self.next_page()
-        elif key == 0xff53: # right
+        elif key == 0xff53:                     # right
             self.prior_page()
-        elif key == 0xff51: # left
+        elif key == 0xff51:                     # left
             self.next_page()
-
-        return False    # Falseを返してデフォルトルーチンに繋ぐ
+        else:
+            return False    # Falseを返してデフォルトルーチンに繋ぐ
+        return True
 
     def toggle_fullscreen(self):
         """ 全画面表示の切り替え
@@ -940,9 +941,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         return u'_%d:%s' % (count, item.split(',')[0])
 
-    def button_release_event_cb( self, widget, event ):
-        return False
-
     def button_press_event_cb( self, widget, event ):
         """ マウスクリック
             左ボタン    ページ送り・戻し
@@ -989,12 +987,13 @@ class ReaderUI(gtk.Window, ReaderSetting):
             #del cTmp
             # pango のメモリリークに対応するためサブプロセスへ移行
             subprocess.call(['python',self.drawingsubprocess,
-                            u'%ld' % self.cc.currentpage[self.currentpage]])
+                        u'%ld %d %d' % (self.cc.currentpage[self.currentpage],
+                                            self.currentpage,
+                                            self.cc.pagecounter)])
             self.imagebuf.set_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
             bookname,author = self.cc.get_booktitle()
-            self.set_title(u'【%s】 %s - %s / %s - 青空文庫リーダー' %
-                (bookname, author, self.currentpage+1,self.cc.pagecounter+1))
+            self.set_title(u'【%s】 %s - 青空文庫リーダー' % (bookname, author))
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass
@@ -1099,7 +1098,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         #cTmp = CairoCanvas()
         #cTmp.writepage(0)
         #del cTmp
-        subprocess.call(['python',self.drawingsubprocess, '0'])
+        subprocess.call(['python',self.drawingsubprocess, '0 0 0'])
         del aoTmp
         self.imagebuf.clear()
         self.imagebuf.set_from_file(

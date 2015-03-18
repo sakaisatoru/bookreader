@@ -531,6 +531,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 <menuitem action="new"/>
                 <menu action="history"/>
                 <menuitem action="author"/>
+                <menuitem action="websearch"/>
                 <separator/>
                 <menuitem action="quit"/>
             </menu>
@@ -554,12 +555,15 @@ class ReaderUI(gtk.Window, ReaderSetting):
     </ui>'''
 
     menupagemove = '''
-            <menuitem action="jump"/>
-            <menuitem action="top"/>
-            <menuitem action="end"/>
             <menuitem action="setbookmark"/>
             <separator/>
             <menuitem action="listbookmark"/>
+            <separator/>
+            <menuitem action="jump"/>
+            <menuitem action="top"/>
+            <menuitem action="back"/>
+            <menuitem action="forward"/>
+            <menuitem action="end"/>
     '''
 
     sHistoryMenu = '''<ui>
@@ -616,8 +620,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         '<Control>O', None, lambda a:self.menu_fileopen()),
                 ('new',  None,           u'新着情報(_N)',
                         '<Control>N', None, self.whatsnew_cb),
-                ('author',None,          u'この作者の他の作品(_A)',
+                ('author',gtk.STOCK_INDEX, u'この作者の他の作品(_A)',
                         '<Control>A', None, lambda a:self.menu_fileopen(mode=u'A')),
+                ('websearch',gtk.STOCK_NETWORK, u'この作者を調べる(_F)',
+                        '<Control>F', None, self.menu_websearch_cb),
                 ('history', None, u'履歴(_H)',
                             None,         None, None ),
                 ('quit', gtk.STOCK_QUIT, u'終了(_Q)',
@@ -627,6 +633,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         '<Control>J', None, self.menu_pagejump_cb),
                 ('top', gtk.STOCK_GOTO_LAST, u'先頭(_T)',
                         'Home', None, lambda a:self.page_common(0)),
+                ('back', gtk.STOCK_GO_FORWARD, u'前頁',
+                        'Next', None, lambda a:self.prior_page()),
+                ('forward', gtk.STOCK_GO_BACK, u'次頁',
+                        'Prior', None, lambda a:self.next_page()),
                 ('end', gtk.STOCK_GOTO_FIRST, u'最終(_E)',
                         'End', None, lambda a:self.page_common(self.cc.pagecounter)),
                 ('setbookmark', None, u'しおりを挟む(_D)',
@@ -717,16 +727,17 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 self.prior_page()
             else:
                 self.next_page()
-        elif key == 65361 or key == 0xff56:     # left arrow cursor or PgUp
-            self.next_page()
-        elif key == 65363 or key == 0xff55:     # right arrow cursor or PgDn
+        elif key == 0xff53: # right
             self.prior_page()
+        elif key == 0xff51: # left
+            self.next_page()
+
         return False    # Falseを返してデフォルトルーチンに繋ぐ
 
     def toggle_fullscreen(self):
         """ 全画面表示の切り替え
         """
-        if self.window_current_state == gtk.gdk.WINDOW_STATE_FULLSCREEN:
+        if self.window_current_state & gtk.gdk.WINDOW_STATE_FULLSCREEN:
             self.unfullscreen()
         else:
             self.fullscreen()
@@ -858,6 +869,16 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.bookopen(fn, zipname=z, works=w, pagenum=int(pg))
         self.miHistory.update(self.bookhistory.iter())
 
+    def menu_websearch_cb(self, widget):
+        """ ブラウザを呼び出して関連人物の検索を行う
+        """
+        if self.dlgBookopen == None:
+            self.dlgBookopen = BunkoUI(parent=self,
+                                        flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                        buttons=(gtk.STOCK_CANCEL,  gtk.RESPONSE_CANCEL,
+                                 gtk.STOCK_OPEN,    gtk.RESPONSE_ACCEPT))
+        self.dlgBookopen.websearch_authors(self.cc.worksid)
+
     def menu_fileopen(self, mode=u''):
         """ 青空文庫ファイルを開く
             ダイアログは一度開いたら、呼び出し側が終了するまで破壊されない。
@@ -874,6 +895,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         a = self.dlgBookopen.run()
         if a == gtk.RESPONSE_ACCEPT:
             fn, z, w = self.dlgBookopen.get_filename()
+
             self.dlgBookopen.hide_all()
         elif a == gtk.RESPONSE_DELETE_EVENT:
             # ダイアログが閉じられた

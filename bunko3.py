@@ -33,6 +33,7 @@ import urllib
 import zipfile
 import bisect
 import csv
+import subprocess
 
 import gtk
 import gobject
@@ -626,19 +627,25 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         """ 作品IDを渡してその作者を得、関連作品全てをリストアップする
             インデックスに作品IDが登録されていればTrueを返す。
         """
-        try:
+        rv = False
+        if not worksID in self.db.idxWorksAuthor:
+            self.__reloadindexfile()
+        if worksID in self.db.idxWorksAuthor:
             self.works.author_listup(self.db.idxWorksAuthor[worksID])
-        except KeyError:
-            rv = aozoradialog.msgyesno(u'テキストを新着情報から開きましたか？登録情報がインデックス内に見当たりません。インデックスを更新しますか？',self)
-            if rv == gtk.RESPONSE_YES:
-                # インデックスファイルダウンロード
-                self.checkindexfile(True)
-                self.db.setup(ow=True)
-                if worksID in self.db.idxWorksAuthor:
-                    self.works.author_listup(self.db.idxWorksAuthor[worksID])
-                else:
-                    return False
-        return True
+            rv = True
+        return rv
+
+    def __reloadindexfile(self):
+        """ インデックスファイルを再読み込み
+            読み込むように指示したなら True を返す
+        """
+        rv = aozoradialog.msgyesno(u'テキストを新着情報から開きましたか？登録情報がインデックス内に見当たりません。インデックスを更新しますか？',self)
+        if rv == gtk.RESPONSE_YES:
+            # インデックスファイルダウンロード
+            self.checkindexfile(True)
+            self.db.setup(ow=True)
+            return True
+        return False
 
     def checkindexfile(self, ow=False):
         """ インデックスファイルのチェック
@@ -646,6 +653,8 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         """
         rv = False
         targetfile = os.path.join(self.aozoradir, self.get_value(u'idxfile'))
+        localfile = os.path.join(self.aozoradir,
+                        os.path.basename(self.get_value(u'idxfileURL')))
         if ow:
             try:
                 os.remove(targetfile)
@@ -658,7 +667,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
                             buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
                 if dlg.set_download_url(self.get_value(u'idxfileURL'), ow):
                     rv = False if dlg.run() == gtk.RESPONSE_CANCEL else True
-                localfile = dlf.get_localfilename()
+                localfile = dlg.get_localfilename()
                 dlg.destroy()
                 if not rv:
                     aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。',self)
@@ -701,6 +710,17 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
             self.selectworksid = 0
 
         return self.selectfile, self.selectzip, self.selectworksid
+
+    def websearch_authors(self, worksID):
+        """ 作品IDを渡して関連人物名をweb検索する
+        """
+        if not worksID in self.db.idxWorksAuthor:
+            # インデックスファイルが旧い
+            self.__reloadindexfile()
+        if worksID in self.db.idxWorksAuthor:
+            for i in self.db.idxWorksAuthor[worksID]:
+                subprocess.Popen(['xdg-open',
+                    'https://www.google.co.jp/search?q=%s' % self.db.author[i].split('|')[1]])
 
 
 

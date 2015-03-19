@@ -1985,13 +1985,13 @@ class Aozora(AozoraScale):
                         self.mokuji_f.write( sMokujiForm % (
                             self.reTagRemove.sub(u'',
                                 self.midashi.lstrip(u' 　').rstrip('\n')),
-                            self.currentText.pagecounter +1))
+                            self.currentText.pagecounter))
                         self.inMidashi = False
                 else:
                     self.mokuji_f.write( sMokujiForm % (
                         self.reTagRemove.sub(u'',
                             self.midashi.lstrip(u' 　').rstrip('\n')),
-                        self.currentText.pagecounter +1))
+                        self.currentText.pagecounter))
                     self.inMidashi = False
 
             self.linecounter += 1

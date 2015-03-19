@@ -109,9 +109,9 @@ class BookMarkInfo(ReaderSetting):
 
 class BookmarkView(gtk.TreeView):
     """ しおり一覧を表示・管理
-        +---------------+--------+---------+--------+
-        |作品名          |著者名   |ページ番号 |日付     |
-        +---------------+--------+---------+--------+
+        +-------------+--------+----------+--------+
+        |作品名       |著者名  |ページ番号|日付    |
+        +-------------+--------+----------+--------+
     """
     def __init__(self, *args, **kwargs):
         gtk.TreeView.__init__(self, *args, **kwargs)
@@ -765,7 +765,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def mokuji_jump_cb(self, widget):
         """ 目次ジャンプ
         """
-        self.page_common(int(widget.get_label().split()[1])-1)
+        self.page_common(int(widget.get_label().split()[1]))
 
     def shiori_here_cb(self, widget):
         """ テキスト上でのポップアップ（１）
@@ -799,7 +799,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 s = None
                 break
         if s:
-            self.bookopen(s[4], zipname=s[5], works=s[-1], pagenum=int(s[2])-1)
+            self.bookopen(s[4], zipname=s[5], works=s[-1], pagenum=int(s[2]))
 
     def menu_fontselect_cb(self, widget):
         """ 画面設定
@@ -824,7 +824,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """ ページ指定ジャンプ
         """
         label = gtk.Label( u'ページ番号' )
-        adj = gtk.Adjustment(value=1,lower=1,upper=self.cc.pagecounter+1,
+        adj = gtk.Adjustment(value=1,lower=1,upper=self.cc.pagecounter,
                                 step_incr=1,page_incr=10)
         spin = gtk.SpinButton(adjustment=adj, climb_rate=1,digits=0)
         hb = gtk.HBox()
@@ -837,7 +837,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         dlg.show_all()
         if dlg.run() == gtk.RESPONSE_OK:
             a = adj.get_value()
-            self.page_common(int(a)-1)
+            self.page_common(int(a))
         dlg.destroy()
 
     def menu_logwindow_cb(self, widget):

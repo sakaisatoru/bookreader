@@ -49,12 +49,11 @@ accenttable = {
     u'OE&':u'Œ',u'oe&':u'œ',u'U_':u'Ū', u'u_':u'ū' }
 
     # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
-
+"""
 def replace(src):
-    """ アクセント変換文字列〔〕を渡して定義済み文字があれば変換して返す。
-        〔〕は取り除かれる。
-        無ければ src をそのまま返す。
-    """
+    # アクセント変換文字列〔〕を渡して定義済み文字があれば変換して返す。
+    #    〔〕は取り除かれる。
+    #    無ければ src をそのまま返す。
     pos = src.find(u'〔')
     if pos == -1:
         rv = src
@@ -118,3 +117,64 @@ def replace(src):
 
         rv = src[:prior] + nv + rv
     return rv
+"""
+
+
+def replace(src):
+    """ アクセント変換文字列を渡して変換して戻す
+    　　〔〕は抜去される。
+        変換が行われなければそのまま戻す。
+    """
+    pos = src.find(u'〔')
+    length = len(src)
+    if pos == -1 or pos == length-1:
+        return src
+
+    rv = []
+    rv.append(src[:pos])
+    rv.append(src[pos])
+    pos += 1
+    cnt = 1
+    changed = False
+
+    while pos < length:
+        if src[pos] == u'〕':
+            if cnt and changed:
+                # 括弧を抜去する
+                for i in xrange(len(rv)-1,0,-1):
+                    if rv[i] in u'〔':
+                        rv[i] = u''
+                        break
+                changed = False
+                cnt = 0
+                pos += 1
+                continue
+            rv.append(src[pos])
+            pos += 1
+
+        elif src[pos] == u'〔':
+            cnt = 1
+            rv.append(src[pos])
+            pos += 1
+        else:
+            if cnt:
+                sTmp = src[pos:pos+2]
+                if sTmp in accenttable:
+                    rv.append(accenttable[sTmp])
+                    pos += 2
+                    changed = True
+                    continue
+                sTmp = src[pos:pos+3]
+                if sTmp in accenttable:
+                    rv.append(accenttable[sTmp])
+                    pos += 3
+                    changed = True
+                    continue
+
+            rv.append(src[pos])
+            pos += 1
+
+    return ''.join(rv)
+
+
+

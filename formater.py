@@ -184,10 +184,11 @@ class AozoraScale(object):
                 if tagname[:2] == u'</':
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
-                    tmp = self.reFontsizefactor.search(tagstack.pop())
-                    if tmp:
-                        if tmp.group('name') in self.fontsizefactor:
-                            fontsizename = u'normal' # 文字サイズの復旧
+                    if tagstack != []:
+                        tmp = self.reFontsizefactor.search(tagstack.pop())
+                        if tmp:
+                            if tmp.group('name') in self.fontsizefactor:
+                                fontsizename = u'normal' # 文字サイズの復旧
                 else:
                     tmp = self.reFontsizefactor.search(tagname)
                     if tmp:
@@ -1809,13 +1810,11 @@ class Aozora(AozoraScale):
                 if tagname[:2] == u'</':
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
-                    try:
+                    if self.tagstack != []:
                         tmp = self.reFontsizefactor.search(self.tagstack.pop())
                         if tmp:
                             if tmp.group('name') in self.fontsizefactor:
                                 fontsizename = u'normal' # 文字サイズの復旧
-                    except IndexError:
-                        pass
                 else:
                     tmp = self.reFontsizefactor.search(tagname)
                     if tmp:

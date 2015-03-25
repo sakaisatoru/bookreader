@@ -26,6 +26,8 @@ import aozoradialog
 import sys
 import codecs
 import os.path
+import os
+import stat
 import logging
 
 import gtk
@@ -57,13 +59,18 @@ class Logviewer(aozoradialog.ao_dialog, ReaderSetting):
         self.vbox.pack_start(self.sw3, expand=True)
         self.vbox.show_all()
         self.set_title(u'青空文庫ビューア　デバッグメッセージ')
+        self.readlogfile()
+        self.lastupdatetime = os.stat(self.logfilename)[stat.ST_MTIME]
         gobject.timeout_add(1000, self.refresh_logview) # 定時割込駆動をセット
 
     def refresh_logview(self):
         """ 表示の更新
+            ログファイルが変更されていたら更新する
         """
-        self.textbuffer_logfile.set_text(u'')
-        self.readlogfile()
+        if self.lastupdatetime != os.stat(self.logfilename)[stat.ST_MTIME]:
+            self.textbuffer_logfile.set_text(u'')
+            self.readlogfile()
+            self.lastupdatetime = os.stat(self.logfilename)[stat.ST_MTIME]
         # True を返すまで次のイベントは生じない
         return True
 
@@ -72,7 +79,12 @@ class Logviewer(aozoradialog.ao_dialog, ReaderSetting):
         """
         itre = self.textview_logfile.get_buffer().get_iter_at_offset(0)
         with open( self.logfilename, 'r') as f0:
+            ln = 0
             for line in f0:
                 self.textview_logfile.get_buffer().insert(itre,line)
+                ln += 1
 
-
+            # カーソルを文末行へ遷移
+            lineitre = self.textview_logfile.get_buffer().get_iter_at_line(ln)
+            self.textview_logfile.get_buffer().place_cursor(lineitre)
+            self.textview_logfile.scroll_to_iter(lineitre, 0.2)

@@ -300,6 +300,12 @@ class Aozora(AozoraScale):
 
     # 左注記
     reLeftrubi = re.compile(ur'［＃「(?P<name>.+?)」の左に「(?P<rubi>.+?)」の注記］')
+    reLeftrubi2 = re.compile(ur'［＃左に注記付き］')
+    reLeftrubi2owari = re.compile(ur'［＃左に「(?P<name>.+?)」の注記付き終わり］')
+
+    # 注記
+    reChuki = re.compile(ur'［＃注記付き］')
+    reChukiowari = re.compile(ur'［＃「(?P<name>.+?)」の注記付き終わり］')
 
     # キャプション
     reCaption = re.compile(ur'(［＃「(?P<name>.*?)」はキャプション］)')
@@ -321,10 +327,11 @@ class Aozora(AozoraScale):
     reOmit = re.compile(
                 ur'(［＃(ルビの)?「(?P<name>.+?)」は底本では「(?P<name2>.+?)」］)')
 
-
-
-    """ ソースに直書きしているタグ
-        u'［＃ページの左右中央］'
+    # ルーチン内に直書きしているタグ
+    """     ＃ページの左右中央
+            ＃ここからキャプション ＃ここでキャプション終わり
+            ＃本文終わり
+            ＃改行（割り注内でのみ出現）
     """
 
     # 字下げ、字詰、地付き、地寄せ（地上げ）
@@ -728,16 +735,57 @@ class Aozora(AozoraScale):
                             # 横書きにするので内容への修飾を外す
                             sTmp = lnbuf[tmpStart:tmpEnd]
                             postmp = sTmp.find(u'［＃')
-                            if postmp != -1:
+                            while postmp != -1:
                                 postmp2 = sTmp.rfind(u'］')
                                 if postmp2 != -1:
                                     sTmp = sTmp[:postmp]+sTmp[postmp2+1:]
+                                    postmp = sTmp.find(u'［＃')
+                                else:
+                                    logging.error(u'閉じていないタグを検出：%s' % sTmp[postmp:])
+                                    self.logging = True
+                                    postmp = -1
+
                             lnbuf = u'%s<aozora caption="%s">　</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
                                         sTmp,
                                         lnbuf[tmpEnd:tmp.start()],
                                         lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf,tmpStart)
+                            continue
+
+                        if tmp.group() == u'［＃キャプション］':
+                            #   キャプション形式2
+                            #   局所ループで終端を探す
+                            (tmpStart, tmpEnd) = tmp.span()
+                            lnbuf = lnbuf[:tmpStart]+lnbuf[tmpEnd:] # タグ抜去
+                            tmp = self.reCTRL2.search(lnbuf)
+                            while tmp:
+                                if tmp.group() == u'［＃キャプション終わり］':
+                                    # 横書きにするので内容への修飾を外す
+                                    sTmp = lnbuf[tmpStart:tmp.start()]
+                                    postmp = sTmp.find(u'［＃')
+                                    while postmp != -1:
+                                        postmp2 = sTmp.rfind(u'］')
+                                        if postmp2 != -1:
+                                            sTmp = sTmp[:postmp]+sTmp[postmp2+1:]
+                                            postmp = sTmp.find(u'［＃')
+                                        else:
+                                            logging.error(u'閉じていないタグを検出：%s' % sTmp[postmp:])
+                                            self.logging = True
+                                            postmp = -1
+
+                                    lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
+                                        lnbuf[:tmpStart],
+                                        sTmp,
+                                        lnbuf[tmp.end():] )
+                                    tmp = self.reCTRL2.search(lnbuf)
+                                    break
+                                else:
+                                    tmp = self.reCTRL2.search(lnbuf,tmp.end())
+                                    continue
+                            else:
+                                logging.error(u'［＃キャプション］が閉じていません。')
+                                self.logging = True
                             continue
 
                         tmp2 = self.reMojisize.match(tmp.group())

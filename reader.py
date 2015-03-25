@@ -772,7 +772,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
             しおりを挟む
         """
         n = self.cc.get_booktitle()
-        s = u'%s,%s,%d,%s,%s,%s,%s\n' % (n[0], n[1], self.currentpage+1,
+        s = u'%s,%s,%d,%s,%s,%s,%s\n' % (n[0], n[1], self.currentpage,
                 datetime.date.today(), self.cc.sourcefile,
                 self.cc.zipfilename, self.cc.worksid)
         bm = BookMarkInfo()

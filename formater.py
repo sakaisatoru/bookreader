@@ -257,9 +257,9 @@ class Aozora(AozoraScale):
     sHeader = u'-------------------------------------------------------'
     reFooter = re.compile(ur'(?P<type>(^(翻訳の)?底本：)|(［＃本文終わり］))')
     # 外字置換
-    reGaiji3 = re.compile(ur'(［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)')
-    reGaiji4 = re.compile(ur'(［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］)')
-    reGaiji5 = re.compile(ur'(［＃(?P<name>.+?)、.+?］)' )
+    reGaiji3 = re.compile(ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)')
+    reGaiji4 = re.compile(ur'(※［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］)')
+    reGaiji5 = re.compile(ur'(※［＃(?P<name>.+?)、.+?］)' )
     # このプログラムで特に予約された文字
     dicReserveChar = {
         u'感嘆符三つ':u'<aozora tatenakayoko="!!!"> </aozora>', # 河童、芥川龍之介
@@ -273,6 +273,7 @@ class Aozora(AozoraScale):
     reCTRL = re.compile(ur'(?P<aozoratag>［＃.*?］)')
     reCTRL2 = AozoraTag(ur'(?P<aozoratag>［＃.*?］)') # ネスティング対応
     reCTRL3 = re.compile(ur'(［＃(?P<name>.*?)］)')
+    reCTRLGaiji = re.compile(ur'(?P<aozoratag>※［＃.*?］)')
     # 傍線・傍点
     reBouten = re.compile(ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)' + \
                         ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))］)')
@@ -288,7 +289,7 @@ class Aozora(AozoraScale):
 
     reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)')
     reMama2 = re.compile(ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)')
-    reKogakiKatakana = re.compile(ur'(［＃小書(き)?片仮名(?P<name>.+?)、.+?］)')
+    reKogakiKatakana = re.compile(ur'(※［＃小書(き)?片仮名(?P<name>.+?)、.+?］)')
 
     reRubi = re.compile(ur'《.*?》')
     reRubiclr = re.compile(ur'＃')
@@ -565,7 +566,149 @@ class Aozora(AozoraScale):
                 """
                 lnbuf = xml.sax.saxutils.escape( lnbuf )
 
-                """ フッタ
+                """ くの字の置換
+                """
+                lnbuf = self.reKunoji.sub( u'〳〵', lnbuf )
+                lnbuf = self.reGunoji.sub( u'〴〵', lnbuf )
+
+                """ Shift-jis未定義の文字を得る
+                """
+                tmp = self.reCTRLGaiji.search(lnbuf)
+                while tmp:
+                    tmp2 = self.reGaiji3.match(tmp.group())
+                    if tmp2:
+                        # 外字置換（JIS第3、第4水準）
+                        k = jis3.sconv(tmp2.group('number'))
+                        if not k:
+                            logging.info( u'JIS未登録の外字を検出：%s' % tmp.group())
+                            k = u'［'+tmp.group()[2:]
+                        lnbuf = lnbuf[:tmp.start()] + k + lnbuf[tmp.end():]
+                        tmp = self.reCTRLGaiji.search(lnbuf)
+                        continue
+
+                    tmp2 = self.reGaiji4.match(tmp.group())
+                    if tmp2:
+                        # 外字置換（Unicode文字）
+                        lnbuf = lnbuf[:tmp.start()] + unichr(int(tmp2.group('number'),16)) + lnbuf[tmp.end():]
+                        tmp = self.reCTRLGaiji.search(lnbuf)
+                        continue
+
+                    tmp2 = self.reKogakiKatakana.match(tmp.group())
+                    if tmp2:
+                        #   小書き片仮名
+                        #   ヱの小文字など、JISにフォントが無い場合
+                        lnbuf = u'%s<span size="smaller">%s</span>%s' % (
+                            lnbuf[:tmp.start()],
+                            tmp2.group(u'name'),
+                            lnbuf[tmp.end():] )
+                        tmp = self.reCTRLGaiji.search(lnbuf)
+                        continue
+
+                    # JISにもUnicodeにも定義されていない文字の注釈
+                    # こちらで準備するか、そうでなければ
+                    # ※［＃「」、底本ページ-底本行］ -> ※「」
+                    tmp2 = self.reGaiji5.match(tmp.group())
+                    if tmp2:
+                        if tmp2.group(u'name') in self.dicReserveChar:
+                            k = self.dicReserveChar[tmp2.group(u'name')]
+                        else:
+                            k = tmp2.group(u'name').strip(u'「」')
+                            logging.info(u'未定義文字を検出 : %s' % k )
+                            loggingflag = True
+                        lnbuf = lnbuf[:tmp.start()] + k + lnbuf[tmp.end():]
+                        tmp = self.reCTRLGaiji.search(lnbuf)
+                        continue
+
+                """ ママ
+                    ルビに変換する
+                """
+                tmp = self.reCTRL2.search(lnbuf)
+                while tmp:
+                    tmp2 = self.reMama.match(tmp.group())
+                    if not tmp2:
+                        tmp2 = self.reMama2.match(tmp.group())
+                    if tmp2:
+                        #   ママ注記
+                        sNameTmp = tmp2.group(u'name')
+                        reTmp = re.compile( ur'%s$' % sNameTmp )
+                        lnbuf = u'%s｜%s《%s》%s' % (
+                            reTmp.sub( u'', lnbuf[:tmp.start()]),
+                            sNameTmp, tmp2.group(u'mama'), lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
+                    if self.reRubimama.match(tmp.group()):
+                        #   ルビのママ
+                        #   直前に出現するルビの末尾に付記する
+                        tmpEnd = lnbuf.rfind(u'》',0,tmp.start())
+                        if tmpEnd == -1:
+                            # 修飾するルビがない場合
+                            lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                        else:
+                            lnbuf = u'%s%s》%s' % (
+                                lnbuf[:tmpEnd], u'(ルビママ)',
+                                                    lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+                    break
+
+                """ ルビの処理
+                    文字種が変わる毎にルビ掛かり始めとみなして、anchorを
+                    セットする。
+                """
+                retline = []
+                inRubi = False
+                inTag = False
+                pos = 0
+                anchor = 0
+                isSPanchor = False
+                tp = u'...'
+                for s in lnbuf:
+                    # タグをスキップ
+                    if s == u'>':
+                        inTag = False
+                    elif s == u'<':
+                        inTag = True
+                    elif inTag:
+                        pass
+                    elif s == u'｜':
+                        isSPanchor = True
+                        retline.append(lnbuf[anchor:pos])
+                        anchor = pos + 1
+                    elif s == u'《':
+                        inRubi = True
+                        rubiTop = pos
+                    elif s == u'》':
+                        inRubi = False
+                        isSPanchor = False
+                        retline.append(u'<aozora rubi="%s" length="%s">%s</aozora>' % (
+                            lnbuf[rubiTop+1:pos],
+                            self.__boutencount(lnbuf[anchor:rubiTop]),#本文側長さ
+                            lnbuf[anchor:rubiTop] ))
+                        anchor = pos + 1
+                    elif inRubi:
+                        pass
+                    else:
+                        # 文字種類の違いを検出してルビ掛かり始め位置を得る
+                        # 但し、 ｜　で示された掛かり始めが未使用であれば
+                        # それが使われる迄ひっぱる
+                        if not isSPanchor:
+                            tplast = tp
+                            tp = unicodedata.name(s, u'...').split()[0]
+                            # 非漢字でも漢字扱いとする文字
+                            # http://www.aozora.gr.jp/KOSAKU/MANUAL_2.html#ruby
+                            if tp != u'CJK':
+                                if s in u'仝〆〇ヶ〻々':
+                                    tp = u'CJK'
+                            if tplast != tp:
+                                # 新しいルビ掛かり始め位置
+                                retline.append(lnbuf[anchor:pos])
+                                anchor = pos
+                    pos += 1
+                retline.append(lnbuf[anchor:pos])
+                lnbuf = u''.join(retline)
+
+                """ フッタの検出
                 """
                 tmp = self.reFooter.search(lnbuf)
                 if tmp:
@@ -573,71 +716,12 @@ class Aozora(AozoraScale):
                     if tmp.group('type') == u'［＃本文終わり］':
                         lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
 
-                """ くの字の置換
-                """
-                lnbuf = self.reKunoji.sub( u'〳〵', lnbuf )
-                lnbuf = self.reGunoji.sub( u'〴〵', lnbuf )
-
                 """ ［＃　で始まるタグの処理
                 """
                 isRetry = False # タグが閉じなかった場合の再処理フラグ
                 while True:
                     tmp = self.reCTRL2.search(lnbuf)
                     while tmp:
-                        try:
-                            if lnbuf[tmp.start()-1] == u'※':
-                                tmp2 = self.reGaiji3.match(tmp.group())
-                                if tmp2:
-                                    # 外字置換（JIS第3、第4水準）
-                                    k = jis3.sconv(tmp2.group('number'))
-                                    if not k:
-                                        logging.info( u'JIS未登録の外字を検出：%s' % tmp.group())
-                                        k = u'［'+tmp.group()[2:]
-                                    lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
-                                    tmp = self.reCTRL2.search(lnbuf)
-                                    continue
-
-                                tmp2 = self.reGaiji4.match(tmp.group())
-                                if tmp2:
-                                    # 外字置換（Unicode文字）
-                                    #try:
-                                        #k = unicodedata.lookup(
-                                        #    u'CJK UNIFIED IDEOGRAPH-' + tmp2.group('number'))
-                                    #except KeyError:
-                                    #    k = u'［'+tmp.group()[2:]
-                                    #    logging.info( u'unicode未定義の外字を検出：%s' % k )
-                                    lnbuf = lnbuf[:tmp.start()-1] + unichr(int(tmp2.group('number'),16)) + lnbuf[tmp.end():]
-                                    tmp = self.reCTRL2.search(lnbuf)
-                                    continue
-
-                                tmp2 = self.reKogakiKatakana.match(tmp.group())
-                                if tmp2:
-                                    #   小書き片仮名
-                                    #   ヱの小文字など、JISにフォントが無い場合
-                                    lnbuf = u'%s<span size="smaller">%s</span>%s' % (
-                                        lnbuf[:tmp.start()].rstrip(u'※'),
-                                        tmp2.group(u'name'),
-                                        lnbuf[tmp.end():] )
-                                    tmp = self.reCTRL2.search(lnbuf)
-                                    continue
-
-                                # JISにもUnicodeにも定義されていない文字の注釈
-                                # こちらで準備するか、そうでなければ
-                                # ※［＃「」、底本ページ-底本行］ -> ※「」
-                                tmp2 = self.reGaiji5.match(tmp.group())
-                                if tmp2:
-                                    if tmp2.group(u'name') in self.dicReserveChar:
-                                        k = self.dicReserveChar[tmp2.group(u'name')]
-                                    else:
-                                        k = tmp2.group(u'name').strip(u'「」')
-                                        logging.info(u'未定義文字を検出 : %s' % k )
-                                        loggingflag = True
-                                    lnbuf = lnbuf[:tmp.start()-1] + k + lnbuf[tmp.end():]
-                                    tmp = self.reCTRL2.search(lnbuf)
-                                    continue
-                        except IndexError:
-                            pass
-
                         if tmp.group() in self.dicAozoraTag:
                             # 単純な Pango タグへの置換
                             lnbuf = lnbuf[:tmp.start()] + self.dicAozoraTag[tmp.group()] + lnbuf[tmp.end():]
@@ -838,33 +922,6 @@ class Aozora(AozoraScale):
                                 lnbuf[tmpStart:tmpEnd],
                                 lnbuf[tmpEnd:tmp.start()],
                                 lnbuf[tmp.end():] )
-                            tmp = self.reCTRL2.search(lnbuf)
-                            continue
-
-                        tmp2 = self.reMama.match(tmp.group())
-                        if not tmp2:
-                            tmp2 = self.reMama2.match(tmp.group())
-                        if tmp2:
-                            #   ママ注記
-                            sNameTmp = tmp2.group(u'name')
-                            reTmp = re.compile( ur'%s$' % sNameTmp )
-                            lnbuf = u'%s｜%s《%s》%s' % (
-                                reTmp.sub( u'', lnbuf[:tmp.start()]),
-                                sNameTmp, tmp2.group(u'mama'), lnbuf[tmp.end():] )
-                            tmp = self.reCTRL2.search(lnbuf)
-                            continue
-
-                        if self.reRubimama.match(tmp.group()):
-                            #   ルビのママ
-                            #   直前に出現するルビの末尾に付記する
-                            tmpEnd = lnbuf.rfind(u'》',0,tmp.start())
-                            if tmpEnd == -1:
-                                # 修飾するルビがない場合
-                                lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
-                            else:
-                                lnbuf = u'%s%s》%s' % (
-                                    lnbuf[:tmpEnd], u'(ルビママ)',
-                                                        lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -1599,62 +1656,6 @@ class Aozora(AozoraScale):
                         lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
 
-                """ ルビの処理
-                    文字種が変わる毎にルビ掛かり始めとみなして、anchorを
-                    セットする。
-                """
-                retline = []
-                inRubi = False
-                inTag = False
-                pos = 0
-                anchor = 0
-                isSPanchor = False
-                tp = u'...'
-                for s in lnbuf:
-                    # タグをスキップ
-                    if s == u'>':
-                        inTag = False
-                    elif s == u'<':
-                        inTag = True
-                    elif inTag:
-                        pass
-                    elif s == u'｜':
-                        isSPanchor = True
-                        retline.append(lnbuf[anchor:pos])
-                        anchor = pos + 1
-                    elif s == u'《':
-                        inRubi = True
-                        rubiTop = pos
-                    elif s == u'》':
-                        inRubi = False
-                        isSPanchor = False
-                        retline.append(u'<aozora rubi="%s" length="%s">%s</aozora>' % (
-                            lnbuf[rubiTop+1:pos],
-                            self.__boutencount(lnbuf[anchor:rubiTop]),#本文側長さ
-                            lnbuf[anchor:rubiTop] ))
-                        anchor = pos + 1
-                    elif inRubi:
-                        pass
-                    else:
-                        # 文字種類の違いを検出してルビ掛かり始め位置を得る
-                        # 但し、 ｜　で示された掛かり始めが未使用であれば
-                        # それが使われる迄ひっぱる
-                        if not isSPanchor:
-                            tplast = tp
-                            tp = unicodedata.name(s, u'...').split()[0]
-                            # 非漢字でも漢字扱いとする文字
-                            # http://www.aozora.gr.jp/KOSAKU/MANUAL_2.html#ruby
-                            if tp != u'CJK':
-                                if s in u'仝〆〇ヶ〻々':
-                                    tp = u'CJK'
-                            if tplast != tp:
-                                # 新しいルビ掛かり始め位置
-                                retline.append(lnbuf[anchor:pos])
-                                anchor = pos
-                    pos += 1
-                retline.append(lnbuf[anchor:pos])
-                lnbuf = u''.join(retline)
-
                 if isNoForming:
                     """ 行の折り返し・分割処理を無視してファイルに出力する
                     """
@@ -1811,6 +1812,9 @@ class Aozora(AozoraScale):
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     if self.tagstack != []:
+                        # 訓点・返り点対応
+                        if self.tagstack[-1] in [u'<sup>', u'<sub>']:
+                            fontsizename = u'normal'
                         tmp = self.reFontsizefactor.search(self.tagstack.pop())
                         if tmp:
                             if tmp.group('name') in self.fontsizefactor:
@@ -1820,6 +1824,9 @@ class Aozora(AozoraScale):
                     if tmp:
                         if tmp.group('name') in self.fontsizefactor:
                             fontsizename = tmp.group('name') # 文字サイズ変更
+                    # 訓点・返り点対応
+                    if tagname in [u'<sup>', u'<sub>']:
+                        fontsizename = u'size="small"'
                     self.tagstack.append(tagname)
                     tagname = u''
                 inTag = False

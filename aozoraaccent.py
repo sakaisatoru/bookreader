@@ -49,132 +49,77 @@ accenttable = {
     u'OE&':u'Œ',u'oe&':u'œ',u'U_':u'Ū', u'u_':u'ū' }
 
     # u'--':u'Ð', u'--':u'Þ', u'--':u'ð', u'--':u'þ',
-"""
-def replace(src):
-    # アクセント変換文字列〔〕を渡して定義済み文字があれば変換して返す。
-    #    〔〕は取り除かれる。
-    #    無ければ src をそのまま返す。
-    pos = src.find(u'〔')
-    if pos == -1:
-        rv = src
-    else:
-        rv = u''
-        nv = u''
-        prior = pos
-        pos += 1
-        ln = len(src)
-        cnt = 1 # 〔〕のバランス用（未変換の場合、復元するため）
-        changed = False
-        while pos < ln:
-            if src[pos] == u'〕':
-                cnt -= 1
-                if not changed and cnt > 0:
-                    rv += src[pos]
-
-                if cnt == 0:
-                    if not changed:
-                        rv = u'〔%s〕' % rv
-                    if pos >= ln:
-                        # 終了
-                        break
-                    # 残っているので継続
-                    nv += rv
-                    rv = u''
-
-                pos += 1
-                continue
-
-            if src[pos] == u'〔':
-                if not changed and cnt > 0:
-                    nv += u'〔' + rv
-                    rv = u''
-                cnt += 1
-                pos += 1
-                continue
-
-            sTmp = src[pos:pos+2]
-            if sTmp in accenttable:
-                rv += accenttable[sTmp]
-                pos += 2
-                changed = True
-                continue
-
-            sTmp = src[pos:pos+3]
-            if sTmp in accenttable:
-                rv += accenttable[sTmp]
-                pos += 3
-                changed = True
-                continue
-
-            rv += src[pos]
-            pos += 1
-        else:
-            if not changed:
-                if cnt >0:
-                    rv = u'〔' + rv
-                elif cnt <0:
-                    rv = rv + u'〕'
-
-        rv = src[:prior] + nv + rv
-    return rv
-"""
 
 
-def replace(src):
-    """ アクセント変換文字列を渡して変換して戻す
-    　　〔〕は抜去される。
-        変換が行われなければそのまま戻す。
+def __replacesub(src):
+    """ 下請け
+        ネスティング対応
+        変換した文字列と、変換前の全長を返す
     """
     pos = src.find(u'〔')
     length = len(src)
-    if pos == -1 or pos == length-1:
-        return src
+    if pos == -1:
+        return src, length
 
     rv = []
-    rv.append(src[:pos])
-    rv.append(src[pos])
-    pos += 1
-    cnt = 1
     changed = False
-
+    rv.append(src[:pos])
+    rv.append(src[pos])     # 〔
+    pos += 1
     while pos < length:
         if src[pos] == u'〕':
-            if cnt and changed:
-                # 括弧を抜去する
-                for i in xrange(len(rv)-1,0,-1):
-                    if rv[i] in u'〔':
-                        rv[i] = u''
-                        break
-                changed = False
-                cnt = 0
-                pos += 1
-                continue
-            rv.append(src[pos])
+            if changed:
+                rv[1] =u'' # 〔を抜去
+            else:
+                rv.append(src[pos])
+            src = ''.join(rv)
             pos += 1
+            length = pos
+            break
 
-        elif src[pos] == u'〔':
-            cnt = 1
-            rv.append(src[pos])
-            pos += 1
-        else:
-            if cnt:
-                sTmp = src[pos:pos+2]
-                if sTmp in accenttable:
-                    rv.append(accenttable[sTmp])
-                    pos += 2
-                    changed = True
-                    continue
-                sTmp = src[pos:pos+3]
-                if sTmp in accenttable:
-                    rv.append(accenttable[sTmp])
-                    pos += 3
-                    changed = True
-                    continue
+        if src[pos] == u'〔':
+            tmp,l = __replacesub(src[pos:])
+            rv.append(tmp)
+            pos += l
+            continue
 
-            rv.append(src[pos])
-            pos += 1
+        tmp = src[pos:pos+2]
+        if tmp in accenttable:
+            rv.append(accenttable[tmp])
+            pos += 2
+            changed = True
+            continue
 
+        tmp = src[pos:pos+3]
+        if tmp in accenttable:
+            rv.append(accenttable[tmp])
+            pos += 3
+            changed = True
+            continue
+
+        rv.append(src[pos])
+        pos += 1
+    else:
+        src = ''.join(rv)
+
+    return src, length
+
+def replace(src):
+    """ アクセント分解された文字を置換する
+        処理された場合は両端の〔〕を抜去して返す
+        〔〕が閉じていなかったり、アクセント分解が出現しなかった
+        場合はそのまま返す
+        ネスティングに対応している
+    """
+    length = len(src)
+    pos = 0
+    l = 1
+    rv = []
+    while pos < length and l > 0:
+        s,l = __replacesub(src[pos:])
+        rv.append(s)
+        pos += l
+    if l == 0:
+        # 無限ループ発生時
+        print src,pos
     return ''.join(rv)
-
-
-

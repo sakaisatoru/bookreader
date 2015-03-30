@@ -1163,6 +1163,7 @@ class Aozora(AozoraScale):
         inRubiDetect = False
         inTag = False
         inAtag = False
+        tagstack = []
         while l > 0 and pos > 0:
             pos -= 1
             if honbun[pos:pos+2] == u'［＃':
@@ -1172,6 +1173,14 @@ class Aozora(AozoraScale):
             elif inAtag:
                 pass
             elif honbun[pos] == u'<':
+                if honbun[pos:pos+2] == u'</':
+                    # 閉じタグの場合はスタックに保存する
+                    tagstack.append(pos)
+                else:
+                    # タグの場合はスタックを減ずる
+                    # エラーは無視する
+                    if tagstack != []:
+                        tagstack.pop()
                 inTag = False
             elif honbun[pos] == u'>':
                 inTag = True
@@ -1204,6 +1213,36 @@ class Aozora(AozoraScale):
             start = -1
             end = -2
 
+        if tagstack != [] and start >= 0:
+            # 閉じタグのみを検出した場合は、上流にタグがあるものとして
+            # 文字列を拡張する
+            #print honbun[:start], tagstack
+            try:
+                pos = start
+                while tagstack != []:
+                    pos = honbun.rfind(u'>',0,pos)
+                    if pos != -1:
+                        #print honbun[:pos]
+                        pos = honbun.rfind(u'<',0,pos)
+                        if pos != -1:
+                            #print honbun[:pos]
+                            if honbun[pos:pos+2] == u'</':
+                                tagstack.append(pos)
+                            else:
+                                l = honbun.find(u'>',tagstack.pop())
+                                if l > end:
+                                    # 閉じタグ終端へ拡張する
+                                    end = l
+                            continue
+                    raise IndexError
+                start = pos
+            except IndexError:
+                logging.error( "閉じられていないタグを検出  %s" % honbun )
+                #print tagstack
+
+        """
+        #  ルビの処理位置を変更したため、この関数が呼ばれる時点で《》は
+        #　存在しない、はず。
         if end > -1:
             # 検出した文字列の直後にルビが続くなら文字列を拡張して返す
             # ルビが閉じていなければ拡張しない
@@ -1214,6 +1253,7 @@ class Aozora(AozoraScale):
                         end = pos
             except IndexError:
                 pass
+        """
         return (start,end+1)
 
     def formater(self, output_file=u'', mokuji_file=u''):

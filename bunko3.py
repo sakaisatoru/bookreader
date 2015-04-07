@@ -720,7 +720,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         if worksID in self.db.idxWorksAuthor:
             for i in self.db.idxWorksAuthor[worksID]:
                 subprocess.Popen(['xdg-open',
-                    'https://www.google.co.jp/search?q=%s' % self.db.author[i].split('|')[1]])
+                    'https://www.google.co.jp/search?q="%s"' % self.db.author[i].split('|')[1]])
 
 
 

@@ -121,5 +121,5 @@ def replace(src):
         pos += l
     if l == 0:
         # 無限ループ発生時
-        print src,pos
+        print u'aozoraaccent.replaceにて無限ループ %s %d' % (src,pos)
     return ''.join(rv)

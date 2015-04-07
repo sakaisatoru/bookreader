@@ -287,13 +287,14 @@ class Aozora(AozoraScale):
                         ur'(?P<type>(行右小書き)|(上付き小文字)|' +
                         ur'(行左小書き)|(下付き小文字))］)')
 
-    reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)')
+    #reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)')
+    reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.+?)」の注記］)')
     reMama2 = re.compile(ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)')
     reKogakiKatakana = re.compile(ur'(※［＃小書(き)?片仮名(?P<name>.+?)、.+?］)')
 
     reRubi = re.compile(ur'《.*?》')
     reRubiclr = re.compile(ur'＃')
-    reRubimama = re.compile(ur'(［＃ルビの「(?P<name>.+?)」はママ］)')
+    reRubimama = AozoraTag(ur'(［＃ルビの「(?P<name>.+?)」はママ］)')
 
     reLeftBousen = re.compile(ur'［＃「(?P<name>.+?)」の左に(?P<type>二重)?傍線］')
 
@@ -619,38 +620,22 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRLGaiji.search(lnbuf)
                         continue
 
-                """ ママ
+                """ ルビにつくママ
                     ルビに変換する
                 """
-                tmp = self.reCTRL2.search(lnbuf)
+                tmp = self.reRubimama.search(lnbuf)
                 while tmp:
-                    tmp2 = self.reMama.match(tmp.group())
-                    if not tmp2:
-                        tmp2 = self.reMama2.match(tmp.group())
-                    if tmp2:
-                        #   ママ注記
-                        sNameTmp = tmp2.group(u'name')
-                        reTmp = re.compile( ur'%s$' % sNameTmp )
-                        lnbuf = u'%s｜%s《%s》%s' % (
-                            reTmp.sub( u'', lnbuf[:tmp.start()]),
-                            sNameTmp, tmp2.group(u'mama'), lnbuf[tmp.end():] )
-                        tmp = self.reCTRL2.search(lnbuf)
-                        continue
-
-                    if self.reRubimama.match(tmp.group()):
-                        #   ルビのママ
-                        #   直前に出現するルビの末尾に付記する
-                        tmpEnd = lnbuf.rfind(u'》',0,tmp.start())
-                        if tmpEnd == -1:
-                            # 修飾するルビがない場合
-                            lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
-                        else:
-                            lnbuf = u'%s%s》%s' % (
-                                lnbuf[:tmpEnd], u'(ルビママ)',
-                                                    lnbuf[tmp.end():] )
-                        tmp = self.reCTRL2.search(lnbuf)
-                        continue
-                    break
+                    #   ルビのママ
+                    #   直前に出現するルビの末尾に付記する
+                    tmpEnd = lnbuf.rfind(u'》',0,tmp.start())
+                    if tmpEnd == -1:
+                        # 修飾するルビがない場合
+                        lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                    else:
+                        lnbuf = u'%s%s》%s' % (
+                            lnbuf[:tmpEnd], u'〔ママ〕',
+                                                lnbuf[tmp.end():] )
+                    tmp = self.reRubimama.search(lnbuf)
 
                 """ ルビの処理
                     文字種が変わる毎にルビ掛かり始めとみなして、anchorを
@@ -928,11 +913,8 @@ class Aozora(AozoraScale):
                         tmp2 = self.reBouten.match(tmp.group())
                         if tmp2:
                             #   傍点・傍線
-                            #   rstrip では必要以上に削除する場合があるので
-                            #   reのsubで消す
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            reTmp = re.compile(ur'%s$' % tmp2.group('name'))
                             lnbuf = u'%s<aozora bousen="%s">%s</aozora>%s%s' % (
                                 lnbuf[:tmpStart],
                                 tmp2.group('type') + tmp2.group('type2'),
@@ -1026,6 +1008,20 @@ class Aozora(AozoraScale):
                                 lnbuf[:tmp.start()],
                                     tmp2.group(u'name'),
                                         lnbuf[tmp.end():])
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+                        tmp2 = self.reMama.match(tmp.group())
+                        if not tmp2:
+                            tmp2 = self.reMama2.match(tmp.group())
+                        if tmp2:
+                            #   注記 及び ママ註記
+                            sNameTmp = tmp2.group(u'name')
+                            reTmp = re.compile( ur'%s$' % sNameTmp )
+                            lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
+                                reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                tmp2.group(u'mama'), len(sNameTmp),
+                                sNameTmp, lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -1295,7 +1291,12 @@ class Aozora(AozoraScale):
 
             workfilestack = []                  # 作業用一時ファイル
             isNoForming = False                 # 行の整形を抑止する
-            warichupos = 0                      # 割り注用フラグ兼ポインタ
+            warichupos_start = -1               # 割り注用フラグ兼ポインタ
+            warichupos_end = -1                 # 割り注用フラグ兼ポインタ
+            hidarichukipos_start = -1           # 左注記用フラグ兼ポインタ
+            hidarichukipos_end = -1             # 左注記用フラグ兼ポインタ
+            chukipos_start = -1                 # 注記用フラグ兼ポインタ
+            chukipos_end = -1                   # 注記用フラグ兼ポインタ
 
             for lnbuf in self.__formater_pass1():
                 lnbuf = lnbuf.rstrip('\n')
@@ -1382,22 +1383,67 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
+                    """ 注記（開始／終了型）
+                        直後に閉じタグが出現すること　及び
+                        複数行に及ぶことがないことを前提にフラグで処理する
+                    """
+                    tmp2 = self.reChuki.match(tmp.group())
+                    if tmp2:
+                        (chukipos_start, chukipos_end) = tmp.span()
+                        tmp = self.reCTRL2.search(lnbuf, chukipos_end)
+                        continue
+
+                    """ 注記（開始／終了型）終わり
+                    """
+                    tmp2 = self.reChukiowari.match(tmp.group())
+                    if tmp2:
+                        sTmp = lnbuf[chukipos_end:tmp.start()]
+                        lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
+                            lnbuf[:chukipos_start],
+                            tmp2.group('name'), len(sTmp),
+                            sTmp,
+                            lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
+                    """ 左注記（開始／終了型）
+                        直後に閉じタグが出現すること　及び
+                        複数行に及ぶことがないことを前提にフラグで処理する
+                    """
+                    tmp2 = self.reLeftrubi2.match(tmp.group())
+                    if tmp2:
+                        (hidarichukipos_start, hidarichukipos_end) = tmp.span()
+                        tmp = self.reCTRL2.search(lnbuf, hidarichukipos_end)
+                        continue
+
+                    """ 左注記（開始／終了型）終わり
+                    """
+                    tmp2 = self.reLeftrubi2owari.match(tmp.group())
+                    if tmp2:
+                        sTmp = lnbuf[hidarichukipos_end:tmp.start()]
+                        lnbuf = u'%s<aozora leftrubi="%s" length="%d">%s</aozora>%s' % (
+                            lnbuf[:hidarichukipos_start],
+                            tmp2.group('name'), len(sTmp),
+                            sTmp,
+                            lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
                     """ 割り注
                         同一行内に割り注終わりが存在するはず
                     """
                     tmp2 = self.reWarichu.match(tmp.group())
                     if tmp2:
                         # ネストすることは考えにくいのでフラグで済ます
-                        warichupos = tmp.start()
-                        lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
-                        tmp = self.reCTRL2.search(lnbuf)
+                        (warichupos_start, warichupos_end) = tmp.span()
+                        tmp = self.reCTRL2.search(lnbuf, warichupos_end)
                         continue
 
                     """ 割り注終わり
                     """
                     tmp2 = self.reWarichuOwari.match(tmp.group())
                     if tmp2:
-                        sTmp = lnbuf[warichupos:tmp.start()]
+                        sTmp = lnbuf[warichupos_end:tmp.start()]
                         # 割り注表示部分の高さを求める
                         if sTmp.find(u'［＃改行］') == -1:
                             # 改行位置が明示されていなければ、全長の半分
@@ -1409,7 +1455,7 @@ class Aozora(AozoraScale):
                                 if len(s0) > l:
                                     l = len(s0)
                         lnbuf = u'%s<aozora warichu="%s" height="%d">%s</aozora>%s' % (
-                            lnbuf[:warichupos], sTmp, l,
+                            lnbuf[:warichupos_start], sTmp, l,
                             u'　' * int(math.ceil(
                                 l * self.fontmagnification(u'size="smaller"'))),
                             lnbuf[tmp.end():] )
@@ -1821,7 +1867,6 @@ class Aozora(AozoraScale):
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
         if self.tagstack != []:
-            #print self.tagstack
             # 行頭からの空白（字下げ等）を飛ばす
             pos = 0
             endpos = len(sline)
@@ -1833,14 +1878,12 @@ class Aozora(AozoraScale):
         for lsc in sline:
             if inSplit:
                 # 本文の分割
-                #honbun2 += lsc
                 sTestNext.append(lsc)
                 continue
 
             if smax:
                 if round(lcc) >= smax:
                     inSplit = True
-                    #honbun2 += lsc
                     sTestNext.append(lsc)
                     continue
 
@@ -1876,8 +1919,9 @@ class Aozora(AozoraScale):
             elif inTag:
                 tagname += lsc
             else:
-                # 画面上における全長を計算
+                # tagでなければ画面上における全長を計算
                 lcc += self.charwidth(lsc) * self.fontsizefactor[fontsizename]
+
         honbun = u''.join(sTestCurrent)
         honbun2 = u''.join(sTestNext)
 
@@ -2286,6 +2330,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         vector = 0
         fontspan = 1
         xposoffset = 0
+        boutenoffset = 0
         rubispan = 0
         dicArg = {}
         sTmp = data
@@ -2490,30 +2535,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 del sTmp
                 del layout
 
-                if u'rubi' in dicArg:
-                    with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
-                        # ルビ
-                        layout = pangoctx00.create_layout()
-                        pc = layout.get_context()       # Pango を得る
-                        pc.set_base_gravity('east')     # markup 前に実行
-                        pc.set_gravity_hint('natural')   # markup 前に実行
-                        layout.set_font_description(self.font_rubi)
-                        layout.set_markup(dicArg[u'rubi'])
-                        rubilength,rubispan = layout.get_pixel_size()
-                        # 表示位置 垂直方向のセンタリング
-                        y = self.ypos + int((length-rubilength) // 2.)
-                        if y < 0:
-                            y = 0
-                        if y < self.rubilastYpos:
-                            y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
-                        pangoctx00.translate(self.xpos + honbunxpos + rubispan,y)
-                        pangoctx00.rotate(1.57075)
-                        pangoctx00.update_layout(layout)
-                        pangoctx00.show_layout(layout)
-                        self.rubilastYpos = y + rubilength #ルビの最末端を保存
-                        del pc
-                        del layout
-
                 if u'bousen' in dicArg:
                     # 傍線 但し波線を実装していません
                     with cairocontext(self.sf) as ctx00:
@@ -2543,7 +2564,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             offset = step - self.fontheight
                             offset = -1 if offset <= 0 else offset // 2
                             tmpypos = self.ypos + offset
-                            xoffset = honbunxpos + rubispan + int(round(honbunxpos*1.3))
+                            boutenoffset = int(round(honbunxpos*1.3))
                             if dicArg[u'bousen'] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
                                 boutenfont = self.font
                             else:
@@ -2556,14 +2577,40 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                                     pc.set_base_gravity('east')
                                     pc.set_gravity_hint('natural')
                                     layout.set_text(self.dicBouten[dicArg[u'bousen']])
-                                    panctx00.translate( self.xpos + xoffset,
+                                    panctx00.translate( self.xpos + honbunxpos + boutenoffset,
                                                                     tmpypos)
                                     tmpypos += step
-                                    panctx00.rotate(3.1515/2.)
+                                    panctx00.rotate(1.57075)
                                     panctx00.update_layout(layout)
                                     panctx00.show_layout(layout)
                                 del pc
                                 del layout
+
+                if u'rubi' in dicArg:
+                    with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
+                        # ルビ
+                        layout = pangoctx00.create_layout()
+                        pc = layout.get_context()       # Pango を得る
+                        pc.set_base_gravity('east')     # markup 前に実行
+                        pc.set_gravity_hint('natural')   # markup 前に実行
+                        layout.set_font_description(self.font_rubi)
+                        layout.set_markup(dicArg[u'rubi'])
+                        rubilength,rubispan = layout.get_pixel_size()
+                        # 表示位置 垂直方向のセンタリング
+                        y = self.ypos + int((length-rubilength) // 2.)
+                        if y < 0:
+                            y = 0
+                        if y < self.rubilastYpos:
+                            y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
+                        if boutenoffset:
+                            rubispan *= 2 # 傍点がある場合は重ね書きを回避する
+                        pangoctx00.translate(self.xpos + honbunxpos + rubispan, y)
+                        pangoctx00.rotate(1.57075)
+                        pangoctx00.update_layout(layout)
+                        pangoctx00.show_layout(layout)
+                        self.rubilastYpos = y + rubilength #ルビの最末端を保存
+                        del pc
+                        del layout
 
                 if u'leftrubi' in dicArg:
                     with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:

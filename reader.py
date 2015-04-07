@@ -1046,7 +1046,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'バージョン［＃「バージョン」は中見出し］\n'+
-                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年3［＃「3」は縦中横］月27［＃「27」は縦中横］日\n'+
+                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年4［＃「4」は縦中横］月7［＃「7」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
@@ -1055,7 +1055,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
-                u'・プログラム内で使用する作業領域［＃「作業領域」は横組み］の解放を'+
+                u'・プログラム内で使用する作業領域の解放を'+
                 u' Python まかせにしており、このためメモリを相当使い'+
                 u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
                 u'います。\n'+
@@ -1067,26 +1067,25 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'フォントサイズを小さくしてみてください。\n'+
                 u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
                 u'・割り注の途中で改行したり、１行からはみ出したりした場合は正しく表示されません。\n'+
-                u'・「この作者の他の作品」において、現在開いているテキストがインデックスファイルに含まれていないと検索に失敗します。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'［＃改ページ］\n'+
                 u'\nライセンス［＃「ライセンス」は大見出し］\n'+
                 u'［＃ここから１字下げ］\n' +
                 u'Copyright 2015 sakaisatoru  endeavor2wako@gmail.com\n'+
                 u'\n'+
-                u'This program is free software; you can redistribute it and/or modify'+
-                u'it under the terms of the GNU General Public License as published by'+
-                u'the Free Software Foundation; either version 2 of the License, or'+
+                u'This program is free software; you can redistribute it and/or modify '+
+                u'it under the terms of the GNU General Public License as published by '+
+                u'the Free Software Foundation; either version 2 of the License, or '+
                 u'(at your option) any later version.'+
                 u'\n'+
                 u'This program is distributed in the hope that it will be useful,'+
-                u'but WITHOUT ANY WARRANTY; without even the implied warranty of'+
-                u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the'+
+                u'but WITHOUT ANY WARRANTY; without even the implied warranty of '+
+                u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the '+
                 u'GNU General Public License for more details.'+
                 u'\n'+
-                u'You should have received a copy of the GNU General Public License'+
-                u'along with this program; if not, write to the Free Software'+
-                u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,'+
+                u'You should have received a copy of the GNU General Public License '+
+                u'along with this program; if not, write to the Free Software '+
+                u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, '+
                 u'MA 02110-1301, USA.\n'+
                 u'［＃字下げ終わり］\n')
 

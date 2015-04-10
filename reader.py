@@ -920,8 +920,11 @@ class ReaderUI(gtk.Window, ReaderSetting):
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
             # 新規読み込み
+            print zipname
             a = zipfile.ZipFile(zipname, u'r' )
             a.extractall(self.aozoratextdir)
+            zipname = a.filename
+            print zipname
             pb.touchup(fn, zipname, works)
             c = pb.run()
             if c != gtk.RESPONSE_CANCEL:

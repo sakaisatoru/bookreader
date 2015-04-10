@@ -2289,7 +2289,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.fontrubisize = rubisize
         self.fontheight = int(round(float(size)*(16./12.)))
         self.fontwidth = self.fontheight # 暫定
-
+        self.rubifontheight = int(round(float(rubisize)*(16./12.)))
         self.font = pango.FontDescription(u'%s %f' % (font,size))
         self.font_rubi = pango.FontDescription(u'%s %f' % (font,rubisize))
 
@@ -2568,14 +2568,13 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             # 1文字づつ描画する。このためかなりメモリを費消する。
                             sB = u''
                             step = int(round(length / float(len(data))))
-                            offset = step - self.fontheight
-                            offset = -1 if offset <= 0 else offset // 2
-                            tmpypos = self.ypos + offset
                             boutenoffset = int(round(honbunxpos*1.3))
+                            tmpypos = self.ypos
                             if dicArg[u'bousen'] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
                                 boutenfont = self.font
                             else:
                                 boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
+                                tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
                             for s in data:
                                 with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
                                     layout = panctx00.create_layout()

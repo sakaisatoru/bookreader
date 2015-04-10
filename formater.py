@@ -260,6 +260,7 @@ class Aozora(AozoraScale):
     reGaiji3 = re.compile(ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)')
     reGaiji4 = re.compile(ur'(※［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］)')
     reGaiji5 = re.compile(ur'(※［＃(?P<name>.+?)、.+?］)' )
+    reGaiji6 = re.compile(ur'(※［＃ローマ数字(?P<num>\d\d?)、.+?］)' )
     # このプログラムで特に予約された文字
     dicReserveChar = {
         u'感嘆符三つ':u'<aozora tatenakayoko="!!!"> </aozora>', # 河童、芥川龍之介
@@ -335,6 +336,7 @@ class Aozora(AozoraScale):
             ＃ここからキャプション ＃ここでキャプション終わり
             ＃本文終わり
             ＃改行（割り注内でのみ出現）
+            ＃縦中横　＃縦中横終わり
     """
 
     # 字下げ、字詰、地付き、地寄せ（地上げ）
@@ -359,10 +361,10 @@ class Aozora(AozoraScale):
     reKeikakomiowari = re.compile(ur'［＃ここで罫囲み終わり］')
 
     # 見出し
-    reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(同行)??(?P<midashisize>大|中|小)見出し］')
+    reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(?P<type>同行|窓)??(?P<midashisize>大|中|小)見出し］')
     reMidashi2name = re.compile(ur'((<.+?)??(?P<name>.+?)[<［\n]+?)')
-    reMidashi2 = re.compile(ur'(［＃(ここから)?(?P<midashisize>大|中|小)見出し］)')
-    reMidashi2owari = re.compile(ur'(［＃(ここで)??(?P<midashisize>大|中|小)見出し終わり］)')
+    reMidashi2 = re.compile(ur'(［＃(ここから)?(?P<type>同行|窓)?(?P<midashisize>大|中|小)見出し］)')
+    reMidashi2owari = re.compile(ur'(［＃(ここで)??(?P<type>同行|窓)?(?P<midashisize>大|中|小)見出し終わり］)')
 
     # 改ページ・改丁・ページの左右中央
     reKaipage = re.compile(ur'［＃改ページ］|［＃改丁］|［＃改段］|［＃改見開き］')
@@ -513,6 +515,37 @@ class Aozora(AozoraScale):
 
         return (sBookTitle.rstrip(), sBookAuthor)
 
+    def romasuji(self, num):
+        """ 数字文字列をローマ数字に変換する
+        """
+        rv = []
+        s = []
+
+        for i in u'%d' % int(str(num)):
+            s.append(i)
+        s.reverse()
+
+        l = int(len(s))
+        if l >= 4:
+            # error
+            return u''
+        l -= 1
+        while l >= 0:
+            n = int(s[l])
+            if l == 0:
+                rv.append( (u'' if n == 0 else unichr(0x215F+n)))
+            elif l == 1:
+                rv.append([u'',u'Ⅹ', u'ⅩⅩ',u'ⅩⅩⅩ',u'ⅩⅬ',u'Ⅼ',u'ⅬⅩ',u'ⅬⅩⅩ',u'ⅬⅩⅩⅩ',u'ⅩⅭ'][n])
+            elif l == 2:
+                rv.append([u'',u'Ⅽ',u'ⅭⅭ',u'ⅭⅭⅭ',u'ⅭⅮ',u'Ⅾ',u'ⅮⅭ',u'ⅮⅭⅭ',u'ⅮⅭⅭⅭ',u'ⅭⅯ'][n])
+            elif l == 3:
+                if n > 3:
+                    # error
+                    return u''
+                rv.append(u'Ⅿ'*n)
+            l -= 1
+        return ''.join(rv)
+
     def __formater_pass1( self, sourcefile=u''):
         """ フォーマッタ（第1パス）
             formater より呼び出されるジェネレータ。1行読み込んでもっぱら
@@ -526,6 +559,8 @@ class Aozora(AozoraScale):
         footerflag = False
         aozorastack = []        # ［＃形式タグ用のスタック
         pangotagstack = []      # pango タグ用のスタック
+        captionpos_Start = 0    # キャプション処理用ポインタ
+        captionpos_End = 0      #
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
             yield u'［＃ページの左右中央］' # 作品名を1ページ目に表示する為
@@ -601,6 +636,20 @@ class Aozora(AozoraScale):
                         lnbuf = u'%s<span size="smaller">%s</span>%s' % (
                             lnbuf[:tmp.start()],
                             tmp2.group(u'name'),
+                            lnbuf[tmp.end():] )
+                        tmp = self.reCTRLGaiji.search(lnbuf)
+                        continue
+
+                    tmp2 = self.reGaiji6.match(tmp.group())
+                    if tmp2:
+                        #   ローマ数字対策
+                        #   13 - 99 迄
+                        sTmp = self.romasuji(tmp2.group('num'))
+                        #lnbuf = u'%s%s［＃「%s」は縦中横］%s' % (
+                        lnbuf = u'%s［＃縦中横］%s［＃縦中横終わり］%s' % (
+                            lnbuf[:tmp.start()],
+                            sTmp,
+                            #sTmp,
                             lnbuf[tmp.end():] )
                         tmp = self.reCTRLGaiji.search(lnbuf)
                         continue
@@ -804,16 +853,10 @@ class Aozora(AozoraScale):
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             # 横書きにするので内容への修飾を外す
                             sTmp = lnbuf[tmpStart:tmpEnd]
-                            postmp = sTmp.find(u'［＃')
-                            while postmp != -1:
-                                postmp2 = sTmp.rfind(u'］')
-                                if postmp2 != -1:
-                                    sTmp = sTmp[:postmp]+sTmp[postmp2+1:]
-                                    postmp = sTmp.find(u'［＃')
-                                else:
-                                    logging.error(u'閉じていないタグを検出：%s' % sTmp[postmp:])
-                                    self.logging = True
-                                    postmp = -1
+                            tmp3 = self.reCTRL2.search(sTmp)
+                            while tmp3:
+                                sTmp = sTmp[:tmp3.start()]+sTmp[tmp3.end():]
+                                tmp3 = self.reCTRL2.search(sTmp)
 
                             lnbuf = u'%s<aozora caption="%s">　</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
@@ -824,38 +867,25 @@ class Aozora(AozoraScale):
                             continue
 
                         if tmp.group() == u'［＃キャプション］':
-                            #   キャプション形式2
-                            #   局所ループで終端を探す
-                            (tmpStart, tmpEnd) = tmp.span()
-                            lnbuf = lnbuf[:tmpStart]+lnbuf[tmpEnd:] # タグ抜去
-                            tmp = self.reCTRL2.search(lnbuf)
-                            while tmp:
-                                if tmp.group() == u'［＃キャプション終わり］':
-                                    # 横書きにするので内容への修飾を外す
-                                    sTmp = lnbuf[tmpStart:tmp.start()]
-                                    postmp = sTmp.find(u'［＃')
-                                    while postmp != -1:
-                                        postmp2 = sTmp.rfind(u'］')
-                                        if postmp2 != -1:
-                                            sTmp = sTmp[:postmp]+sTmp[postmp2+1:]
-                                            postmp = sTmp.find(u'［＃')
-                                        else:
-                                            logging.error(u'閉じていないタグを検出：%s' % sTmp[postmp:])
-                                            self.logging = True
-                                            postmp = -1
+                            #   キャプション（開始/終了型）
+                            #   同一行中に閉じられることを期待して
+                            (captionpos_Start, captionpos_End) = tmp.span()
+                            tmp = self.reCTRL2.search(lnbuf,captionpos_End)
+                            continue
 
-                                    lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
-                                        lnbuf[:tmpStart],
-                                        sTmp,
-                                        lnbuf[tmp.end():] )
-                                    tmp = self.reCTRL2.search(lnbuf)
-                                    break
-                                else:
-                                    tmp = self.reCTRL2.search(lnbuf,tmp.end())
-                                    continue
-                            else:
-                                logging.error(u'［＃キャプション］が閉じていません。')
-                                self.logging = True
+                        if tmp.group() == u'［＃キャプション終わり］':
+                            # 横書きにするので内容への修飾を外す
+                            sTmp = lnbuf[captionpos_End:tmp.start()]
+                            print sTmp
+                            tmp2 = self.reCTRL2.search(sTmp)
+                            while tmp2:
+                                sTmp = sTmp[:tmp2.start()]+sTmp[tmp2.end():]
+                                tmp2 = self.reCTRL2.search(sTmp)
+                            lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
+                                    lnbuf[:captionpos_Start],
+                                    sTmp,
+                                    lnbuf[tmp.end():] )
+                            tmp = self.reCTRL2.search(lnbuf)
                             continue
 
                         tmp2 = self.reMojisize.match(tmp.group())
@@ -1020,7 +1050,7 @@ class Aozora(AozoraScale):
                             reTmp = re.compile( ur'%s$' % sNameTmp )
                             lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
                                 reTmp.sub( u'', lnbuf[:tmp.start()]),
-                                tmp2.group(u'mama'), len(sNameTmp),
+                                tmp2.group(u'mama').strip(u'〔〕'), len(sNameTmp),
                                 sNameTmp, lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
@@ -1336,6 +1366,26 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
+
+                    """ 縦中横（開始／終了型）
+                        直後に閉じタグが出現すること　及び
+                        複数行に及ぶことがないことを前提にフラグで処理する
+                    """
+                    if tmp.group() == u'［＃縦中横］':
+                        (tatenakayokopos_start, tatenakayokopos_end) = tmp.span()
+                        tmp = self.reCTRL2.search(lnbuf, tatenakayokopos_end)
+                        continue
+
+                    """ 縦中横（開始／終了型）終わり
+                    """
+                    if tmp.group() == u'［＃縦中横終わり］':
+                        lnbuf = u'%s<aozora tatenakayoko="%s">　</aozora>%s' % (
+                            lnbuf[:tatenakayokopos_start],
+                            lnbuf[tatenakayokopos_end:tmp.start()],
+                            lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
                     """ 挿図
                         キャンバスの大きさに合わせて画像を縮小する。
                             ページからはみ出るようであれば挿図前に
@@ -1408,7 +1458,7 @@ class Aozora(AozoraScale):
                         lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
                             lnbuf[:chukipos_start],
                             tmp2.group('name'), len(sTmp),
-                            sTmp,
+                            sTmp.strip(u'〔〕'),
                             lnbuf[tmp.end():] )
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -1568,7 +1618,7 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
-                    """ 見出し(複数行に及ぶ)
+                    """ 見出し(複数行に及ぶ可能性の有る)
                         ここでは正確なページ番号が分からないので、
                         見出し出現のフラグだけ立てて、目次作成は後段で行う。
                     """

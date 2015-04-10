@@ -1083,12 +1083,19 @@ class Aozora(AozoraScale):
                     lnbuf = u''.join(ln)
 
                 """ ダブルクォーテーションのノノカギへの置換
-                    カテゴリを調べてLo (Other_Letter)を日本語と見做して
-                    置換する。
+                    クォーテーションで括られた内容を調べて
+                    Lo (Other_Letter)を日本語と見做して置換する。
                 """
                 for tmp in self.reNonokagi.finditer(lnbuf):
+                    inTag = False
                     for s in tmp.group('name'):
-                        if unicodedata.category(s) == 'Lo':
+                        if inTag:
+                            if s == u'>':
+                                inTag = False
+                        elif s == u'<':
+                            # tag を読み飛ばす
+                            inTag = True
+                        elif unicodedata.category(s) == 'Lo':
                             lnbuf = '%s〝%s〟%s' % (
                                  lnbuf[:tmp.start()],
                                 tmp.group('name'),

@@ -25,7 +25,8 @@
 
 import aozoradialog
 from readersub      import ReaderSetting, History
-from formater       import Aozora, CairoCanvas, AozoraCurrentTextinfo
+from formater       import Aozora, AozoraCurrentTextinfo
+from cairocanvas    import CairoCanvas
 from whatsnew       import WhatsNewUI
 from logview        import Logviewer
 from bunko3         import BunkoUI
@@ -706,7 +707,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         u'# -*- coding: utf-8 -*-\n'+
                         u'#  draw.py\n'+
                         u'import sys\n'+
-                        u'from formater import CairoCanvas\n'+
+                        u'from cairocanvas import CairoCanvas\n'+
                         u'if __name__ == "__main__":\n'+
                         u'    n = sys.argv[1].split()\n'+
                         u'    cTmp = CairoCanvas()\n'+
@@ -920,11 +921,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
             # 新規読み込み
-            print zipname
             a = zipfile.ZipFile(zipname, u'r' )
             a.extractall(self.aozoratextdir)
             zipname = a.filename
-            print zipname
             pb.touchup(fn, zipname, works)
             c = pb.run()
             if c != gtk.RESPONSE_CANCEL:

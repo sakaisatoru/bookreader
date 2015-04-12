@@ -110,57 +110,48 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             付す。
         """
         sTmp = []
-        f = False
-        inTag = False
-        pos = 0
-        l = len(data)
-        stack = []
-        while pos < l:
-            if data[pos] == u'>':
-                inTag = False
-            elif data[pos] == u'<':
-                if data[pos:pos+2] == u'</':
-                    if stack[-1] == u'aozora yokogumi="dmy"':
-                        # 他の閉じタグ出現時に 横組みが挿入されていたら
-                        # 閉じる
-                        stack.pop()
-                        sTmp.append(u'</aozora>')
-                        f = False
-                    if data[pos+2:(data.find(u'>',pos+2))] == stack[-1]:
-                        stack.pop()
+        end = len(data)
+        tagstack = [u'**bos**']
+        pos_start = 0
+        pos_end = 0
+        while pos_start < end:
+            if data[pos_start] == u'<':
+                if data[pos_start+1:pos_start+2] == u'/':
+                    # 閉じタグ
+                    pos_end = data.find( u'>', pos_start)
+                    if pos_end != -1:
+                        sTmp.append(data[pos_start:pos_end+1])
+                        pos_start = pos_end + 1
+                        tagstack.pop()
+                        continue
                 else:
-                    pos2 = pos+1
-                    while data[pos2] != u'>' and data[pos2] != u' ':
-                        pos2 += 1
-                    stack.append(data[pos+1:pos2])
-                    #print "debug ---%s" % stack[-1]
-                # 既存タグ読み飛ばし、青空形式［＃］は扱わないので素通りの
-                # 可能性あり。
-                inTag = True
-            elif inTag:
-                pass
-            else:
-                s0 = self.isYokoChar(data[pos])
-                if s0 and not f:
-                    sTmp.append(u'<aozora yokogumi="dmy">')
-                    f = True
-                    stack.append(u'aozora yokogumi="dmy"')
-                elif not s0 and f:
-                    # 他のタグが開いている間は閉じない
-                    if stack[-1] == u'aozora yokogumi="dmy"':
-                        stack.pop()
-                        sTmp.append(u'</aozora>')
-                        f = False
-                if not f:
-                    # 縦書き時の二重不等号を二重山括弧に戻す
-                    s1 = u'《' if data[pos] == u'≪' else u'》' if data[pos] == u'≫' else data[pos]
-                    sTmp.append(s1)
-                    pos+=1
-                    continue
-            sTmp.append(data[pos])
-            pos += 1
-        if f:
-            sTmp.append(u'</aozora>')
+                    pos_end = data.find( u'>', pos_start)
+                    if pos_end != -1:
+                        sTmp.append(data[pos_start:pos_end+1])
+                        tagstack.append(data[pos_start:pos_end+1])
+                        pos_start = pos_end + 1
+                        continue
+
+            elif self.isYokoChar(data[pos_start]):
+                # 横書き文字ならタグを挿入する
+                # 但し
+                #   既にyokogumiタグがある
+                #   縦中横のなかである
+                #                       なら見送る
+                if tagstack[-1].find(u'<aozora yokogumi') == -1:
+                    if not [s for s in tagstack if s.find(u'tatenakayoko') != -1]:
+                        sTmp.append( u'<aozora yokogumi="dmy">' )
+                        tagstack.append( u'<aozora yokogumi' )
+
+            elif tagstack[-1].find(u'<aozora yokogumi') != -1:
+                tagstack.pop()
+                sTmp.append(data[pos_start]) # リストの要素順の都合でここで戻る
+                sTmp.append( u'</aozora>' )
+                pos_start += 1
+                continue
+
+            sTmp.append(data[pos_start])
+            pos_start += 1
 
         self.feed(u''.join(sTmp))
         self.close()
@@ -279,14 +270,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             layout.set_font_description(self.font)
             honbunxpos = 0
             if not dicArg:
+                # 本文表示本体
                 pc = layout.get_context() # Pango を得る
                 # 正しいlengthを得るため、予め文字の向きを決める
-                if u'yokogumi' in dicArg:
-                    pc.set_base_gravity('south')
-                    pc.set_gravity_hint('natural')
-                else:
-                    pc.set_base_gravity('east')
-                    pc.set_gravity_hint('strong')
+                pc.set_base_gravity('east')
+                pc.set_gravity_hint('strong')
                 layout.set_markup(sTmp)
                 length, span = layout.get_pixel_size()
 
@@ -392,7 +380,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         del pc
                         length = y
                     else:
-                        logging.info( u'キャプションが出力されませんでした: %s' %  dicArg[u'caption'])
                         length = 0
 
                 elif u'tatenakayoko' in dicArg:
@@ -410,6 +397,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     del pc
 
                 else:
+                    # 本文表示本体
+                    # ※少しでも処理速度を稼ぐため上にも似たルーチンがあります
                     pc = layout.get_context() # Pango を得る
                     # 正しいlengthを得るため、予め文字の向きを決める
                     if u'yokogumi' in dicArg:

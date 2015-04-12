@@ -562,10 +562,49 @@ class Aozora(AozoraScale):
                 start = pos
         return start, end
 
+    def __removetag(self, sTmp):
+        """ 文字列中に含まれるタグ（［＃］及び<>）を取り除く
+        """
+        # ［＃］
+        tmp3 = self.reCTRL2.search(sTmp)
+        while tmp3:
+            sTmp = sTmp[:tmp3.start()]+sTmp[tmp3.end():]
+            tmp3 = self.reCTRL2.search(sTmp)
+        # <>
+        s0, e0 = self.__searchtag(sTmp)
+        while s0 != -1:
+            sTmp = sTmp[:s0]+sTmp[e0:]
+            s0, e0 = self.__searchtag(sTmp)
+        return sTmp
+
     def __formater_pass1( self, sourcefile=u''):
         """ フォーマッタ（第1パス）
             formater より呼び出されるジェネレータ。1行読み込んでもっぱら
             置換処理を行う。
+
+            開始／終了型タグの処理について
+            ［＃タグ］本文［＃タグ終わり］で示されるタグについては、本文中に
+            おける改行の有無について、青空文庫は仕様で明記していません。
+            このため、とりあえず下記のように整理して処理を実装しています。
+
+            改行が含まれる可能性があるもの（修飾される本文が複数行に及ぶ）
+                傍点、傍線
+
+            同一行で完結すると見込まれるもの
+                縦中横、注記、左注記
+
+                且つ複数行に及ぶ本文向けに同一機能のタグを別途用意しているもの
+                    キャプション、見出し
+
+                且つ特殊タグで明示されるもの
+                    割り注　このタグでのみ用いられる［＃改行］が存在します。
+
+            実装上の区別を要しないもの
+                文字の大きさ
+
+                且つ青空形式からxml形式への置換で完了するもの
+                行右小書き、太字、左傍線など
+
         """
         if not sourcefile:
             sourcefile = self.currentText.sourcefile
@@ -575,18 +614,8 @@ class Aozora(AozoraScale):
         footerflag = False
         aozorastack = []            # ［＃形式タグ用のスタック
         pangotagstack = []          # pango タグ用のスタック
-        captionpos_Start = -1       # キャプション処理用ポインタ
-        captionpos_End = -1         #
-        tatenakayokopos_start = -1  # 縦中横(開始/終了型)処理用ポインタ
-        tatenakayokopos_end = -1    #
-        warichupos_start = -1       # 割り注用フラグ兼ポインタ
-        warichupos_end = -1         # 割り注用フラグ兼ポインタ
-        hidarichukipos_start = -1   # 左注記用フラグ兼ポインタ
-        hidarichukipos_end = -1     # 左注記用フラグ兼ポインタ
-        chukipos_start = -1         # 注記用フラグ兼ポインタ
-        chukipos_end = -1           # 注記用フラグ兼ポインタ
-        midashiStart = -1           # 見出し用フラグ兼ポインタ
-        midashiEnd = -1             # 見出し用フラグ兼ポインタ
+
+        posstack = []               # 開始/終了型タグ処理用スタック
 
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
             yield u'［＃ページの左右中央］' # 作品名を1ページ目に表示する為
@@ -814,17 +843,22 @@ class Aozora(AozoraScale):
                             複数行に及ぶことがないことを前提にフラグで処理する
                         """
                         if tmp.group() == u'［＃縦中横］':
-                            (tatenakayokopos_start, tatenakayokopos_end) = tmp.span()
-                            tmp = self.reCTRL2.search(lnbuf, tatenakayokopos_end)
+                            posstack.append(tmp.span())
+                            posstack.append(u'［＃縦中横］')
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
                             continue
 
                         """ 縦中横（開始／終了型）終わり
                         """
                         if tmp.group() == u'［＃縦中横終わり］':
+                            if posstack[-1] != u'［＃縦中横］':
+                                logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
+                            posstack.pop()
+                            pos_start,pos_end = posstack.pop()
                             lnbuf = u'%s<aozora tatenakayoko="%s">%s</aozora>%s' % (
-                                lnbuf[:tatenakayokopos_start],
-                                lnbuf[tatenakayokopos_end:tmp.start()],
-                                lnbuf[tatenakayokopos_end:tmp.start()],
+                                lnbuf[:pos_start],
+                                lnbuf[pos_end:tmp.start()],
+                                lnbuf[pos_end:tmp.start()],
                                 lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
@@ -833,19 +867,24 @@ class Aozora(AozoraScale):
                             直後に閉じタグが出現すること　及び
                             複数行に及ぶことがないことを前提にフラグで処理する
                         """
-                        tmp2 = self.reChuki.match(tmp.group())
-                        if tmp2:
-                            (chukipos_start, chukipos_end) = tmp.span()
-                            tmp = self.reCTRL2.search(lnbuf, chukipos_end)
+                        if self.reChuki.match(tmp.group()):
+                            posstack.append(tmp.span())
+                            posstack.append(u'［＃注記］')
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
                             continue
 
                         """ 注記（開始／終了型）終わり
                         """
                         tmp2 = self.reChukiowari.match(tmp.group())
                         if tmp2:
-                            sTmp = lnbuf[chukipos_end:tmp.start()]
+                            if posstack[-1] != u'［＃注記］':
+                                logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
+                            posstack.pop()
+                            pos_start,pos_end = posstack.pop()
+
+                            sTmp = lnbuf[pos_end:tmp.start()]
                             lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
-                                lnbuf[:chukipos_start],
+                                lnbuf[:pos_start],
                                 tmp2.group('name'), len(sTmp),
                                 sTmp.strip(u'〔〕'),
                                 lnbuf[tmp.end():] )
@@ -856,19 +895,23 @@ class Aozora(AozoraScale):
                             直後に閉じタグが出現すること　及び
                             複数行に及ぶことがないことを前提にフラグで処理する
                         """
-                        tmp2 = self.reLeftrubi2.match(tmp.group())
-                        if tmp2:
-                            (hidarichukipos_start, hidarichukipos_end) = tmp.span()
-                            tmp = self.reCTRL2.search(lnbuf, hidarichukipos_end)
+                        if self.reLeftrubi2.match(tmp.group()):
+                            posstack.append(tmp.span())
+                            posstack.append(u'［＃左注記］')
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
                             continue
 
                         """ 左注記（開始／終了型）終わり
                         """
                         tmp2 = self.reLeftrubi2owari.match(tmp.group())
                         if tmp2:
-                            sTmp = lnbuf[hidarichukipos_end:tmp.start()]
+                            if posstack[-1] != u'［＃左注記］':
+                                logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
+                            posstack.pop()
+                            pos_start,pos_end = posstack.pop()
+                            sTmp = lnbuf[pos_end:tmp.start()]
                             lnbuf = u'%s<aozora leftrubi="%s" length="%d">%s</aozora>%s' % (
-                                lnbuf[:hidarichukipos_start],
+                                lnbuf[:pos_start],
                                 tmp2.group('name'), len(sTmp),
                                 sTmp,
                                 lnbuf[tmp.end():] )
@@ -878,22 +921,26 @@ class Aozora(AozoraScale):
                         """ 割り注
                             同一行内に割り注終わりが存在するはず
                         """
-                        tmp2 = self.reWarichu.match(tmp.group())
-                        if tmp2:
-                            # ネストすることは考えにくいのでフラグで済ます
-                            (warichupos_start, warichupos_end) = tmp.span()
-                            tmp = self.reCTRL2.search(lnbuf, warichupos_end)
+                        if self.reWarichu.match(tmp.group()):
+                            posstack.append(tmp.span())
+                            posstack.append(u'［＃割り注］')
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
                             continue
 
                         """ 割り注終わり
                         """
                         tmp2 = self.reWarichuOwari.match(tmp.group())
                         if tmp2:
-                            sTmp = lnbuf[warichupos_end:tmp.start()]
+                            if posstack[-1] != u'［＃割り注］':
+                                logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
+                            posstack.pop()
+                            pos_start,pos_end = posstack.pop()
+
+                            sTmp = lnbuf[pos_end:tmp.start()]
                             if sTmp.find(u'<aozora') != -1 or sTmp.find(u'<span') != -1:
                                 # 本文にタグを検出した場合、割り注を放棄する
                                 lnbuf = u'%s%s%s' % (
-                                    lnbuf[:warichupos_start],
+                                    lnbuf[:pos_start],
                                     sTmp,
                                     lnbuf[tmp.end():] )
                             else:
@@ -908,7 +955,7 @@ class Aozora(AozoraScale):
                                         if len(s0) > l:
                                             l = len(s0)
                                 lnbuf = u'%s<aozora warichu="%s" height="%d">%s</aozora>%s' % (
-                                    lnbuf[:warichupos_start], sTmp, l,
+                                    lnbuf[:pos_start], sTmp, l,
                                     u'　' * int(math.ceil(
                                         l * self.fontmagnification(u'size="smaller"'))),
                                     lnbuf[tmp.end():] )
@@ -1003,16 +1050,7 @@ class Aozora(AozoraScale):
                             tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             # 横書きにするので内容への修飾を外す
-                            sTmp = lnbuf[tmpStart:tmpEnd]
-                            tmp3 = self.reCTRL2.search(sTmp)
-                            while tmp3:
-                                sTmp = sTmp[:tmp3.start()]+sTmp[tmp3.end():]
-                                tmp3 = self.reCTRL2.search(sTmp)
-                            # <>
-                            s0, e0 = self.__searchtag(sTmp)
-                            while s0 != -1:
-                                sTmp = sTmp[:s0]+sTmp[e0:]
-                                s0, e0 = self.__searchtag(sTmp)
+                            sTmp = self.__removetag(lnbuf[tmpStart:tmpEnd])
                             lnbuf = u'%s<aozora caption="%s">　</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
                                         sTmp,
@@ -1024,25 +1062,20 @@ class Aozora(AozoraScale):
                         if tmp.group() == u'［＃キャプション］':
                             #   キャプション（開始/終了型）
                             #   同一行中に閉じられることを期待して
-                            (captionpos_Start, captionpos_End) = tmp.span()
-                            tmp = self.reCTRL2.search(lnbuf,captionpos_End)
+                            posstack.append(tmp.span())
+                            posstack.append(u'［＃キャプション］')
+                            tmp = self.reCTRL2.search(lnbuf,tmp.end())
                             continue
 
                         if tmp.group() == u'［＃キャプション終わり］':
+                            if posstack[-1] != u'［＃キャプション］':
+                                logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
+                            posstack.pop()
+                            pos_start,pos_end = posstack.pop()
                             # 横書きにするので内容への修飾を外す
-                            # ［＃］
-                            sTmp = lnbuf[captionpos_End:tmp.start()]
-                            tmp2 = self.reCTRL2.search(sTmp)
-                            while tmp2:
-                                sTmp = sTmp[:tmp2.start()]+sTmp[tmp2.end():]
-                                tmp2 = self.reCTRL2.search(sTmp)
-                            # <>
-                            s0, e0 = self.__searchtag(sTmp)
-                            while s0 != -1:
-                                sTmp = sTmp[:s0]+sTmp[e0:]
-                                s0, e0 = self.__searchtag(sTmp)
+                            sTmp = self.__removetag(lnbuf[pos_end:tmp.start()])
                             lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
-                                    lnbuf[:captionpos_Start],
+                                    lnbuf[:pos_start],
                                     sTmp,
                                     lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
@@ -1073,8 +1106,10 @@ class Aozora(AozoraScale):
                         tmp2 = self.reMojisize2.match(tmp.group())
                         if tmp2:
                             #   文字の大きさ２
+                            #   開始／終了型　及び　ブロック修飾兼用
                             #   文字の大きさ　と互換性がない（誤検出する）ので、
                             #   こちらを後に処理すること
+                            #   閉じタグは</span>に単純置換される
                             sNameTmp = tmp2.group(u'name') + tmp2.group(u'size')
                             try:
                                 sSizeTmp = self.dicMojisize[sNameTmp]
@@ -1114,6 +1149,9 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 傍点・傍線
+                            開始／終了型
+                        """
                         tmp2 = self.reBouten2.match(tmp.group())
                         if tmp2:
                             # ［＃傍点］
@@ -1244,30 +1282,26 @@ class Aozora(AozoraScale):
                             # ［＃見出し］
                             self.inMidashi = True
                             self.midashi = u''
-                            midashiStart, midashiEnd = tmp.span()
-                            tmp = self.reCTRL2.search(lnbuf, midashiEnd)
+                            posstack.append(tmp.span())
+                            posstack.append(u'［＃見出し］')
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
                             continue
 
                         tmp2 = self.reMidashi2owari.match(tmp.group())
                         if tmp2:
                             # ［＃見出し終わり］
-                            self.midashi = lnbuf[midashiEnd:tmp.start()]
+                            if posstack[-1] != u'［＃見出し］':
+                                logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
+                            posstack.pop()
+                            pos_start,pos_end = posstack.pop()
+                            #   目次用にタグを外す
+                            self.midashi = self.__removetag(lnbuf[pos_end:tmp.start()])
                             self.sMidashiSize = tmp2.group('midashisize')
-                            #  目次用に修飾を外す
-                            # ［＃］
-                            tmp2 = self.reCTRL2.search(self.midashi)
-                            while tmp2:
-                                self.midashi = self.midashi[:tmp2.start()]+self.midashi[tmp2.end():]
-                                tmp2 = self.reCTRL2.search(self.midashi)
-                            # <>
-                            s0, e0 = self.__searchtag(self.midashi)
-                            while s0 != -1:
-                                self.midashi = self.midashi[:s0]+self.midashi[e0:]
-                                s0, e0 = self.__searchtag(self.midashi)
+
                             lnbuf = u'%s<span face="Sans"%s>%s</span>%s' % (
-                                lnbuf[:midashiStart],
+                                lnbuf[:pos_start],
                                 u' size="larger"' if self.sMidashiSize == u'大' else u'',
-                                lnbuf[midashiEnd:tmp.start()],
+                                lnbuf[pos_end:tmp.start()],
                                 lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue

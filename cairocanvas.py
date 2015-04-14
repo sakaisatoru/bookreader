@@ -117,7 +117,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         while pos_start < end:
             if data[pos_start] == u'<':
                 if data[pos_start+1:pos_start+2] == u'/':
-                    # 閉じタグ
+                    # 既存の閉じタグ
+                    if tagstack[-1] ==u'<aozora yokogumi':
+                        # このルーチンで挿入したタグがあれば閉じる
+                        tagstack.pop()
+                        sTmp.append( u'</aozora>' )
+
                     pos_end = data.find( u'>', pos_start)
                     if pos_end != -1:
                         sTmp.append(data[pos_start:pos_end+1])
@@ -138,7 +143,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 #   既にyokogumiタグがある
                 #   縦中横のなかである
                 #                       なら見送る
-                if tagstack[-1].find(u'<aozora yokogumi') == -1:
+                if not [s for s in tagstack if s.find(u'<aozora yokogumi') != -1]:
                     if not [s for s in tagstack if s.find(u'tatenakayoko') != -1]:
                         sTmp.append( u'<aozora yokogumi="dmy">' )
                         tagstack.append( u'<aozora yokogumi' )
@@ -152,7 +157,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
             sTmp.append(data[pos_start])
             pos_start += 1
-
         self.feed(u''.join(sTmp))
         self.close()
 

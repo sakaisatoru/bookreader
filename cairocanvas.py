@@ -118,45 +118,52 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             if data[pos_start] == u'<':
                 if data[pos_start+1:pos_start+2] == u'/':
                     # 既存の閉じタグ
-                    if tagstack[-1] ==u'<aozora yokogumi':
+                    if tagstack[-1] == u'<aozora yokogumi':
                         # このルーチンで挿入したタグがあれば閉じる
                         tagstack.pop()
                         sTmp.append( u'</aozora>' )
 
                     pos_end = data.find( u'>', pos_start)
                     if pos_end != -1:
+                        tagstack.pop()
                         sTmp.append(data[pos_start:pos_end+1])
                         pos_start = pos_end + 1
-                        tagstack.pop()
                         continue
                 else:
                     pos_end = data.find( u'>', pos_start)
                     if pos_end != -1:
-                        sTmp.append(data[pos_start:pos_end+1])
                         tagstack.append(data[pos_start:pos_end+1])
+                        sTmp.append(data[pos_start:pos_end+1])
                         pos_start = pos_end + 1
                         continue
 
             elif self.isYokoChar(data[pos_start]):
                 # 横書き文字ならタグを挿入する
                 # 但し
-                #   既にyokogumiタグがある
-                #   縦中横のなかである
-                #                       なら見送る
+                #   既にyokogumiタグがある あるいは 縦中横のなかである
+                #   なら見送る
+                for s in tagstack:
+                    if s.find(u'<aozora yokogumi') != -1 or s.find(u'tatenakayoko') != -1:
+                        break
+                else:
+                    tagstack.append( u'<aozora yokogumi' )
+                    sTmp.append( u'<aozora yokogumi="dmy">' )
+                """
                 if not [s for s in tagstack if s.find(u'<aozora yokogumi') != -1]:
                     if not [s for s in tagstack if s.find(u'tatenakayoko') != -1]:
-                        sTmp.append( u'<aozora yokogumi="dmy">' )
                         tagstack.append( u'<aozora yokogumi' )
+                        sTmp.append( u'<aozora yokogumi="dmy">' )
+                """
 
             elif tagstack[-1].find(u'<aozora yokogumi') != -1:
+                # 縦書き文字検出
+                # このルーチンでの横組みが指定されていれば閉じる
                 tagstack.pop()
-                sTmp.append(data[pos_start]) # リストの要素順の都合でここで戻る
                 sTmp.append( u'</aozora>' )
-                pos_start += 1
-                continue
 
             sTmp.append(data[pos_start])
             pos_start += 1
+
         self.feed(u''.join(sTmp))
         self.close()
 

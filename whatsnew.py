@@ -24,10 +24,11 @@
         URLのリストを得る。
 """
 
-from readersub import ReaderSetting, Download, DownloadUI
+from readersub_nogui import ReaderSetting
+from readersub import Download, DownloadUI
 import aozoradialog
 
-import sys
+#import sys
 import codecs
 import os.path
 import datetime
@@ -38,7 +39,7 @@ from HTMLParser import HTMLParser
 import gtk
 import gobject
 
-sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
+#sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
 
 
 class ReadHTMLpage(HTMLParser, ReaderSetting, Download):

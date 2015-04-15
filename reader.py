@@ -24,9 +24,9 @@
 """
 
 import aozoradialog
-from readersub      import ReaderSetting, History
+from readersub_nogui import ReaderSetting, History
 from formater       import Aozora, AozoraCurrentTextinfo
-from cairocanvas    import CairoCanvas
+#from cairocanvas    import CairoCanvas
 from whatsnew       import WhatsNewUI
 from logview        import Logviewer
 from bunko3         import BunkoUI

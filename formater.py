@@ -33,11 +33,11 @@
 
 
 import jis3
-from readersub import ReaderSetting
+from readersub_nogui import ReaderSetting, AozoraScale
 import aozoraaccent
 import aozoradialog
 
-import sys
+#import sys
 import codecs
 import re
 import os.path
@@ -52,8 +52,7 @@ import copy
 import gtk
 import gobject
 
-sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
-
+#sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
 class AozoraCurrentTextinfo(ReaderSetting):
     """ 現在扱っているテキストの情報を保持する
@@ -115,133 +114,6 @@ class AozoraTag(object):
         """
         index = self.__sub_1(s,pos)
         return None if index == -1 else self.reTmp.search(s,index)
-
-class AozoraScale(object):
-    """ 描画時のピクセル長の計算等
-    """
-    # Serif(TakaoEx明朝)における、対全角文字比
-    charwidth_serif = {
-            u' ':0.312500,  u'!':0.312500,  u'"':0.375000,  u'#':0.625000,
-            u'$':0.625000,  u'&':0.750000,  u'%':0.812500,  u"'":0.200000,
-            u'(':0.375000,  u')':0.375000,  u'*':0.250000,  u'+':0.687500,
-            u',':0.250000,  u'-':0.315000,  u'.':0.250000,  u'/':0.500000,
-            u'0':0.500000,  u'1':0.500000,  u'2':0.500000,  u'3':0.500000,
-            u'4':0.500000,  u'5':0.500000,  u'6':0.500000,  u'7':0.500000,
-            u'8':0.500000,  u'9':0.500000,  u':':0.250000,  u';':0.250000,
-            u'<':0.687500,  u'=':0.687500,  u'>':0.687500,  u'?':0.500000,
-            u'@':0.875000,  u'A':0.733333,  u'B':0.733333,  u'C':0.733333,
-            u'D':0.800000,  u'E':0.666667,  u'F':0.666667,  u'G':0.800000,
-            u'H':0.800000,  u'I':0.400000,  u'J':0.466667,  u'K':0.733333,
-            u'L':0.600000,  u'M':0.933333,  u'N':0.800000,  u'O':0.800000,
-            u'P':0.666667,  u'Q':0.800000,  u'R':0.666667,  u'S':0.600000,
-            u'T':0.600000,  u'U':0.800000,  u'V':0.733333,  u'W':0.933333,
-            u'X':0.733333,  u'Y':0.666667,  u'Z':0.600000,  u'[':0.312500,
-            u'\\':0.500000, u']':0.312500,  u'^':0.500000,  u'_':0.500000,
-            u'`':0.500000,  u'a':0.562500,  u'b':0.625000,  u'c':0.562500,
-            u'd':0.625000,  u'e':0.562500,  u'f':0.312500,  u'g':0.562500,
-            u'h':0.625000,  u'i':0.312500,  u'j':0.312500,  u'k':0.562500,
-            u'l':0.312500,  u'm':0.875000,  u'n':0.625000,  u'o':0.562500,
-            u'p':0.625000,  u'q':0.625000,  u'r':0.375000,  u's':0.500000,
-            u't':0.312500,  u'u':0.625000,  u'v':0.562500,  u'w':0.750000,
-            u'x':0.562500,  u'y':0.562500,  u'z':0.437500,  u'{':0.312500,
-            u'|':0.187500,  u'}':0.312500,  u'~':0.500000   }
-
-    # 文字サイズ変更への暫定対応(公比1.2、端数切り上げ、一部調整)
-    fontsizefactor = {
-            u'normal':1.0,
-            u'size="smaller"':0.82,                 u'size="larger"':1.2000,
-            u'size="small"':0.82,                   u'size="large"':1.2000,
-            u'size="x-small"':0.6944444444444445,   u'size="x-large"':1.4400,
-            u'size="xx-small"':0.578703703703703,   u'size="xx-large"':1.7280,
-            u'<sup>':0.82,                          u'<sub>':0.82 }
-
-    reFontsizefactor = re.compile( ur'(?P<name>size=".+?")' )
-
-    def __init__(self):
-        pass
-
-    def linelengthcount(self, sline):
-        """ 文字列の長さを数える
-            文字の大きさ変更等に対応
-            <tag></tag> はカウントしない。
-        """
-        l = 0.0
-        inTag = False
-        tagname = u''
-        tagstack = []
-        fontsizename = u'normal'
-
-        for s in sline:
-            if s == u'>':
-                # tagスタックの操作
-                tagname += s
-                if tagname[:2] == u'</':
-                    # </tag>の出現とみなしてスタックから取り除く
-                    # ペアマッチの処理は行わない
-                    if tagstack != []:
-                        tmp = self.reFontsizefactor.search(tagstack.pop())
-                        if tmp:
-                            if tmp.group('name') in self.fontsizefactor:
-                                fontsizename = u'normal' # 文字サイズの復旧
-                else:
-                    tmp = self.reFontsizefactor.search(tagname)
-                    if tmp:
-                        if tmp.group('name') in self.fontsizefactor:
-                            fontsizename = tmp.group('name') # 文字サイズ変更
-                    tagstack.append(tagname)
-                    tagname = u''
-                inTag = False
-            elif s == u'<':
-                inTag = True
-                tagname = s
-            elif inTag:
-                tagname += s
-            else:
-                # 画面上における全長を計算
-                l += self.charwidth(s) * self.fontsizefactor[fontsizename]
-        return int(math.ceil(l))
-        #return int(math.floor(l))
-        #return int(round(l))
-
-    def charwidth(self, lsc):
-        """ 文字の幅を返す
-            全角 を１とする
-        """
-        if lsc in self.charwidth_serif:
-            lcc = self.charwidth_serif[lsc]
-        elif unicodedata.east_asian_width(lsc) == 'H':
-            # 半角カナ(青空文庫では未使用)
-            lcc = 0.5
-        else:
-            # 全角文字扱い
-            lcc = 1.0
-        return lcc
-
-    def fontmagnification(self, s):
-        """ 文字倍率を返す
-        """
-        reTmp = self.reFontsizefactor.search(s)
-        if reTmp:
-            s = reTmp.group(u'name')
-            if s in self.fontsizefactor:
-                n = self.fontsizefactor[s]
-        elif s in self.fontsizefactor:
-            n = self.fontsizefactor[s]
-        else:
-            n = 1
-        return n
-
-    def zentoi(self, s):
-        """ 全角文字列を整数に変換する
-        """
-        n = 0
-        for s2 in s:
-            j = u'０１２３４５６７８９'.find(s2)
-            if j != -1:
-                n = n * 10 + j
-            else:
-                break
-        return n
 
 
 class Aozora(AozoraScale):
@@ -962,12 +834,6 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-                        """ 割り注内で使われる特殊タグをいかす
-                        """
-                        if tmp.group() == u'［＃改行］':
-                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
-                            continue
-
                         tmp2 = self.reFig2.match(tmp.group())
                         if tmp2:
                             # 挿図（キャプション付き他、独立段落）
@@ -1468,16 +1334,13 @@ class Aozora(AozoraScale):
         if tagstack != [] and start >= 0:
             # 閉じタグのみを検出した場合は、上流にタグがあるものとして
             # 文字列を拡張する
-            #print honbun[:start], tagstack
             try:
                 pos = start
                 while tagstack != []:
                     pos = honbun.rfind(u'>',0,pos)
                     if pos != -1:
-                        #print honbun[:pos]
                         pos = honbun.rfind(u'<',0,pos)
                         if pos != -1:
-                            #print honbun[:pos]
                             if honbun[pos:pos+2] == u'</':
                                 tagstack.append(pos)
                             else:
@@ -1490,7 +1353,6 @@ class Aozora(AozoraScale):
                 start = pos
             except IndexError:
                 logging.error( "閉じられていないタグを検出  %s" % honbun )
-                #print tagstack
 
         return (start,end+1)
 
@@ -1872,6 +1734,12 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf, tmp.end())
                         continue
 
+                    """ 割り注内で使われる特殊タグをいかす
+                    """
+                    if tmp.group() == u'［＃改行］':
+                        tmp = self.reCTRL2.search(lnbuf, tmp.end())
+                        continue
+
                     """ 未定義タグ
                         本文より抜去してログへ書き出す。
                     """
@@ -2081,7 +1949,6 @@ class Aozora(AozoraScale):
         """
         pos = len(honbun) - 1
         while pos >= 0 and honbun[pos] in self.kinsoku2:
-            #print u'行末禁則処理', honbun
             pos -= 1
         if pos < len(honbun) - 1:
             pos += 1
@@ -2133,7 +2000,6 @@ class Aozora(AozoraScale):
                                     # 再度実施
                                     pos = len(honbun) - 1
                                     while pos >= 0 and honbun[pos] in self.kinsoku2:
-                                        #print u'行末禁則処理', honbun
                                         pos -= 1
                                     if pos < len(honbun) - 1:
                                         pos += 1

@@ -20,13 +20,14 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
-from readersub  import ReaderSetting, DownloadUI
+from readersub_nogui  import ReaderSetting
+from readersub  import DownloadUI
 import aozoradialog
 import ndc
 
 import logging
-import sys
-import codecs
+#import sys
+#import codecs
 import os.path
 import os
 import urllib
@@ -38,7 +39,7 @@ import subprocess
 import gtk
 import gobject
 
-sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
+#sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
 class aozoraDB(ReaderSetting):
     """ インデックスファイルを読み込んでデータベースを作成する

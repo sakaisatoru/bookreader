@@ -18,26 +18,18 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 
+from readersub_nogui import ReaderSetting, AozoraScale
 
-from readersub import ReaderSetting
-from formater import AozoraScale
-
-import sys
 import codecs
-import re
 import os.path
 import unicodedata
 import math
 from contextlib import contextmanager
 from HTMLParser import HTMLParser
 
-import gtk
 import cairo
 import pango
 import pangocairo
-import gobject
-
-sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
 
 @contextmanager
@@ -117,15 +109,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         while pos_start < end:
             if data[pos_start] == u'<':
                 if data[pos_start+1:pos_start+2] == u'/':
-                    # 既存の閉じタグ
                     if tagstack[-1] == u'<aozora yokogumi':
                         # このルーチンで挿入したタグがあれば閉じる
-                        tagstack.pop()
+                        tagstack.pop() #
                         sTmp.append( u'</aozora>' )
 
                     pos_end = data.find( u'>', pos_start)
                     if pos_end != -1:
-                        tagstack.pop()
+                        tagstack.pop() #
                         sTmp.append(data[pos_start:pos_end+1])
                         pos_start = pos_end + 1
                         continue
@@ -148,17 +139,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 else:
                     tagstack.append( u'<aozora yokogumi' )
                     sTmp.append( u'<aozora yokogumi="dmy">' )
-                """
-                if not [s for s in tagstack if s.find(u'<aozora yokogumi') != -1]:
-                    if not [s for s in tagstack if s.find(u'tatenakayoko') != -1]:
-                        tagstack.append( u'<aozora yokogumi' )
-                        sTmp.append( u'<aozora yokogumi="dmy">' )
-                """
 
-            elif tagstack[-1].find(u'<aozora yokogumi') != -1:
+            elif tagstack[-1] == u'<aozora yokogumi':
                 # 縦書き文字検出
                 # このルーチンでの横組みが指定されていれば閉じる
-                tagstack.pop()
+                tagstack.pop() #
                 sTmp.append( u'</aozora>' )
 
             sTmp.append(data[pos_start])

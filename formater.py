@@ -37,7 +37,6 @@ from readersub_nogui import ReaderSetting, AozoraScale
 import aozoraaccent
 import aozoradialog
 
-#import sys
 import codecs
 import re
 import os.path
@@ -52,7 +51,8 @@ import copy
 import gtk
 import gobject
 
-#sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
+import sys
+sys.stdout=codecs.getwriter('UTF-8')(sys.stdout)
 
 class AozoraCurrentTextinfo(ReaderSetting):
     """ 現在扱っているテキストの情報を保持する
@@ -1861,16 +1861,15 @@ class Aozora(AozoraScale):
             sline   : 本文
             smax    : 1行における文字数（全角文字を1文字とした換算数）
         """
-        tagname = u''
         lcc = 0.0           # 全角１、半角0.5で長さを積算
         honbun = u''        # 本文（カレント行）
         honbun2 = u''       # 本文（分割時の次行）
         inTag = False       # <tag>処理のフラグ
-        inSplit = False     # 行分割処理のフラグ
         sTestNext = []      # 文字列連結用
         sTestCurrent = []   # 〃
         fontsizename = u'normal'
         inTatenakayoko = False  # 縦中横処理用フラグ
+        reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
@@ -1883,23 +1882,21 @@ class Aozora(AozoraScale):
             sline = sline[:pos] + u''.join(self.tagstack) + sline[pos:]
             self.tagstack = []
 
-        for lsc in sline:
-            if inSplit:
-                # 本文の分割
-                sTestNext.append(lsc)
-                continue
+        pos = 0
+        slinelen = len(sline)
+        tagnamestart = 0        # tag の開始位置
+        # 文字位置を知る必要があるのでforではなく添字で回す
+        while pos < slinelen:
+            # 指定された長さを越えたら分割して終わる
+            if round(lcc) >= smax:
+                honbun2 = sline[pos:]
+                break
 
-            if smax:
-                if round(lcc) >= smax:
-                    inSplit = True
-                    sTestNext.append(lsc)
-                    continue
-
-            sTestCurrent.append(lsc)
-            if lsc == u'>':
+            if sline[pos] == u'>':
                 # tagスタックの操作
-                tagname += lsc
-                if tagname[:2] == u'</':
+                pos += 1
+                if sline[tagnamestart:tagnamestart+2] == u'</':
+                    sTestCurrent.append(sline[tagnamestart:pos])
                     # </tag>の出現とみなしてスタックから取り除く
                     # ペアマッチの処理は行わない
                     if self.tagstack != []:
@@ -1907,41 +1904,79 @@ class Aozora(AozoraScale):
                         if self.tagstack[-1].find(u'<aozora tatenakayoko') != -1:
                              inTatenakayoko = False
                         # 訓点・返り点対応
-                        if self.tagstack[-1] in [u'<sup>', u'<sub>']:
+                        elif self.tagstack[-1] in [u'<sup>', u'<sub>']:
                             fontsizename = u'normal'
+                        # 抜去
                         tmp = self.reFontsizefactor.search(self.tagstack.pop())
                         if tmp:
                             if tmp.group('name') in self.fontsizefactor:
                                 fontsizename = u'normal' # 文字サイズの復旧
                 else:
-                    if tagname.find(u'<aozora tatenakayoko') != -1:
-                        # 縦中横　特殊処理　本文文字列長を常に１とみなす
-                        inTatenakayoko = True
-                        lcc += 1
-                    tmp = self.reFontsizefactor.search(tagname)
+                    sTestCurrent.append(sline[tagnamestart:pos])
+                    # tag 別の処理
+                    tmp = reAozoraWarichu.search(sline[tagnamestart:pos])
                     if tmp:
-                        if tmp.group('name') in self.fontsizefactor:
-                            fontsizename = tmp.group('name') # 文字サイズ変更
-                    # 訓点・返り点対応
-                    if tagname in [u'<sup>', u'<sub>']:
+                        # 割り注
+                        wariheight = int(tmp.group('height'))
+                        if lcc + wariheight * self.fontsizefactor['size="smaller"'] > smax:
+                            # 行末迄に収まらなければ割り注を解除する
+                            warisize = int((smax - lcc) / self.fontsizefactor['size="smaller"'])
+                            waribun = u'　%s　' % tmp.group('name')
+                            waribunpos = waribun.find('［＃改行］')
+                            if waribunpos != -1:
+                                waribun = waribun[:waribunpos] + waribun[waribunpos+len('［＃改行］'):]
+
+                            sTestCurrent.pop()
+                            sTestCurrent.append(u'<span size="smaller">%s</span>' % waribun[:warisize])
+
+                            try:
+                                # 表示域確保用の空白及び閉じタグを抜去する
+                                pos = sline.find(u'</aozora>', pos) + 9#len(u'</aozora>')
+                                honbun2 = u'<span size="smaller">%s</span>%s' % (
+                                    waribun[warisize:], sline[pos:] )
+                            except IndexError:
+                                honbun2 = u'<span size="smaller">%s</span>' % (
+                                    waribun[warisize:] )
+                            # スタックには積まないで終わる。
+                            break
+
+                    elif sline[tagnamestart:pos].find(u'<aozora tatenakayoko') != -1:
+                        # 縦中横　特殊処理　本文文字列長を常に１とみなす
+                        lcc += 1
+                        # 処理時間を稼ぐためここで閉じる
+                        tagnamestart = pos # 変数名使いまわし
+                        pos = sline.find(u'</aozora>',pos) + 9#len(u'</aozora>')
+                        sTestCurrent.append(sline[tagnamestart:pos])
+                        inTag = False
+                        continue
+
+                    elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
+                        # 訓点・返り点対応
                         fontsizename = u'size="small"'
-                    self.tagstack.append(tagname)
-                    tagname = u''
+
+                    else:
+                        tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                        if tmp:
+                            # 文字サイズ変更
+                            if tmp.group('name') in self.fontsizefactor:
+                                fontsizename = tmp.group('name')
+                    # tag をスタックへ保存
+                    self.tagstack.append(sline[tagnamestart:pos])
                 inTag = False
-            elif lsc == u'<':
+            elif sline[pos] == u'<':
+                # tag 開始位置を得る
                 inTag = True
-                tagname = lsc
+                tagnamestart = pos
+                pos += 1
             elif inTag:
-                tagname += lsc
-            elif inTatenakayoko:
-                # 縦中横の内部では本文文字数を数えない
-                pass
+                pos += 1
             else:
+                sTestCurrent.append(sline[pos])
                 # tagでなければ画面上における全長を計算
-                lcc += self.charwidth(lsc) * self.fontsizefactor[fontsizename]
+                lcc += self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename]
+                pos += 1
 
         honbun = u''.join(sTestCurrent)
-        honbun2 = u''.join(sTestNext)
 
         """ 行末禁則処理
             次行先頭へ追い出す

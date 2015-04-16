@@ -1283,6 +1283,10 @@ class Aozora(AozoraScale):
             比較は行末から行頭に向かって行われることに注意。
             見つからなければ start とend に同じ値を返す。
             これを配列添字に使えばヌル文字となる。
+
+            name が hoge の場合
+            <span>hoge</span>
+            ^start           ^end
         """
         start = -1
         end = -1
@@ -1307,7 +1311,12 @@ class Aozora(AozoraScale):
                     # タグの場合はスタックを減ずる
                     # エラーは無視する
                     if tagstack != []:
-                        tagstack.pop()
+                        postmp = tagstack.pop()
+                    if end < postmp:
+                        # 照合が閉じタグの前から始まっていたら拡張する
+                        if end != -1:
+                            end = honbun.find(u'>', postmp)
+
                 inTag = False
             elif honbun[pos] == u'>':
                 inTag = True

@@ -710,8 +710,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                         u'from cairocanvas import CairoCanvas\n'+
                         u'if __name__ == "__main__":\n'+
                         u'    n = sys.argv[1].split()\n'+
+                        u'    t = u"" if len(n) < 4 else n[3]\n'+
                         u'    cTmp = CairoCanvas()\n'+
-                        u'    cTmp.writepage(long(n[0]), currentpage=int(n[1]), maxpage=int(n[2]))' )
+                        u'    cTmp.writepage(long(n[0]), currentpage=int(n[1]), maxpage=int(n[2]), title=t)' )
 
         self.dlgSetting = None  # 設定ダイアログ
         self.dlgBookopen = None # テキストオープンダイアログ
@@ -912,6 +913,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """ テキストを開く
             fn ファイル名, zipname ZIP名, works 作品ID, pagenum ページ番号
         """
+        self.currentpage = 0
         if self.isNowFormatting:
             return # フォーマット中の読み込みを抑止
         if self.cc.sourcefile != fn:
@@ -931,6 +933,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 self.cc = copy.copy(pb.currentText)     # ページ情報の複写
             pb.destroy()
             self.isNowFormatting = False
+        if self.currentpage != 0:
+            # フォーマット中に閲覧を始めていたらそのページを維持する
+            pagenum = self.currentpage
         self.page_common(pagenum)
 
     def index_label(self, count, item):
@@ -989,9 +994,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
             #del cTmp
             # pango のメモリリークに対応するためサブプロセスへ移行
             subprocess.call(['python',self.drawingsubprocess,
-                        u'%ld %d %d' % (self.cc.currentpage[self.currentpage],
+                        u'%ld %d %d %s' % (self.cc.currentpage[self.currentpage],
                                             self.currentpage,
-                                            self.cc.pagecounter)])
+                                            self.cc.pagecounter,
+                                            self.cc.booktitle)])
             self.imagebuf.set_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
             bookname,author = self.cc.get_booktitle()
@@ -1048,7 +1054,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'バージョン［＃「バージョン」は中見出し］\n'+
-                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年4［＃「4」は縦中横］月16［＃「16」は縦中横］日\n'+
+                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年4［＃「4」は縦中横］月β［＃「β」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
@@ -1061,15 +1067,14 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u' Python まかせにしており、このためメモリを相当使い'+
                 u'ます。メモリの少ない環境で動かす場合は念のため注意願'+
                 u'います。\n'+
-                u'・いわゆるベタ組処理を行いません。\n'+
-                u'・Pango の仕様により、文字の向きが正しく表示されない場合があります。\n'+
+                u'・いわゆる行末揃えを行いません。\n'+
+                u'・フォントによっては縦書き用の字形を持たないものがあります。このため、正しく表示されない場合があります。\n'+
                 u'・傍線における波線を実装していません。\n'+
                 u'・注記が重複すると正しく表示されない場合があります。\n'+
                 u'・傍点の本文トレースは厳密なものではありません。\n'+
                 u'・連続して出現するルビが重なった場合、後続が下にずれます。どこにかかっているのか分かりにくくなった場合は'+
                 u'フォントサイズを小さくしてみてください。\n'+
                 u'・画像の直後で改ページされるとキャプションが表示されません。\n'+
-                u'・割り注の途中で改行したり、１行からはみ出したりした場合は正しく表示されません。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'［＃改ページ］\n'+
                 u'\nライセンス［＃「ライセンス」は大見出し］\n'+
@@ -1100,7 +1105,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         #cTmp = CairoCanvas()
         #cTmp.writepage(0)
         #del cTmp
-        subprocess.call(['python',self.drawingsubprocess, '0 0 0'])
+        subprocess.call(['python',self.drawingsubprocess, '0 0 0 '])
         del aoTmp
         self.imagebuf.clear()
         self.imagebuf.set_from_file(

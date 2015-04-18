@@ -260,9 +260,13 @@ class Aozora(AozoraScale):
         ur'((?P<suri>\d+?)刷)')
 
     # 禁則
-    kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？．'
+    kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？．，'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
-    kinsoku4 = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»。、．'
+    kinsoku4 = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»。、．，'
+
+    # 送り調整を要する文字
+    kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
+    hajimekakko = u'（［｛〔〈《「『【〘〖〝‘“｟«'
 
     # 単純な置換
     dicAozoraTag = {
@@ -1279,7 +1283,7 @@ class Aozora(AozoraScale):
     def __honbunsearch(self, honbun, name):
         """ 本文を遡って name を検索し、その出現範囲を返す。
             name との比較に際して
-            <tag></tag>、［］は無視される。
+            <tag></tag>、［＃］は無視される。
             比較は行末から行頭に向かって行われることに注意。
             見つからなければ start とend に同じ値を返す。
             これを配列添字に使えばヌル文字となる。
@@ -1683,7 +1687,7 @@ class Aozora(AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
-                    """ 地付き
+                    """ ここから地付き
                     """
                     if self.reKokokaraJitsuki.match(tmp.group()):
                         inJiage = True
@@ -1711,7 +1715,9 @@ class Aozora(AozoraScale):
                         dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
                         # 一時ファイル使用中はページカウントしない
                         self.countpage = False
-                        tmp = self.reCTRL2.search(lnbuf, tmp.end())
+                        lnbuf = u'%s<aozora keikakomi="start"></aozora>%s' % (
+                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
                         continue
 
                     if self.reKeikakomiowari.match(tmp.group()):
@@ -1740,7 +1746,9 @@ class Aozora(AozoraScale):
                             self.__write2file(workfilestack[-1], sCenter)
                         dfile.close()
                         dfile = workfilestack.pop()
-                        tmp = self.reCTRL2.search(lnbuf, tmp.end())
+                        lnbuf = u'%s<aozora keikakomi="end"></aozora>%s' % (
+                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
+                        tmp = self.reCTRL2.search(lnbuf)
                         continue
 
                     """ 割り注内で使われる特殊タグをいかす
@@ -1879,18 +1887,92 @@ class Aozora(AozoraScale):
         fontsizename = u'normal'
         inTatenakayoko = False  # 縦中横処理用フラグ
         reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
+        reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
+        kakkochosei = 1.    # 連続して出現する括弧類の送り量の調整
+        kansuuji = u'〇一二三四五六七八九'
+        reKansuuji = re.compile(ur'(〇|一|二|三|四|五|六|七|八|九)(?P<name>、|・)(〇|一|二|三|四|五|六|七|八|九)')
+
+        """ 連続して出現する括弧類の送り量の調整
+        """
+        retline = []
+        pos = 0
+        anchor = 0
+        end = len(sline)
+        inAozora = 0
+        inTag = False
+        while pos < end:
+            try:
+                if sline[pos] == u'>':
+                    inTag = False
+                elif inTag:
+                    pass
+                elif sline[pos] == u'<':
+                    inTag = True
+                elif inAozora:
+                    if sline[pos] == u'］':
+                        inAozora -= 1
+                elif sline[pos:pos+2] == u'［＃':
+                    inAozora += 1
+                    pos += 1
+                elif sline[pos] in self.kakko:
+                    # 括弧類を検出
+                    # 、・の場合は前後に漢数字があるか調べる
+                    #tmp = reKansuuji.search(sline[pos-1:pos+2])
+                    #if tmp:
+                    #    if tmp.group('name') == u'・':
+                    if sline[pos] in u'、・' and kansuuji.find(sline[pos-1]) != -1 and kansuuji.find(sline[pos+1]) != -1:
+                        if sline[pos] == u'・':
+                            retline.append(
+                                u'%s<aozora half="1.33">%s</aozora><aozora half="1.33">%s</aozora>' % (
+                                    sline[anchor:pos-1],
+                                        sline[pos-1],
+                                            sline[pos]))
+                        else:
+                            retline.append(
+                                u'%s<aozora half="2">%s</aozora>' % (
+                                    sline[anchor:pos], sline[pos] ))
+                        pos += 1
+                        anchor = pos
+                        continue
+
+                    if sline[pos+1] in self.kakko and sline[pos+1:pos+3] != u'［＃':
+                        # 後ろにも括弧が続くか、且つタグの開始でないか
+                        retline.append(
+                            u'%s<aozora half="2">%s</aozora>' % (sline[anchor:pos], sline[pos]))
+                        pos += 1
+                        anchor = pos
+                        continue
+            except IndexError:
+                pass
+            pos += 1
+        retline.append(sline[anchor:])
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
         if self.tagstack != []:
             # 行頭からの空白（字下げ等）を飛ばす
             pos = 0
-            endpos = len(sline)
-            while pos < endpos and sline[pos] == u'　':
+            endpos = len(retline[0])
+            while pos < endpos and retline[0][pos] == u'　':
                 pos += 1
-            sline = sline[:pos] + u''.join(self.tagstack) + sline[pos:]
+            retline.insert(1, retline[0][pos:])
+            retline.insert(1, u''.join(self.tagstack))
+            retline.insert(1, retline[0][:pos])
+            retline.pop(0)
             self.tagstack = []
 
+        sline = u''.join(retline)
+
+        """ 行の分割
+            文字列の長さと実際の画面上における長さが一致しないことに注意
+            ・<>, </> はカウントしない
+            ・<aozora yokogumi="">hoge</aozora> は常に１文字分の高さしか
+            　持たない
+            ・<sub>, <sup> では文字の大きさが変わる
+            ・連続して出現する括弧類及び漢数字内の読点は送り量が調整される
+            ・行末にかかる割り注は底本通りに表示されない可能性があるので
+            　割り注を解除する
+        """
         pos = 0
         slinelen = len(sline)
         tagnamestart = 0        # tag の開始位置
@@ -1910,11 +1992,14 @@ class Aozora(AozoraScale):
                     # ペアマッチの処理は行わない
                     if self.tagstack != []:
                         # 縦中横
-                        if self.tagstack[-1].find(u'<aozora tatenakayoko') != -1:
+                        if self.tagstack[-1][:20] == u'<aozora tatenakayoko':
                              inTatenakayoko = False
                         # 訓点・返り点対応
                         elif self.tagstack[-1] in [u'<sup>', u'<sub>']:
                             fontsizename = u'normal'
+                        # 連続して出現する括弧類
+                        elif self.tagstack[-1][:12] == u'<aozora half':
+                            kakkochosei = 1.
                         # 抜去
                         tmp = self.reFontsizefactor.search(self.tagstack.pop())
                         if tmp:
@@ -1949,7 +2034,7 @@ class Aozora(AozoraScale):
                             # スタックには積まないで終わる。
                             break
 
-                    elif sline[tagnamestart:pos].find(u'<aozora tatenakayoko') != -1:
+                    elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
                         # 縦中横　特殊処理　本文文字列長を常に１とみなす
                         lcc += 1
                         # 処理時間を稼ぐためここで閉じる
@@ -1964,11 +2049,16 @@ class Aozora(AozoraScale):
                         fontsizename = u'size="small"'
 
                     else:
-                        tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                        tmp = reAozoraHalf.search(sline[tagnamestart:pos])
                         if tmp:
-                            # 文字サイズ変更
-                            if tmp.group('name') in self.fontsizefactor:
-                                fontsizename = tmp.group('name')
+                            # 送り量の調整
+                            kakkochosei = 1/float(tmp.group('name'))
+                        else:
+                            tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                            if tmp:
+                                # 文字サイズ変更
+                                if tmp.group('name') in self.fontsizefactor:
+                                    fontsizename = tmp.group('name')
                     # tag をスタックへ保存
                     self.tagstack.append(sline[tagnamestart:pos])
                 inTag = False
@@ -1982,11 +2072,16 @@ class Aozora(AozoraScale):
             else:
                 sTestCurrent.append(sline[pos])
                 # tagでなければ画面上における全長を計算
-                lcc += self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename]
+                lcc += self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename] * kakkochosei
                 pos += 1
-
         honbun = u''.join(sTestCurrent)
-
+        """
+        if round(lcc) >= smax:
+            print lcc, smax
+            print honbun
+            print honbun2
+            print
+        """
         """ 行末禁則処理
             次行先頭へ追い出す
             禁則文字が続く場合は全て追い出す
@@ -2013,6 +2108,7 @@ class Aozora(AozoraScale):
                 # 閉じタグなら前行へぶら下げる
                 pos = honbun2.find(u'>',pos+2) + 1
                 self.tagstack.pop()
+
                 honbun += honbun2[:pos]
                 honbun2 = honbun2[pos:]
                 pos = 0
@@ -2026,29 +2122,29 @@ class Aozora(AozoraScale):
                     honbun += honbun2[pos]
                     honbun2 = honbun2[:pos]+honbun2[pos+1:]
 
-                    if honbun2[pos:]:
-                        # ２文字目チェック
-                        while honbun2[pos] == u'<':
-                            # タグをスキップする
-                            pos = honbun2.find(u'>',pos+1) + 1
-                        if honbun2[pos] in self.kinsoku:
-                            if honbun2[pos] in self.kinsoku4:
-                                honbun += honbun2[pos]
-                                honbun2 = honbun2[:pos]+honbun2[pos+1:]
-                            else:
-                                # 括弧類以外（もっぱら人名対策）
-                                if not (honbun[-2] in self.kinsoku):
-                                    honbun2 = honbun[-2:] + honbun2
-                                    honbun = honbun[:-2]
-                                    # 前行末を変更したので行末禁則処理を
-                                    # 再度実施
-                                    pos = len(honbun) - 1
-                                    while pos >= 0 and honbun[pos] in self.kinsoku2:
-                                        pos -= 1
-                                    if pos < len(honbun) - 1:
-                                        pos += 1
-                                        honbun2 = honbun[pos:] + honbun2
-                                        honbun = honbun[:pos]
+                    #if honbun2[pos:]:
+                    # ２文字目チェック
+                    while honbun2[pos] == u'<':
+                        # タグをスキップする
+                        pos = honbun2.find(u'>',pos+1) + 1
+                    if honbun2[pos] in self.kinsoku:
+                        if honbun2[pos] in self.kinsoku4:
+                            honbun += honbun2[pos]
+                            honbun2 = honbun2[:pos]+honbun2[pos+1:]
+                        else:
+                            # 括弧類以外（もっぱら人名対策）
+                            if not (honbun[-2] in self.kinsoku):
+                                honbun2 = honbun[-2:] + honbun2
+                                honbun = honbun[:-2]
+                                # 前行末を変更したので行末禁則処理を
+                                # 再度実施
+                                pos = len(honbun) - 1
+                                while pos >= 0 and honbun[pos] in self.kinsoku2:
+                                    pos -= 1
+                                if pos < len(honbun) - 1:
+                                    pos += 1
+                                    honbun2 = honbun[pos:] + honbun2
+                                    honbun = honbun[:pos]
             except IndexError:
                 pass
 
@@ -2145,6 +2241,8 @@ class Aozora(AozoraScale):
         # 閉じタグが行頭に回った時のスタック内容を表示
         #if honbun2[:2] == u'</':
         #    print "debug ---",self.tagstack
+
+
 
         return (honbun, honbun2)
 

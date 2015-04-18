@@ -73,6 +73,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         u'ばつ傍点':u'×',    u'傍点':u'﹅',
         u'波線':u'〜〜' }
 
+    # 送り調整を要する文字
+    kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
+
     def __init__(self, canvas):
         HTMLParser.__init__(self)
         AozoraScale.__init__(self)
@@ -111,12 +114,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 if data[pos_start+1:pos_start+2] == u'/':
                     if tagstack[-1] == u'<aozora yokogumi':
                         # このルーチンで挿入したタグがあれば閉じる
-                        tagstack.pop() #
+                        tagstack.pop()
                         sTmp.append( u'</aozora>' )
 
                     pos_end = data.find( u'>', pos_start)
                     if pos_end != -1:
-                        tagstack.pop() #
+                        tagstack.pop()
                         sTmp.append(data[pos_start:pos_end+1])
                         pos_start = pos_end + 1
                         continue
@@ -143,7 +146,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             elif tagstack[-1] == u'<aozora yokogumi':
                 # 縦書き文字検出
                 # このルーチンでの横組みが指定されていれば閉じる
-                tagstack.pop() #
+                tagstack.pop()
                 sTmp.append( u'</aozora>' )
 
             sTmp.append(data[pos_start])
@@ -405,10 +408,17 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         pc.set_gravity_hint('strong')
                     layout.set_markup(sTmp)
                     length, span = layout.get_pixel_size()
+                    if u'half' in dicArg:
+                        # 連続して出現する 括弧類の場合は送り量を調整する
+                        honbunokuri = float(dicArg['half'])
+                        if honbunokuri > 0:
+                            length //= honbunokuri
+                        else:
+                            self.ypos += length // honbunokuri
 
                     honbunxpos = int(math.ceil(span/2.))
                     pangoctx.translate(self.xpos + xposoffset + honbunxpos,
-                                                        self.ypos)  # 描画位置
+                                                self.ypos )  # 描画位置
                     pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)
@@ -475,7 +485,20 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         pc.set_base_gravity('east')     # markup 前に実行
                         pc.set_gravity_hint('natural')   # markup 前に実行
                         layout.set_font_description(self.font_rubi)
-                        layout.set_markup(dicArg[u'rubi'])
+
+                        # ルビにママをつける場合の処理
+                        # ２行表示とする
+                        rubipos = dicArg[u'rubi'].rfind(u'〔ママ〕')
+                        if rubipos != -1:
+                            rubitmp = u'%s\n%s' % (
+                                    dicArg[u'rubi'][rubipos:],
+                                    dicArg[u'rubi'][:rubipos])
+                            rubioffset = rubispan # 開始位置X座標のオフセット
+                        else:
+                            rubitmp = dicArg[u'rubi']
+                            rubioffset = 0
+
+                        layout.set_markup(rubitmp)
                         rubilength,rubispan = layout.get_pixel_size()
                         # 表示位置 垂直方向のセンタリング
                         y = self.ypos + int((length-rubilength) // 2.)
@@ -485,7 +508,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
                         if boutenoffset:
                             rubispan *= 2 # 傍点がある場合は重ね書きを回避する
-                        pangoctx00.translate(self.xpos + honbunxpos + rubispan, y)
+                        pangoctx00.translate(self.xpos + honbunxpos + rubispan + rubioffset, y)
                         pangoctx00.rotate(1.57075)
                         pangoctx00.update_layout(layout)
                         pangoctx00.show_layout(layout)
@@ -526,7 +549,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
     def __init__(self):
         ReaderSetting.__init__(self)
 
-    def writepage(self, pageposition, buffname=u'', currentpage=0, maxpage=0):
+    def writepage(self, pageposition, buffname=u'', currentpage=0, maxpage=0, title=u''):
         """ 指定したページを描画する
             pageposition : 表示ページのフォーマット済ファイル上での絶対位置
         """
@@ -569,20 +592,20 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             for i in xrange(self.pagelines):
                 s0 = f0.readline().rstrip('\n')
 
-                tmpxpos = s0.find(u'［＃ここから罫囲み］')
+                tmpxpos = s0.find(u'<aozora keikakomi="start"></aozora>')
                 if tmpxpos != -1:
                     # 罫囲み開始
                     inKeikakomi = True
                     offset_y = self.chars
                     maxchars = 0
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここから罫囲み］'):]
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+35:]
                     KeikakomiXendpos = xpos# + int(round(self.canvas_linewidth/2.))
 
-                tmpxpos = s0.find(u'［＃ここで罫囲み終わり］')
+                tmpxpos = s0.find(u'<aozora keikakomi="end"></aozora>')
                 if tmpxpos != -1:
                     # 罫囲み終わり
                     inKeikakomi = False
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+len(u'［＃ここで罫囲み終わり］'):]
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+33:]
                     if offset_y > 0:
                         offset_y -= 1
                     maxchars -= offset_y
@@ -617,22 +640,26 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                 #self.drawstring.destroy()
                 xpos -= self.canvas_linewidth
 
-        # ページ番号
+        # ノンブル(ページ番号)
         if currentpage:
             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                 layout = pangoctx.create_layout()
-                #pc = layout.get_context()       # Pango を得る
-                #pc.set_base_gravity('south')     # markup 前に実行
-                #pc.set_gravity_hint('natural')   # markup 前に実行
-                #layout.set_font_description(self.font)
                 layout.set_markup( u'<span size="x-small">%d (全%d頁)</span>' % (currentpage, maxpage))
-                #wx,wy = layout.get_pixel_size() # 左下時必要
-                pangoctx.translate(int(self.get_value('leftmargin')), 4) # 表示位置 (左上)
-                #pangoctx.translate(int(self.get_value('leftmargin')), self.canvas_height - wy -4) # 左下時のY位置
+                wx,wy = layout.get_pixel_size() # 左下時必要
+                pangoctx.translate(int(self.get_value('leftmargin')), self.canvas_height - wy -4) # 左下時のY位置
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
-                #del pc
                 del layout
+
+            # 柱（テキスト名）
+            if title:
+                with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                    layout = pangoctx.create_layout()
+                    layout.set_markup( u'<span size="x-small">%s</span>' % title.strip(u' ').strip(u'　'))
+                    pangoctx.translate(int(self.get_value('leftmargin')), 4) # 表示位置 (左上)
+                    pangoctx.update_layout(layout)
+                    pangoctx.show_layout(layout)
+                    del layout
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
                                                             'thisistest.png'))

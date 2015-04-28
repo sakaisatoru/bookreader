@@ -1887,9 +1887,11 @@ class Aozora(AozoraScale):
                                 # 地付き
                                 n = 0
                             currchars = self.charsmax - n
-                            if lenP >= currchars:
+                            #if lenP >= currchars:
+                            if lenP >= self.charsmax:
                                 # 地付きする文字列の前に１行以上の長さが残って
                                 # いる場合はそのまま分割処理に送る。
+                                currchars = self.charsmax
                                 pass
                             elif lenN >= currchars:
                                 # 地付きする文字列が1行の長さを越えている場合、

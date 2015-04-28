@@ -82,7 +82,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         ReaderSetting.__init__(self)
         self.sf = canvas
         self.xposoffsetold = 0
-        self.oldlength = 0
+        self.oldlength = 0. # self.oldlength = 0
         self.oldwidth = 0
         self.rubilastYpos = 0       # 直前のルビの最末端
         self.leftrubilastYpos = 0   # 直前の左ルビの最末端
@@ -238,14 +238,18 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     continue
                 elif s == u'sup':
                     #<sup>単独ではベースラインがリセットされる為、外部で指定する
+                    #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
                     fontspan = self.fontmagnification(u'<%s>' % s)
-                    sTest = [u'<sup>', sTmp, u'</sup>']
+                    #sTest = [u'<sup>', sTmp, u'</sup>']
+                    sTest = [u'<span size="small">', sTmp, u'</span>']
                 elif s == u'sub':
                     #<sub>単独ではベースラインがリセットされる為、外部で指定する
+                    #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
                     fontspan = self.fontmagnification(u'<%s>' % s)
-                    sTest = [u'<sub>', sTmp, u'</sub>']
+                    #sTest = [u'<sub>', sTmp, u'</sub>']
+                    sTest = [u'<span size="small">', sTmp, u'</span>']
                 else:
                     # 引数復元
                     sTest = []
@@ -319,8 +323,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = int(float(self.get_value(u'fontheight'))*1 +
-                        math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
+                    #length = int(float(self.get_value(u'fontheight'))*1 +
+                    #    math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
+                    length = float(self.get_value(u'fontheight'))*1 + \
+                        math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
                     # 後続のキャプション用に退避
                     self.oldlength = length
                     self.oldwidth = int(round(float(dicArg[u'width']) *
@@ -379,7 +385,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         del pc
                         length = y
                     else:
-                        length = 0
+                        length = 0. #length = 0
 
                 elif u'tatenakayoko' in dicArg:
                     # 縦中横 直前の表示位置を元にセンタリングする
@@ -409,12 +415,20 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     layout.set_markup(sTmp)
                     length, span = layout.get_pixel_size()
                     if u'half' in dicArg:
-                        # 連続して出現する 括弧類の場合は送り量を調整する
+                        # 連続して出現すする括弧等の送り量を調整する
                         honbunokuri = float(dicArg['half'])
                         if honbunokuri > 0:
-                            length //= honbunokuri
+                            #length = round(length*honbunokuri)
+                            length *= honbunokuri
                         else:
-                            self.ypos += length // honbunokuri
+                            #self.ypos += round(length * honbunokuri)
+                            self.ypos += length * honbunokuri
+                    if u'ofset' in dicArg:
+                        # 文字の書き出し位置をずらす
+                        self.ypos += float(dicArg['ofset'])
+                    if u'adj' in dicArg:
+                        # 文字の送り量を増減する
+                        length += float(dicArg['adj'])
 
                     honbunxpos = int(math.ceil(span/2.))
                     pangoctx.translate(self.xpos + xposoffset + honbunxpos,
@@ -586,6 +600,21 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             r,g,b = self.drawstring.getbackgroundcolour()
             ctx.set_source_rgb(r, g, b)
             ctx.fill()
+
+        # 行末揃え確認用
+        """
+        with cairocontext(self.sf) as ctx:
+            ctx.set_antialias(cairo.ANTIALIAS_NONE)
+            ctx.new_path()
+            ctx.set_line_width(1)
+            ctx.move_to(0,
+                    self.canvas_topmargin + self.chars * fontheight)
+            ctx.rel_line_to(self.canvas_width,0)
+            ctx.rel_line_to(0,-fontheight)
+            ctx.rel_line_to(-self.canvas_width,0)
+            ctx.close_path()
+            ctx.stroke()
+        """
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
             f0.seek(pageposition)

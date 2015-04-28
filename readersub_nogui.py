@@ -85,30 +85,29 @@ class AozoraScale(object):
         fontsizename = u'normal'
 
         for s in sline:
-            if s == u'>':
-                # tagスタックの操作
+            if inTag:
                 tagname += s
-                if tagname[:2] == u'</':
-                    # </tag>の出現とみなしてスタックから取り除く
-                    # ペアマッチの処理は行わない
-                    if tagstack != []:
-                        tmp = self.reFontsizefactor.search(tagstack.pop())
+                if s == u'>':
+                    inTag = False
+                    # tagスタックの操作
+                    if tagname[:2] == u'</':
+                        # </tag>の出現とみなしてスタックから取り除く
+                        # ペアマッチの処理は行わない
+                        if tagstack != []:
+                            tmp = self.reFontsizefactor.search(tagstack.pop())
+                            if tmp:
+                                if tmp.group('name') in self.fontsizefactor:
+                                    fontsizename = u'normal' # 文字サイズの復旧
+                    else:
+                        tmp = self.reFontsizefactor.search(tagname)
                         if tmp:
                             if tmp.group('name') in self.fontsizefactor:
-                                fontsizename = u'normal' # 文字サイズの復旧
-                else:
-                    tmp = self.reFontsizefactor.search(tagname)
-                    if tmp:
-                        if tmp.group('name') in self.fontsizefactor:
-                            fontsizename = tmp.group('name') # 文字サイズ変更
-                    tagstack.append(tagname)
-                    tagname = u''
-                inTag = False
+                                fontsizename = tmp.group('name') # 文字サイズ変更
+                        tagstack.append(tagname)
+                        tagname = u''
             elif s == u'<':
                 inTag = True
                 tagname = s
-            elif inTag:
-                tagname += s
             else:
                 # 画面上における全長を計算
                 l += self.charwidth(s) * self.fontsizefactor[fontsizename]

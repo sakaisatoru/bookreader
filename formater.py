@@ -260,9 +260,10 @@ class Aozora(AozoraScale):
         ur'((?P<suri>\d+?)刷)')
 
     # 禁則
-    kinsoku = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;。、！？．，'
+    kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
-    kinsoku4 = u'\r,)]｝、）］｝〕〉》」』】〙〗〟’”｠»。、．，'
+    kinsoku4 = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»。、．，'
+    kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗'
 
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
@@ -493,6 +494,8 @@ class Aozora(AozoraScale):
 
         posstack = []               # 開始/終了型タグ処理用スタック
 
+        kansuuji = u'〇一二三四五六七八九'
+
         with codecs.open( sourcefile, 'r', self.readcodecs ) as f0:
             yield u'［＃ページの左右中央］' # 作品名を1ページ目に表示する為
             for lnbuf in f0:
@@ -628,12 +631,11 @@ class Aozora(AozoraScale):
                 tp = u'...'
                 for s in lnbuf:
                     # タグをスキップ
-                    if s == u'>':
-                        inTag = False
+                    if inTag:
+                        if s == u'>':
+                            inTag = False
                     elif s == u'<':
                         inTag = True
-                    elif inTag:
-                        pass
                     elif s == u'｜':
                         isSPanchor = True
                         retline.append(lnbuf[anchor:pos])
@@ -670,6 +672,71 @@ class Aozora(AozoraScale):
                     pos += 1
                 retline.append(lnbuf[anchor:pos])
                 lnbuf = u''.join(retline)
+
+                """ 連続して出現する括弧類の送り量の調整
+                """
+                retline = []
+                pos = 0
+                anchor = 0
+                end = len(lnbuf)
+                inAozora = 0
+                inTag = False
+                while pos < end:
+                    try:
+                        if inTag:
+                            if lnbuf[pos] == u'>':
+                                inTag = False
+                        elif lnbuf[pos] == u'<':
+                            inTag = True
+                        elif inAozora:
+                            if lnbuf[pos] == u'］':
+                                inAozora -= 1
+                        elif lnbuf[pos:pos+2] == u'［＃':
+                            inAozora += 1
+                            pos += 1
+                        elif lnbuf[pos] in self.kakko:
+                            # 括弧類を検出
+                            if lnbuf[pos] in u'、・' and pos > 0:
+                                # 、・の場合は前後に漢数字があるか調べる
+                                if kansuuji.find(lnbuf[pos-1]) != -1 and kansuuji.find(lnbuf[pos+1]) != -1:
+                                    if lnbuf[pos] == u'・':
+                                        retline.append(
+                                            u'%s<aozora half="0.75">%s</aozora><aozora half="0.75">%s</aozora>' % (
+                                                lnbuf[anchor:pos-1],
+                                                lnbuf[pos-1],
+                                                lnbuf[pos]))
+                                    else:
+                                        retline.append(
+                                            u'%s<aozora half="0.5">%s</aozora>' % (
+                                                lnbuf[anchor:pos], lnbuf[pos] ))
+                                    pos += 1
+                                    anchor = pos
+                                    continue
+
+                            if lnbuf[pos+1] in self.kakko and lnbuf[pos+1:pos+3] != u'［＃':
+                                # 後ろにも括弧が続くか、且つタグの開始でないか
+                                retline.append(
+                                    u'%s<aozora half="0.5">%s</aozora>' % (lnbuf[anchor:pos], lnbuf[pos]))
+                                pos += 1
+                                anchor = pos
+                                continue
+                    except IndexError:
+                        pass
+                    pos += 1
+                retline.append(lnbuf[anchor:])
+
+                lnbuf = u''.join(retline)
+
+
+
+
+
+
+
+
+
+
+
 
                 """ フッタの検出
                 """
@@ -1252,23 +1319,21 @@ class Aozora(AozoraScale):
         c = 0
         pos = len(honbun) - 1
         inRubi = False
-        inTag = False
-        inAtag = False
+        inTag = 0
+        inAtag = 0
         while pos >= 0:
             if honbun[pos] == u'｜':
                 break
-            elif honbun[pos:pos+2] == u'［＃':
-                inAtag = False
-            elif honbun[pos] == u'］':
-                inAtag = True
             elif inAtag:
-                pass
-            elif honbun[pos] == u'<':
-                inTag = False
-            elif honbun[pos] == u'>':
-                inTag = True
+                if honbun[pos:pos+2] == u'［＃':
+                    inAtag -= 1
+            elif honbun[pos] == u'］':
+                inAtag += 1
             elif inTag:
-                pass
+                if honbun[pos] == u'<':
+                    inTag -= 1
+            elif honbun[pos] == u'>':
+                inTag += 1
             elif honbun[pos] == u'《':
                 inRubi = False
             elif honbun[pos] == u'》':
@@ -1301,31 +1366,28 @@ class Aozora(AozoraScale):
         tagstack = []
         while l > 0 and pos > 0:
             pos -= 1
-            if honbun[pos:pos+2] == u'［＃':
-                inAtag = False
+            if inAtag:
+                if honbun[pos:pos+2] == u'［＃':
+                    inAtag = False
             elif honbun[pos] == u'］':
                 inAtag = True
-            elif inAtag:
-                pass
-            elif honbun[pos] == u'<':
-                if honbun[pos:pos+2] == u'</':
-                    # 閉じタグの場合はスタックに保存する
-                    tagstack.append(pos)
-                else:
-                    # タグの場合はスタックを減ずる
-                    # エラーは無視する
-                    if tagstack != []:
-                        postmp = tagstack.pop()
-                    if end < postmp:
-                        # 照合が閉じタグの前から始まっていたら拡張する
-                        if end != -1:
-                            end = honbun.find(u'>', postmp)
+            elif inTag:
+                if honbun[pos] == u'<':
+                    inTag = False
+                    if honbun[pos:pos+2] == u'</':
+                        # 閉じタグの場合はスタックに保存する
+                        tagstack.append(pos)
+                    else:
+                        # タグの場合はスタックを減ずる
+                        if tagstack != []:
+                            postmp = tagstack.pop()
+                        if end < postmp:
+                            # 照合が閉じタグの前から始まっていたら拡張する
+                            if end != -1:
+                                end = honbun.find(u'>', postmp)
 
-                inTag = False
             elif honbun[pos] == u'>':
                 inTag = True
-            elif inTag:
-                pass
             else:
                 if name[l-1] == honbun[pos]:
                     if end < 0:
@@ -1882,86 +1944,31 @@ class Aozora(AozoraScale):
         honbun = u''        # 本文（カレント行）
         honbun2 = u''       # 本文（分割時の次行）
         inTag = False       # <tag>処理のフラグ
-        sTestNext = []      # 文字列連結用
-        sTestCurrent = []   # 〃
+        sTestCurrent = []   # sline を分割しながら格納
+        sTestNext = []      # 〃（次行先頭部分）
+        fLenCurrent = []    # 文字の画面上の長さ（全角を１とする比）
+        adjCurrent = []     # 文字間隔調整可能文字位置を保持する
+
         fontsizename = u'normal'
-        inTatenakayoko = False  # 縦中横処理用フラグ
         reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
         reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
+        reAozoraTatenakayoko = re.compile(ur'<aozora tatenakayoko="(?P<target>.+?)">')
         kakkochosei = 1.    # 連続して出現する括弧類の送り量の調整
-        kansuuji = u'〇一二三四五六七八九'
-        reKansuuji = re.compile(ur'(〇|一|二|三|四|五|六|七|八|九)(?P<name>、|・)(〇|一|二|三|四|五|六|七|八|九)')
+        fontheight = self.currentText.get_linedata(self.currentText.canvas_fontsize,0)[0]
 
-        """ 連続して出現する括弧類の送り量の調整
-        """
-        retline = []
-        pos = 0
-        anchor = 0
-        end = len(sline)
-        inAozora = 0
-        inTag = False
-        while pos < end:
-            try:
-                if sline[pos] == u'>':
-                    inTag = False
-                elif inTag:
-                    pass
-                elif sline[pos] == u'<':
-                    inTag = True
-                elif inAozora:
-                    if sline[pos] == u'］':
-                        inAozora -= 1
-                elif sline[pos:pos+2] == u'［＃':
-                    inAozora += 1
-                    pos += 1
-                elif sline[pos] in self.kakko:
-                    # 括弧類を検出
-                    # 、・の場合は前後に漢数字があるか調べる
-                    #tmp = reKansuuji.search(sline[pos-1:pos+2])
-                    #if tmp:
-                    #    if tmp.group('name') == u'・':
-                    if sline[pos] in u'、・' and kansuuji.find(sline[pos-1]) != -1 and kansuuji.find(sline[pos+1]) != -1:
-                        if sline[pos] == u'・':
-                            retline.append(
-                                u'%s<aozora half="1.33">%s</aozora><aozora half="1.33">%s</aozora>' % (
-                                    sline[anchor:pos-1],
-                                        sline[pos-1],
-                                            sline[pos]))
-                        else:
-                            retline.append(
-                                u'%s<aozora half="2">%s</aozora>' % (
-                                    sline[anchor:pos], sline[pos] ))
-                        pos += 1
-                        anchor = pos
-                        continue
-
-                    if sline[pos+1] in self.kakko and sline[pos+1:pos+3] != u'［＃':
-                        # 後ろにも括弧が続くか、且つタグの開始でないか
-                        retline.append(
-                            u'%s<aozora half="2">%s</aozora>' % (sline[anchor:pos], sline[pos]))
-                        pos += 1
-                        anchor = pos
-                        continue
-            except IndexError:
-                pass
-            pos += 1
-        retline.append(sline[anchor:])
+        # 行末合わせ調整対象文字　優先順位兼用
+        adjchars = u'　 、，．。）］｝〕〉》」』】〙〗（［｛〔〈《「『【〘〖｟'
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
         if self.tagstack != []:
             # 行頭からの空白（字下げ等）を飛ばす
             pos = 0
-            endpos = len(retline[0])
-            while pos < endpos and retline[0][pos] == u'　':
+            endpos = len(sline)
+            while pos < endpos and sline[pos] == u'　':
                 pos += 1
-            retline.insert(1, retline[0][pos:])
-            retline.insert(1, u''.join(self.tagstack))
-            retline.insert(1, retline[0][:pos])
-            retline.pop(0)
+            sline = sline[:pos] + u''.join(self.tagstack) + sline[pos:]
             self.tagstack = []
-
-        sline = u''.join(retline)
 
         """ 行の分割
             文字列の長さと実際の画面上における長さが一致しないことに注意
@@ -1976,177 +1983,356 @@ class Aozora(AozoraScale):
         pos = 0
         slinelen = len(sline)
         tagnamestart = 0        # tag の開始位置
-        # 文字位置を知る必要があるのでforではなく添字で回す
+        skipspc = True
+        pixelsmax = smax * fontheight           # 1行の長さのピクセル値
+        pixellcc = 0.0                          # 描画時の全長（ピクセル値）
+
         while pos < slinelen:
-            # 指定された長さを越えたら分割して終わる
-            if round(lcc) >= smax:
-                honbun2 = sline[pos:]
+            if pixellcc >= pixelsmax:
+                """ 文字列の長さ（描画時ピクセル数）が所定を越えたら
+                    禁則処理及び行末合わせ調整を行って終了する。
+                """
+                if sline[pos] in u'…—‥―':
+                    """ 分離禁止処理（仮）
+                    """
+                    if sline[pos] == sTestCurrent[-1][0]:
+                        if len(adjCurrent) > 1 and pixellcc == pixelsmax:
+                            # 行末へぶら下げ
+                            pixellcc += fLenCurrent[-1]
+                            fLenCurrent.append(fLenCurrent[-1])
+                            sTestCurrent.append(sline[pos])
+                            pos += 1
+                        else:
+                            # 調整余裕が無ければ次行先頭へ
+                            sTestNext.append(sTestCurrent.pop())
+                            pixellcc -= fLenCurrent.pop()
+
+                if sTestCurrent[-1][0] in self.kinsoku2:
+                    """ 行末禁則処理
+                        禁則文字が続く場合は全て次行先頭へ追い出す
+                        現在、タグの処理を省略
+                            タグが出現した場合、先読み([-2]を読む)して禁則文字なら
+                            処理を継続。閉じタグならtagstackへの積み直しが必要で、
+                            さらに遡って調べなくてはならない。
+                    """
+                    while sTestCurrent[-1][0] in self.kinsoku2:
+                        sTestNext.insert(0, sTestCurrent.pop())
+                        pixellcc -= fLenCurrent.pop()
+                else:
+                    """ 行頭禁則処理
+                        調整可能な範囲で前行末へ追い出す。
+                        追い出しきれない場合は、前行末から行頭へ移す。
+                    """
+                    sTestTmp = []
+                    fLenTmp = []
+
+                    if pixellcc == pixelsmax and sline[pos] in u'、。．，':
+                        # 調整を伴わない単純なぶら下げ
+                        sTestCurrent.append(sline[pos])
+                        fLenCurrent.append(fontheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                        pos += 1
+                    else:
+                        try:
+                            while sline[pos] in u'<>' + self.kinsoku:
+                                # 行頭禁則文字を一時リストへ取り出す
+                                if sline[pos:pos+2] == u'</':
+                                    # 閉じタグ
+                                    tagnamestart = pos
+                                    pos = sline.find(u'>',pos+2) + 1
+                                    self.tagstack.pop()
+                                    sTestTmp.append(sline[tagnamestart:pos])
+                                    fLenTmp.append(0.0)
+                                elif sline[pos] == u'<':
+                                    # タグ
+                                    tagnamestart = pos
+                                    pos = sline.find(u'>',pos+2) + 1
+                                    if sline[pos] in self.kinsoku:
+                                        # 後続が禁則文字なら処理を継続
+                                        self.tagstack.append(sline[tagnamestart:pos])
+                                        sTestTmp.append(sline[tagnamestart:pos])
+                                        fLenTmp.append(0.0)
+                                        continue
+                                    else:
+                                        pos = tagnamestart
+                                        break
+                                else:
+                                    # 禁則文字
+                                    sTestTmp.append(sline[pos])
+                                    fLenTmp.append(fontheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                                    pos += 1
+                        except IndexError:
+                            pass
+
+                        # ピクセル値で調整可能範囲と比較
+                        # 調整可能文字での調整量は１文字高の半分
+                        n = fontheight * len(adjCurrent) // 2. - pixellcc + pixelsmax
+                        if n >= sum(fLenTmp):
+                            # 行末に収容できるなら接続
+                            sTestCurrent += sTestTmp
+                            fLenCurrent += fLenTmp
+                            pixellcc += sum(fLenTmp)
+                        else:
+                            # 収容できなければ、行末から次行先頭に移動
+                            tmpstack = [] # タグが閉じていなければオン
+                            while True:
+                                if sTestCurrent[-1][0:2] == u'</':
+                                    # 閉じタグの場合、スタックへ記録
+                                    tmpstack.append(1) # フラグで記録
+                                    sTestTmp.insert(0, sTestCurrent.pop())
+                                    fLenTmp.insert(0, fLenCurrent.pop())
+                                    pixellcc -= fLenTmp[0]
+                                elif sTestCurrent[-1][0] == u'<':
+                                    # タグの場合、スタックの帳尻を合わせる
+                                    if tmpstack == []:
+                                        self.tagstack.pop()
+                                    else:
+                                        tmpstack.pop()
+                                    sTestTmp.insert(0, sTestCurrent.pop())
+                                    fLenTmp.insert(0, fLenCurrent.pop())
+                                    pixellcc -= fLenTmp[0]
+                                elif sTestCurrent[-1][0] in self.kinsoku:
+                                    # 行頭禁則文字なら移動して継続
+                                    sTestTmp.insert(0, sTestCurrent.pop())
+                                    fLenTmp.insert(0, fLenCurrent.pop())
+                                    pixellcc -= fLenTmp[0]
+                                else:
+                                    # 移動
+                                    sTestTmp.insert(0, sTestCurrent.pop())
+                                    fLenTmp.insert(0, fLenCurrent.pop())
+                                    pixellcc -= fLenTmp[0]
+                                    if sTestTmp[0][0] in u'…—‥―' and sTestTmp[0][0] == sTestCurrent[-1][0]:
+                                        # 分離禁止文字の例外処理
+                                        sTestTmp.insert(0, sTestCurrent.pop())
+                                        fLenTmp.insert(0, fLenCurrent.pop())
+                                        pixellcc -= fLenTmp[0]
+
+                                    # タグが開いているなら遡って探しだし、
+                                    # self.tagstackへ記録
+                                    if tmpstack != []:
+                                        currpos = -1
+                                        while sTestCurrent[currpos][0] != u'<' or \
+                                            sTestCurrent[currpos][0:2] == u'</':
+                                            currpos -= 1
+                                        self.tagstack.append(sTestCurrent[currpos])
+
+                                    #終了
+                                    break
+
+                            sTestNext = sTestTmp + sTestNext
+
+                if sTestCurrent[-1][0] in self.kinsoku5 and pixellcc >= pixelsmax:
+                    # 行末が閉じ括弧類なら送り量を調整する。
+                    fLenCurrent[-1] *= 0.5
+                    pixellcc -= fLenCurrent[-1]
+
+                if pixellcc != pixelsmax:
+                    """ 行末合わせ
+                            調整箇所文字の表示開始位置をずらす
+                            調整箇所文字の送り量を増減する
+                        ことで、行末を揃える。
+                        溢れる場合は詰め、そうでない場合は延ばす。
+                        不足する場合、行末が句読点ならばそのまま。
+                    """
+                    try:
+                        # 拾い出された調整箇所全てで文字間調整を行う
+                        # 但し行末の閉じ括弧類は除外する
+                        currpos = -1
+                        while sTestCurrent[currpos][0] == u'<':
+                            currpos -= 1
+                        if sTestCurrent[currpos][0] in self.kinsoku4:
+                            a = len(adjCurrent) - 1
+                            currpos = len(sTestCurrent) - currpos
+                            while a >= 0:
+                                if adjCurrent[a][1] == currpos:
+                                    print sTestCurrent[adjCurrent.pop(a)]
+                                    break
+                                a -= 1
+
+                        adj = pixellcc - pixelsmax      # 調整量
+                        adjsgn = float(-cmp(adj, 0))
+                        adj = abs(adj)
+                        adjn = adj / float(len(adjCurrent))
+                        # （全ての文字で同じ調整量が適用される）
+                        adjCurrent.sort()
+                        a = len(adjCurrent) - 1
+                        while a >= 0:
+                            if a == 0 and adj >= 0.:
+                                adjn = adj # 最後は残り全部
+
+                            if sTestCurrent[adjCurrent[a][1]] in self.kinsoku2:
+                                # 開き括弧類は書き出し位置をずらす
+                                sTestCurrent.insert(adjCurrent[a][1],
+                                    u'<aozora ofset="%f">%s</aozora>' % (
+                                        (adjn * adjsgn), # 調整ピクセル値
+                                        sTestCurrent[adjCurrent[a][1]]))
+                            else:
+                                # それ以外は送り量を増減する
+                                sTestCurrent.insert(adjCurrent[a][1],
+                                    u'<aozora adj="%f">%s</aozora>' % (
+                                        (adjn * adjsgn), # 調整ピクセル値
+                                        sTestCurrent[adjCurrent[a][1]]))
+                            sTestCurrent.pop(adjCurrent[a][1]+1)
+                            adj -= adjn
+                            a -= 1
+
+                    except IndexError:
+                        # 禁則処理の結果、調整点が抜去されている
+                        #print adj, len(adjCurrent), u'調整箇所抜去'
+                        pass
+
+                    except ZeroDivisionError:
+                        # 調整可能箇所なし
+                        #print adj, len(adjCurrent), u'調整箇所不足'
+                        pass
+
+                honbun2 = u''.join(sTestNext) + sline[pos:]
                 break
 
-            if sline[pos] == u'>':
-                # tagスタックの操作
-                pos += 1
-                if sline[tagnamestart:tagnamestart+2] == u'</':
+            if inTag:
+                if sline[pos] == u'>':
+                    inTag = False
+                    # tagスタックの操作
+                    pos += 1
                     sTestCurrent.append(sline[tagnamestart:pos])
-                    # </tag>の出現とみなしてスタックから取り除く
-                    # ペアマッチの処理は行わない
-                    if self.tagstack != []:
-                        # 縦中横
-                        if self.tagstack[-1][:20] == u'<aozora tatenakayoko':
-                             inTatenakayoko = False
-                        # 訓点・返り点対応
-                        elif self.tagstack[-1] in [u'<sup>', u'<sub>']:
-                            fontsizename = u'normal'
-                        # 連続して出現する括弧類
-                        elif self.tagstack[-1][:12] == u'<aozora half':
-                            kakkochosei = 1.
-                        # 抜去
-                        tmp = self.reFontsizefactor.search(self.tagstack.pop())
-                        if tmp:
-                            if tmp.group('name') in self.fontsizefactor:
-                                fontsizename = u'normal' # 文字サイズの復旧
-                else:
-                    sTestCurrent.append(sline[tagnamestart:pos])
-                    # tag 別の処理
-                    tmp = reAozoraWarichu.search(sline[tagnamestart:pos])
-                    if tmp:
-                        # 割り注
-                        wariheight = int(tmp.group('height'))
-                        if lcc + wariheight * self.fontsizefactor['size="smaller"'] > smax:
-                            # 行末迄に収まらなければ割り注を解除する
-                            warisize = int((smax - lcc) / self.fontsizefactor['size="smaller"'])
-                            waribun = u'　%s　' % tmp.group('name')
-                            waribunpos = waribun.find('［＃改行］')
-                            if waribunpos != -1:
-                                waribun = waribun[:waribunpos] + waribun[waribunpos+len('［＃改行］'):]
-
-                            sTestCurrent.pop()
-                            sTestCurrent.append(u'<span size="smaller">%s</span>' % waribun[:warisize])
-
-                            try:
-                                # 表示域確保用の空白及び閉じタグを抜去する
-                                pos = sline.find(u'</aozora>', pos) + 9#len(u'</aozora>')
-                                honbun2 = u'<span size="smaller">%s</span>%s' % (
-                                    waribun[warisize:], sline[pos:] )
-                            except IndexError:
-                                honbun2 = u'<span size="smaller">%s</span>' % (
-                                    waribun[warisize:] )
-                            # スタックには積まないで終わる。
-                            break
-
-                    elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
-                        # 縦中横　特殊処理　本文文字列長を常に１とみなす
-                        lcc += 1
-                        # 処理時間を稼ぐためここで閉じる
-                        tagnamestart = pos # 変数名使いまわし
-                        pos = sline.find(u'</aozora>',pos) + 9#len(u'</aozora>')
-                        sTestCurrent.append(sline[tagnamestart:pos])
-                        inTag = False
-                        continue
-
-                    elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
-                        # 訓点・返り点対応
-                        fontsizename = u'size="small"'
-
-                    else:
-                        tmp = reAozoraHalf.search(sline[tagnamestart:pos])
-                        if tmp:
-                            # 送り量の調整
-                            kakkochosei = 1/float(tmp.group('name'))
-                        else:
-                            tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                    fLenCurrent.append(0.0)
+                    if sline[tagnamestart:tagnamestart+2] == u'</':
+                        # </tag>の出現とみなしてスタックから取り除く
+                        if self.tagstack != []:
+                            # 訓点・返り点対応
+                            if self.tagstack[-1] in [u'<sup>', u'<sub>']:
+                                fontsizename = u'normal'
+                            # 連続して出現する括弧類
+                            elif self.tagstack[-1][:12] == u'<aozora half':
+                                kakkochosei = 1.
+                            # 抜去しつつフォントサイズかどうかチェック
+                            tmp = self.reFontsizefactor.search(self.tagstack.pop())
                             if tmp:
-                                # 文字サイズ変更
                                 if tmp.group('name') in self.fontsizefactor:
-                                    fontsizename = tmp.group('name')
-                    # tag をスタックへ保存
-                    self.tagstack.append(sline[tagnamestart:pos])
-                inTag = False
+                                    fontsizename = u'normal' # 文字サイズの復旧
+                    else:
+                        # tag 別の処理
+                        tmp = reAozoraWarichu.search(sline[tagnamestart:pos])
+                        if tmp:
+                            # 割り注
+                            wariheight = int(tmp.group('height'))
+                            if pixellcc + fontheight * wariheight * self.fontsizefactor['size="smaller"'] > pixelsmax:
+                                # 行末迄に収まらなければ割り注を解除する
+                                warisize = int((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="smaller"']))
+                                waribun = u'　%s　' % tmp.group('name')
+                                waribunpos = waribun.find('［＃改行］')
+                                if waribunpos != -1:
+                                    waribun = waribun[:waribunpos] + waribun[waribunpos+len('［＃改行］'):]
+
+                                sTestCurrent.pop()
+                                fLenCurrent.pop()
+                                sTestCurrent.append(u'<span size="smaller">%s</span>' % waribun[:warisize])
+                                fLenCurrent.append(fontheight * len(waribun[:warisize])*self.fontsizefactor['size="smaller"'])
+                                pixellcc += fLenCurrent[-1]
+                                try:
+                                    # 表示域確保用の空白及び閉じタグを抜去する
+                                    pos = sline.find(u'</aozora>', pos) + 9#len(u'</aozora>')
+                                    honbun2 = u'<span size="smaller">%s</span>%s' % (
+                                        waribun[warisize:], sline[pos:] )
+                                except IndexError:
+                                    honbun2 = u'<span size="smaller">%s</span>' % (
+                                        waribun[warisize:] )
+                                # スタックには積まないで終わる。
+                                break
+
+                        elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
+                            # 縦中横　特殊処理　本文文字列高さを常に１文字+1とみなす
+                            # 先頭が連続する括弧の一部であれば、直前の送り量調整を解除する
+                            tatenakapos = sline.find(u'>',tagnamestart)+1
+                            if sline[tatenakapos] in self.kakko:
+                                tatenakapos = -1
+                                try:
+                                    while sTestCurrent[tatenakapos][0] == u'<':
+                                        # タグスキップ
+                                        tatenakapos -= 1
+                                    if sTestCurrent[tatenakapos][0] in self.kakko:
+                                        targetpos = tatenakapos # 連続する括弧類の前半
+                                        tatenakapos -= 1
+                                        while True:
+                                            tmp = reAozoraHalf.search(sTestCurrent[tatenakapos])
+                                            if tmp:
+                                                # 送り量補正
+                                                pixellcc -= fLenCurrent[targetpos]
+                                                fLenCurrent[targetpos] /= float(tmp.group(u'name'))
+                                                pixellcc += fLenCurrent[targetpos]
+                                                sTestCurrent[tatenakapos] = u'<aozora half="1.0">'
+                                                break
+                                            else:
+                                                tatenakapos -= 1
+                                except IndexError:
+                                    pass
+
+                            # 処理時間を稼ぐためここで閉じる
+                            tagnamestart = pos # 変数名使いまわし
+                            pos = sline.find(u'</aozora>',pos)
+                            sTestCurrent.append(sline[tagnamestart:pos])
+                            fLenCurrent.append(1+fontheight * self.fontsizefactor[fontsizename])
+                            pixellcc += fLenCurrent[-1]
+                            tagnamestart = pos # 変数名使いまわし
+                            pos += 9 #len(u'</aozora>')
+                            sTestCurrent.append(sline[tagnamestart:pos])
+                            fLenCurrent.append(0.0)
+                            continue
+
+                        elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
+                            # 訓点・返り点対応
+                            fontsizename = u'size="small"'
+
+                        else:
+                            tmp = reAozoraHalf.search(sline[tagnamestart:pos])
+                            if tmp:
+                                # 送り量の調整
+                                kakkochosei = float(tmp.group('name'))
+                            else:
+                                tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                                if tmp:
+                                    # 文字サイズ変更
+                                    if tmp.group('name') in self.fontsizefactor:
+                                        fontsizename = tmp.group('name')
+                        # tag をスタックへ保存
+                        self.tagstack.append(sline[tagnamestart:pos])
+                else:
+                    pos += 1
             elif sline[pos] == u'<':
                 # tag 開始位置を得る
                 inTag = True
                 tagnamestart = pos
                 pos += 1
-            elif inTag:
-                pos += 1
             else:
                 sTestCurrent.append(sline[pos])
-                # tagでなければ画面上における全長を計算
-                lcc += self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename] * kakkochosei
+                fLenCurrent.append(fontheight * self.charwidth(sline[pos]) * \
+                            self.fontsizefactor[fontsizename] * kakkochosei)
+                pixellcc += fLenCurrent[-1] # tagでなければ画面上における全長を計算
+
+                """ 行全長調整用の文字位置を記録する
+                    行頭の空白（おそらくはインデント分）と最初の括弧類は調整対象から外す
+                """
+                if skipspc and not sline[pos] in u'　 '+self.kinsoku2:
+                    # 行頭の空白や括弧が途切れたらフラグオフ
+                    skipspc = False
+
+                i = adjchars.find(sline[pos]) # 調整時の優先順を兼ねる
+                if i != -1 and not skipspc:
+                    if self.tagstack != [] and self.tagstack[-1].find(u' ') != -1:
+                        # 直前のタグを調べて、調整対象にするか判断する
+                        # 属性のないタグ(sup,sub)を避ける為上のifで' 'の有無を見る
+                        sTagname = self.tagstack[-1].split()[1].split(u'=')[0]
+                        if sTagname != u'rubi':
+                            adjCurrent.append((i,len(sTestCurrent)-1))
+                    else:
+                        adjCurrent.append((i,len(sTestCurrent)-1))
+
                 pos += 1
+
         honbun = u''.join(sTestCurrent)
-        """
-        if round(lcc) >= smax:
-            print lcc, smax
-            print honbun
-            print honbun2
-            print
-        """
-        """ 行末禁則処理
-            次行先頭へ追い出す
-            禁則文字が続く場合は全て追い出す
-        """
-        pos = len(honbun) - 1
-        while pos >= 0 and honbun[pos] in self.kinsoku2:
-            pos -= 1
-        if pos < len(honbun) - 1:
-            pos += 1
-            honbun2 = honbun[pos:] + honbun2
-            honbun = honbun[:pos]
 
-        """ 行頭禁則処理 ver 2
-            前行末にぶら下げる。
-            但し2文字(以上)続く場合は括弧類ならさらにぶら下げ、それ以外は
-            前行の末尾をチェックし、非禁則文字なら行頭へ追い込む。
-            例）シ　(改行) ャーロック・ホームズ ->
-                (改行)シャーロック・ホームズ
-            前行の閉じタグが行頭に回り込んでいる場合は、前行末へぶら下げる。
-        """
-        if honbun2: # len(honbun2)>0 よりわずかに速い
-            pos = 0
-            if honbun2[0:2] == u'</':
-                # 閉じタグなら前行へぶら下げる
-                pos = honbun2.find(u'>',pos+2) + 1
-                self.tagstack.pop()
-
-                honbun += honbun2[:pos]
-                honbun2 = honbun2[pos:]
-                pos = 0
-
-            try:
-                while honbun2[pos] == u'<':
-                    # タグをスキップ
-                    pos = honbun2.find(u'>',pos+1) + 1
-
-                if honbun2[pos] in self.kinsoku:
-                    honbun += honbun2[pos]
-                    honbun2 = honbun2[:pos]+honbun2[pos+1:]
-
-                    #if honbun2[pos:]:
-                    # ２文字目チェック
-                    while honbun2[pos] == u'<':
-                        # タグをスキップする
-                        pos = honbun2.find(u'>',pos+1) + 1
-                    if honbun2[pos] in self.kinsoku:
-                        if honbun2[pos] in self.kinsoku4:
-                            honbun += honbun2[pos]
-                            honbun2 = honbun2[:pos]+honbun2[pos+1:]
-                        else:
-                            # 括弧類以外（もっぱら人名対策）
-                            if not (honbun[-2] in self.kinsoku):
-                                honbun2 = honbun[-2:] + honbun2
-                                honbun = honbun[:-2]
-                                # 前行末を変更したので行末禁則処理を
-                                # 再度実施
-                                pos = len(honbun) - 1
-                                while pos >= 0 and honbun[pos] in self.kinsoku2:
-                                    pos -= 1
-                                if pos < len(honbun) - 1:
-                                    pos += 1
-                                    honbun2 = honbun[pos:] + honbun2
-                                    honbun = honbun[:pos]
-            except IndexError:
-                pass
+        # debug
+        #if self.tagstack != []:
+        #    print self.tagstack
 
         """ tag の処理（１）
             閉じられていないタグを一旦閉じる。

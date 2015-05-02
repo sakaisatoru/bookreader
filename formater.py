@@ -614,7 +614,7 @@ class Aozora(AozoraScale):
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                     else:
                         lnbuf = u'%s%s》%s' % (
-                            lnbuf[:tmpEnd], u'〔ママ〕',
+                            lnbuf[:tmpEnd], u'〔ルビママ〕',
                                                 lnbuf[tmp.end():] )
                     tmp = self.reRubimama.search(lnbuf)
 
@@ -726,17 +726,6 @@ class Aozora(AozoraScale):
                 retline.append(lnbuf[anchor:])
 
                 lnbuf = u''.join(retline)
-
-
-
-
-
-
-
-
-
-
-
 
                 """ フッタの検出
                 """
@@ -1959,7 +1948,7 @@ class Aozora(AozoraScale):
         fontheight = self.currentText.get_linedata(self.currentText.canvas_fontsize,0)[0]
 
         # 行末合わせ調整対象文字　優先順位兼用
-        adjchars = u'　 、，．。）］｝〕〉》」』】〙〗（［｛〔〈《「『【〘〖｟'
+        adjchars = u'　 、，．。）］｝〕〉》」』】〙〗（［｛〔〈《「『【〘〖｟,.'
 
         """ 前回の呼び出しで引き継がれたタグがあれば付け足す。
         """
@@ -2006,8 +1995,26 @@ class Aozora(AozoraScale):
                             pos += 1
                         else:
                             # 調整余裕が無ければ次行先頭へ
-                            sTestNext.append(sTestCurrent.pop())
+                            sTestNext.insert(0,sTestCurrent.pop())
                             pixellcc -= fLenCurrent.pop()
+
+                sTestTmp = []
+                fLenTmp = []
+                try:
+                    while sTestCurrent[-1][0] in self.charwidth_serif and \
+                                                sTestCurrent[-1][0].isalnum():
+                        """ ワードラップ（仮）
+                        """
+                        sTestTmp.insert(0, sTestCurrent.pop())
+                        fLenTmp.insert(0,fLenCurrent.pop())
+
+                    sTestNext = sTestTmp + sTestNext
+                    pixellcc -= sum(fLenTmp)
+                except IndexError:
+                    # 行末から行頭まで連綿と英数字が続く場合はエラーになる（はず）。
+                    # エラー時はキャンセルされる
+                    sTestCurrent += sTestTmp
+                    fLenCurrent += fLenTmp
 
                 if sTestCurrent[-1][0] in self.kinsoku2:
                     """ 行末禁則処理
@@ -2020,7 +2027,7 @@ class Aozora(AozoraScale):
                     while sTestCurrent[-1][0] in self.kinsoku2:
                         sTestNext.insert(0, sTestCurrent.pop())
                         pixellcc -= fLenCurrent.pop()
-                else:
+                elif not sTestNext: # 次行先頭への送り込みがなければ
                     """ 行頭禁則処理
                         調整可能な範囲で前行末へ追い出す。
                         追い出しきれない場合は、前行末から行頭へ移す。
@@ -2048,6 +2055,10 @@ class Aozora(AozoraScale):
                                     # タグ
                                     tagnamestart = pos
                                     pos = sline.find(u'>',pos+2) + 1
+                                    self.tagstack.append(sline[tagnamestart:pos])
+                                    sTestTmp.append(sline[tagnamestart:pos])
+                                    fLenTmp.append(0.0)
+                                    """
                                     if sline[pos] in self.kinsoku:
                                         # 後続が禁則文字なら処理を継続
                                         self.tagstack.append(sline[tagnamestart:pos])
@@ -2057,6 +2068,7 @@ class Aozora(AozoraScale):
                                     else:
                                         pos = tagnamestart
                                         break
+                                    """
                                 else:
                                     # 禁則文字
                                     sTestTmp.append(sline[pos])
@@ -2065,10 +2077,11 @@ class Aozora(AozoraScale):
                         except IndexError:
                             pass
 
-                        # ピクセル値で調整可能範囲と比較
                         # 調整可能文字での調整量は１文字高の半分
                         n = fontheight * len(adjCurrent) // 2. - pixellcc + pixelsmax
+
                         if n >= sum(fLenTmp):
+                            # ピクセル値で調整可能範囲と比較
                             # 行末に収容できるなら接続
                             sTestCurrent += sTestTmp
                             fLenCurrent += fLenTmp
@@ -2085,10 +2098,13 @@ class Aozora(AozoraScale):
                                     pixellcc -= fLenTmp[0]
                                 elif sTestCurrent[-1][0] == u'<':
                                     # タグの場合、スタックの帳尻を合わせる
-                                    if tmpstack == []:
-                                        self.tagstack.pop()
-                                    else:
+                                    if tmpstack != []:
                                         tmpstack.pop()
+                                    else:
+                                        print u'リスト %s' % sTestCurrent[-1]
+                                        print u'スタック %s' % self.tagstack.pop()
+                                        self.tagstack.pop()
+
                                     sTestTmp.insert(0, sTestCurrent.pop())
                                     fLenTmp.insert(0, fLenCurrent.pop())
                                     pixellcc -= fLenTmp[0]
@@ -2112,10 +2128,13 @@ class Aozora(AozoraScale):
                                     # self.tagstackへ記録
                                     if tmpstack != []:
                                         currpos = -1
-                                        while sTestCurrent[currpos][0] != u'<' or \
-                                            sTestCurrent[currpos][0:2] == u'</':
+                                        while tmpstack:
+                                            if sTestCurrent[currpos][0:2] == u'</':
+                                                tmpstack.append(1)
+                                            elif sTestCurrent[currpos][0] == u'<':
+                                                tmpstack.pop()
+                                                self.tagstack.append(sTestCurrent[currpos])
                                             currpos -= 1
-                                        self.tagstack.append(sTestCurrent[currpos])
 
                                     #終了
                                     break
@@ -2123,7 +2142,7 @@ class Aozora(AozoraScale):
                             sTestNext = sTestTmp + sTestNext
 
                 if sTestCurrent[-1][0] in self.kinsoku5 and pixellcc >= pixelsmax:
-                    # 行末が閉じ括弧類なら送り量を調整する。
+                    # 行末が閉じ括弧類なら行全長を調整する。
                     fLenCurrent[-1] *= 0.5
                     pixellcc -= fLenCurrent[-1]
 
@@ -2138,56 +2157,60 @@ class Aozora(AozoraScale):
                     try:
                         # 拾い出された調整箇所全てで文字間調整を行う
                         # 但し行末の閉じ括弧類は除外する
+
+                        # 行末の閉じ括弧類が登録されていれば除外
                         currpos = -1
                         while sTestCurrent[currpos][0] == u'<':
                             currpos -= 1
                         if sTestCurrent[currpos][0] in self.kinsoku4:
-                            a = len(adjCurrent) - 1
-                            currpos = len(sTestCurrent) - currpos
-                            while a >= 0:
-                                if adjCurrent[a][1] == currpos:
-                                    print sTestCurrent[adjCurrent.pop(a)]
-                                    break
-                                a -= 1
+                            currpos = len(sTestCurrent) + currpos
+                            if adjCurrent[-1][1] == currpos:
+                                adjCurrent.pop()
+
+                        # 禁則処理で移動した要素を参照していれば抜去する
+                        adjTmp = []
+                        for a0 in adjCurrent:
+                            try:
+                                b = sTestCurrent[a0[1]]
+                                adjTmp.append(a0)
+                            except IndexError:
+                                continue
 
                         adj = pixellcc - pixelsmax      # 調整量
                         adjsgn = float(-cmp(adj, 0))
                         adj = abs(adj)
-                        adjn = adj / float(len(adjCurrent))
-                        # （全ての文字で同じ調整量が適用される）
-                        adjCurrent.sort()
-                        a = len(adjCurrent) - 1
+                        adjn = adj / float(len(adjTmp))
+                        # （全ての箇所で同じ調整量が適用される）
+                        adjTmp.sort()
+                        a = len(adjTmp) - 1
                         while a >= 0:
                             if a == 0 and adj >= 0.:
                                 adjn = adj # 最後は残り全部
 
-                            if sTestCurrent[adjCurrent[a][1]] in self.kinsoku2:
+                            if sTestCurrent[adjTmp[a][1]] in self.kinsoku2:
                                 # 開き括弧類は書き出し位置をずらす
-                                sTestCurrent.insert(adjCurrent[a][1],
+                                sTestCurrent.insert(adjTmp[a][1],
                                     u'<aozora ofset="%f">%s</aozora>' % (
                                         (adjn * adjsgn), # 調整ピクセル値
-                                        sTestCurrent[adjCurrent[a][1]]))
+                                        sTestCurrent[adjTmp[a][1]]))
                             else:
                                 # それ以外は送り量を増減する
-                                sTestCurrent.insert(adjCurrent[a][1],
+                                sTestCurrent.insert(adjTmp[a][1],
                                     u'<aozora adj="%f">%s</aozora>' % (
                                         (adjn * adjsgn), # 調整ピクセル値
-                                        sTestCurrent[adjCurrent[a][1]]))
-                            sTestCurrent.pop(adjCurrent[a][1]+1)
+                                        sTestCurrent[adjTmp[a][1]]))
+                            sTestCurrent.pop(adjTmp[a][1]+1)
                             adj -= adjn
                             a -= 1
-
-                    except IndexError:
-                        # 禁則処理の結果、調整点が抜去されている
-                        #print adj, len(adjCurrent), u'調整箇所抜去'
-                        pass
 
                     except ZeroDivisionError:
                         # 調整可能箇所なし
                         #print adj, len(adjCurrent), u'調整箇所不足'
+                        #print u''.join(sTestCurrent)
                         pass
 
-                honbun2 = u''.join(sTestNext) + sline[pos:]
+                #honbun2 = u''.join(sTestNext) + sline[pos:]
+                sTestNext.append(sline[pos:])
                 break
 
             if inTag:
@@ -2233,11 +2256,15 @@ class Aozora(AozoraScale):
                                 try:
                                     # 表示域確保用の空白及び閉じタグを抜去する
                                     pos = sline.find(u'</aozora>', pos) + 9#len(u'</aozora>')
-                                    honbun2 = u'<span size="smaller">%s</span>%s' % (
-                                        waribun[warisize:], sline[pos:] )
+                                    sTestNext.insert(0, u'<span size="smaller">%s</span>%s' % (
+                                        waribun[warisize:], sline[pos:] ))
+                                    #honbun2 = u'<span size="smaller">%s</span>%s' % (
+                                    #    waribun[warisize:], sline[pos:] )
                                 except IndexError:
-                                    honbun2 = u'<span size="smaller">%s</span>' % (
-                                        waribun[warisize:] )
+                                    sTestNext.insert(0, u'<span size="smaller">%s</span>' % (
+                                        waribun[warisize:] ))
+                                    #honbun2 = u'<span size="smaller">%s</span>' % (
+                                    #    waribun[warisize:] )
                                 # スタックには積まないで終わる。
                                 break
 
@@ -2319,11 +2346,11 @@ class Aozora(AozoraScale):
 
                 i = adjchars.find(sline[pos]) # 調整時の優先順を兼ねる
                 if i != -1 and not skipspc:
-                    if self.tagstack != [] and self.tagstack[-1].find(u' ') != -1:
+                    if self.tagstack and self.tagstack[-1].find(u' ') != -1:
                         # 直前のタグを調べて、調整対象にするか判断する
                         # 属性のないタグ(sup,sub)を避ける為上のifで' 'の有無を見る
                         sTagname = self.tagstack[-1].split()[1].split(u'=')[0]
-                        if sTagname != u'rubi':
+                        if not sTagname in [u'rubi',u'half']:
                             adjCurrent.append((i,len(sTestCurrent)-1))
                     else:
                         adjCurrent.append((i,len(sTestCurrent)-1))
@@ -2331,17 +2358,19 @@ class Aozora(AozoraScale):
                 pos += 1
 
         honbun = u''.join(sTestCurrent)
-
-        # debug
-        #if self.tagstack != []:
-        #    print self.tagstack
+        honbun2 = u''.join(sTestNext)
 
         """ tag の処理（１）
             閉じられていないタグを一旦閉じる。
             行末のタグの分かち書き対策もここで行う。
         """
-        sTestCurrent = []
-        sTestNext = []
+        if sTestCurrent[-1][0] == u'<' and sTestCurrent[-1].find(u'</') == -1:
+            try:
+                pass
+                #print u'debug stack %s' % self.tagstack[-1]
+                #print u'debug list %s' % sTestCurrent[-1]
+            except IndexError:
+                print u'debug : stack underflow'
 
         substack = []
         honbunpos = 0 if honbun[-1] == u'>' else honbun.rfind(u'>') + 1
@@ -2350,6 +2379,7 @@ class Aozora(AozoraScale):
             chktag = self.tagstack.pop()
             # 本文側がタグだけで終わっている場合はタグを閉じて次行へ繰り越す
             # Pango タグも閉じて繰り越して終わる
+
             if honbunpos == 0 or chktag.find(u'<aozora ') == -1:
                 honbun += u'</%s>' % chktag.split()[0].strip(u'<>') # 行末で閉じて
                 substack.append(chktag) # 次行に繰り越す
@@ -2380,7 +2410,7 @@ class Aozora(AozoraScale):
                         tagname, rubiafter, hlenorigin - hlen ))
                 else:
                     honbun += u'</aozora>'
-                    substack.append(u'<aozora>')
+                    substack.append(u'<aozora %s>' % tagname)
                 continue
 
             elif tagname == u'img':
@@ -2416,7 +2446,7 @@ class Aozora(AozoraScale):
                     while pos2 < endpos and honbun2[pos2] == u'＃':
                         pos2 += 1
                     honbun2 = honbun2[pos2:]
-                    substack.append(u'<aozora>')
+                    substack.append(u'<aozora %s>' % tagname)
             else:
                 honbun += u'</aozora>'
                 substack.append(chktag)

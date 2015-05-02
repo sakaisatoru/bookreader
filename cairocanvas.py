@@ -106,30 +106,34 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         """
         sTmp = []
         end = len(data)
-        tagstack = [u'**bos**']
+        tagstack = []
         pos_start = 0
         pos_end = 0
         while pos_start < end:
-            if data[pos_start] == u'<':
-                if data[pos_start+1:pos_start+2] == u'/':
-                    if tagstack[-1] == u'<aozora yokogumi':
-                        # このルーチンで挿入したタグがあれば閉じる
-                        tagstack.pop()
-                        sTmp.append( u'</aozora>' )
+            if data[pos_start:pos_start+2] == u'</':
+                # 既存の閉じタグ
+                if tagstack and tagstack[-1] == u'<aozora yokogumi':
+                    # このルーチンで挿入したタグがあれば先に閉じる
+                    tagstack.pop()
+                    sTmp.append( u'</aozora>' )
 
-                    pos_end = data.find( u'>', pos_start)
-                    if pos_end != -1:
+                pos_end = data.find( u'>', pos_start)
+                if pos_end != -1:
+                    if tagstack:
                         tagstack.pop()
-                        sTmp.append(data[pos_start:pos_end+1])
-                        pos_start = pos_end + 1
-                        continue
-                else:
-                    pos_end = data.find( u'>', pos_start)
-                    if pos_end != -1:
-                        tagstack.append(data[pos_start:pos_end+1])
-                        sTmp.append(data[pos_start:pos_end+1])
-                        pos_start = pos_end + 1
-                        continue
+                    sTmp.append(data[pos_start:pos_end+1])
+                    pos_start = pos_end + 1
+                    continue
+
+            elif data[pos_start] == u'<':
+                # タグ
+                pos_end = data.find( u'>', pos_start)
+                if pos_end != -1:
+                    pos_end += 1
+                    tagstack.append(data[pos_start:pos_end])
+                    sTmp.append(data[pos_start:pos_end])
+                    pos_start = pos_end
+                    continue
 
             elif self.isYokoChar(data[pos_start]):
                 # 横書き文字ならタグを挿入する
@@ -143,7 +147,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     tagstack.append( u'<aozora yokogumi' )
                     sTmp.append( u'<aozora yokogumi="dmy">' )
 
-            elif tagstack[-1] == u'<aozora yokogumi':
+            elif tagstack and tagstack[-1] == u'<aozora yokogumi':
                 # 縦書き文字検出
                 # このルーチンでの横組みが指定されていれば閉じる
                 tagstack.pop()
@@ -502,16 +506,15 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                         # ルビにママをつける場合の処理
                         # ２行表示とする
-                        rubipos = dicArg[u'rubi'].rfind(u'〔ママ〕')
+                        rubipos = dicArg[u'rubi'].rfind(u'〔ルビママ〕') # if dicArg[u'rubi'] else -1
                         if rubipos != -1:
                             rubitmp = u'%s\n%s' % (
                                     dicArg[u'rubi'][rubipos:],
                                     dicArg[u'rubi'][:rubipos])
                             rubioffset = rubispan # 開始位置X座標のオフセット
                         else:
-                            rubitmp = dicArg[u'rubi']
+                            rubitmp = dicArg[u'rubi'] #if dicArg[u'rubi'] else u''
                             rubioffset = 0
-
                         layout.set_markup(rubitmp)
                         rubilength,rubispan = layout.get_pixel_size()
                         # 表示位置 垂直方向のセンタリング

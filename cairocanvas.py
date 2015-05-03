@@ -303,7 +303,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
                     imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
                     imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
+                    #length = int(dicArg[u'height'])
+                    #print length
                     pangoctx.translate(self.xpos + xposoffset - imgtmpx,
+                                            #self.ypos)
                                             self.ypos+imgtmpy)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(

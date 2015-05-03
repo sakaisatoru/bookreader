@@ -102,7 +102,7 @@ class AozoraScale(object):
             u'<sup>':0.82,                          u'<sub>':0.82 }
 
     reFontsizefactor = re.compile( ur'(?P<name>size=".+?")' )
-
+    reImgtag = re.compile( ur'<aozora img="(?P<name>.+?)" width="(?P<width>.+?)" height="(?P<height>.+?)">' )
     def __init__(self):
         pass
 

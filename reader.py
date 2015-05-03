@@ -593,6 +593,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
         gtk.Window.__init__(self)
         ReaderSetting.__init__(self)
 
+        # タイトルバーに表示されるアイコン
+        # チャイルドウィンドウにも引き継がれるが、ダイアログには反映されない
+        self.set_icon(gtk.gdk.pixbuf_new_from_file(u'aozorareader32.png'))
+
         # フラグ類
         self.isRestart = False
         self.isBookopened = False
@@ -1053,12 +1057,12 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 self.dummytitle+'\n'+
                 u'\n'+
                 u'［＃本文終わり］\n'+
-                u'バージョン［＃「バージョン」は中見出し］\n'+
-                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年4［＃「4」は縦中横］月29［＃「29」は縦中横］日\n'+
+                u'｜バージョン《ばーじょん》［＃「バージョン」は中見出し］\n'+
+                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年5［＃「5」は縦中横］月3［＃「3」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
-                u'青空文庫 http://www.aozora.gr.jp/ のテキストファイルを Pango と GTK+2 と Python2 を使って縦書きで読もう、というものです。\n'+
+                u'青空文庫《あおぞらぶんこ》 http://www.aozora.gr.jp/ のテキストファイルを Pango と GTK+2 と Python2 を使って縦書きで読もう、というものです。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'\n'+
                 u'実装されていない機能［＃「実装されていない機能」は中見出し］（……以下に代替）\n'+

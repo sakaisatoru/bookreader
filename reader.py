@@ -595,7 +595,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
         # タイトルバーに表示されるアイコン
         # チャイルドウィンドウにも引き継がれるが、ダイアログには反映されない
-        self.set_icon(gtk.gdk.pixbuf_new_from_file(u'aozorareader32.png'))
+        #self.set_icon(gtk.gdk.pixbuf_new_from_file(u'aozorareader32.png'))
 
         # フラグ類
         self.isRestart = False

@@ -620,7 +620,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             ctx.rel_line_to(-self.canvas_width,0)
             ctx.close_path()
             ctx.stroke()
-        """
+        #"""
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
             f0.seek(pageposition)

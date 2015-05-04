@@ -263,7 +263,7 @@ class Aozora(AozoraScale):
     kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
     kinsoku4 = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»。、．，'
-    kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗'
+    kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗、'
 
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
@@ -1932,8 +1932,6 @@ class Aozora(AozoraScale):
             smax    : 1行における文字数（全角文字を1文字とした換算数）
         """
         lcc = 0.0           # 全角１、半角0.5で長さを積算
-        honbun = u''        # 本文（カレント行）
-        honbun2 = u''       # 本文（分割時の次行）
         inTag = False       # <tag>処理のフラグ
         sTestCurrent = []   # sline を分割しながら格納
         sTestNext = []      # 〃（次行先頭部分）
@@ -1942,7 +1940,6 @@ class Aozora(AozoraScale):
 
         fontsizename = u'normal'
         reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
-        reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
         reAozoraTatenakayoko = re.compile(ur'<aozora tatenakayoko="(?P<target>.+?)">')
         kakkochosei = 1.    # 連続して出現する括弧類の送り量の調整
         fontheight = self.currentText.get_linedata(self.currentText.canvas_fontsize,0)[0]
@@ -2035,9 +2032,14 @@ class Aozora(AozoraScale):
                     fLenTmp = []
 
                     if pixellcc == pixelsmax and sline[pos] in u'、。．，':
-                        # 調整を伴わない単純なぶら下げ
+                        # 句読点のぶら下げ
                         sTestCurrent.append(sline[pos])
                         fLenCurrent.append(fontheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                        # 調整余地があれば後段で処理するよう全長を調整する
+                        if adjCurrent and sline[pos] in u'、，':
+                            pixellcc += fLenCurrent[-1]
+                        elif len(adjCurrent) >= 2:
+                            pixellcc += fLenCurrent[-1]
                         pos += 1
                     else:
                         try:
@@ -2099,11 +2101,25 @@ class Aozora(AozoraScale):
 
                             sTestNext = sTestTmp + sTestNext
 
-                if sTestCurrent[-1][0] in self.kinsoku5 and pixellcc >= pixelsmax:
-                    # 行末が閉じ括弧類なら行全長を調整する。
-                    fLenCurrent[-1] *= 0.5
-                    pixellcc -= fLenCurrent[-1]
-
+                """ 行末における送り量の調整
+                        JIS X 4051 による
+                        (但し参照元はhttp://www.w3.org/TR/jlreq/ja/#characters_not_starting_a_line)
+                            終わり括弧、句点はベタ組
+                            読点は二分空き
+                            中点は前四分後ろベタ
+                """
+                if pixellcc >= pixelsmax:
+                    currpos = -1
+                    while sTestCurrent[currpos][0] == u'<':
+                        currpos -= 1
+                    pixellcc -= fLenCurrent[currpos]
+                    if sTestCurrent[currpos-1].find(u'<aozora half') == -1:
+                        # 既に送り量調整がかかっていればパス
+                        if sTestCurrent[currpos][0] in self.kinsoku5:
+                            fLenCurrent[currpos] *= 0.5
+                        elif sTestCurrent[currpos][0] == u'・':
+                            fLenCurrent[currpos] *= 0.75
+                    pixellcc += fLenCurrent[currpos]
 
                 if pixellcc != pixelsmax and adjCurrent:
                     """ 行末合わせ
@@ -2146,7 +2162,6 @@ class Aozora(AozoraScale):
                             if a == 0 and adj >= 0.:
                                 adjn = adj # 最後は残り全部
 
-
                             if sTestCurrent[adjTmp[a][1]] in self.kinsoku2:
                                 # 開き括弧類は書き出し位置をずらす
                                 sTestCurrent.insert(adjTmp[a][1],
@@ -2176,7 +2191,9 @@ class Aozora(AozoraScale):
                     #    u'行末調整用の文字が不足しています。%d ページ付近、%s' % (
                     #    self.currentText.pagecounter, u''.join(sTestCurrent[0:20])) )
 
-                # 行末合わせ終了
+                #-------------
+                # End of Loop
+                #-------------
                 sTestNext.append(sline[pos:])
                 break
 
@@ -2276,7 +2293,7 @@ class Aozora(AozoraScale):
                                         targetpos = tatenakapos # 連続する括弧類の前半
                                         tatenakapos -= 1
                                         while True:
-                                            tmp = reAozoraHalf.search(sTestCurrent[tatenakapos])
+                                            tmp = self.reAozoraHalf.search(sTestCurrent[tatenakapos])
                                             if tmp:
                                                 # 送り量補正
                                                 pixellcc -= fLenCurrent[targetpos]
@@ -2306,7 +2323,7 @@ class Aozora(AozoraScale):
                             fontsizename = u'size="small"'
 
                         else:
-                            tmp = reAozoraHalf.search(sline[tagnamestart:pos])
+                            tmp = self.reAozoraHalf.search(sline[tagnamestart:pos])
                             if tmp:
                                 # 送り量の調整
                                 kakkochosei = float(tmp.group('name'))
@@ -2352,6 +2369,75 @@ class Aozora(AozoraScale):
 
                 pos += 1
 
+        else:
+            """ 行の分割が発生しなかった際の行末調整
+                行末が終わり括弧や句読点で、且つ最終桁にかかる場合に限り
+                調整する。
+            """
+            if adjCurrent and pixellcc > pixelsmax - fontheight:
+                currpos = -1
+                while sTestCurrent[currpos][0] == u'<':
+                    currpos -= 1
+                if sTestCurrent[currpos][0] in self.kinsoku5 + u'・':
+                    # 送り量調整
+                    pixellcc -= fLenCurrent[currpos]
+                    if sTestCurrent[currpos-1].find(u'<aozora half') == -1:
+                        if sTestCurrent[currpos][0] in self.kinsoku5:
+                            fLenCurrent[currpos] *= 0.5
+                        elif sTestCurrent[currpos][0] == u'・':
+                            fLenCurrent[currpos] *= 0.75
+                    pixellcc += fLenCurrent[currpos]
+
+                    #"""
+                    try:
+                        # 拾い出された調整箇所全てで文字間調整を行う
+                        # 但し行末の閉じ括弧類は除外する
+                        if sTestCurrent[currpos][0] in self.kinsoku4:
+                            currpos = len(sTestCurrent) + currpos
+                            if adjCurrent[-1][1] == currpos:
+                                adjCurrent.pop()
+
+                        # 禁則処理で移動した要素を参照していれば抜去する
+                        #adjTmp = []
+                        #for a0 in adjCurrent:
+                        #    try:
+                        #        b = sTestCurrent[a0[1]]
+                        #        adjTmp.append(a0)
+                        #    except IndexError:
+                        #        continue
+
+                        adj = pixellcc - pixelsmax #- fontheight # 調整量
+                        adjsgn = float(-cmp(adj, 0))
+                        adj = abs(adj)
+                        adjn = adj / float(len(adjCurrent))
+                        # （全ての箇所で同じ調整量が適用される）
+                        adjCurrent.sort()
+                        a = len(adjCurrent) - 1
+                        while a >= 0:
+                            if a == 0 and adj >= 0.:
+                                adjn = adj # 最後は残り全部
+
+                            if sTestCurrent[adjCurrent[a][1]] in self.kinsoku2:
+                                # 開き括弧類は書き出し位置をずらす
+                                sTestCurrent.insert(adjCurrent[a][1],
+                                    u'<aozora ofset="%f">%s</aozora>' % (
+                                    (adjn * adjsgn), # 調整ピクセル値
+                                    sTestCurrent[adjCurrent[a][1]] ))
+                            else:
+                                # それ以外は送り量を増減する
+                                sTestCurrent.insert(adjCurrent[a][1],
+                                    u'<aozora adj="%f">%s</aozora>' % (
+                                    (adjn * adjsgn), # 調整ピクセル値
+                                    sTestCurrent[adjCurrent[a][1]] ))
+                            sTestCurrent.pop(adjCurrent[a][1]+1)
+                            adj -= adjn
+                            a -= 1
+
+                    except ZeroDivisionError:
+                        # 調整可能箇所なし
+                        pass
+                    #"""
+
         """ 閉じられていないタグを検出する
             あれば一旦閉じて次回へ引き継ぐ。
             ルビの分かち書きもここで処理する。
@@ -2377,7 +2463,7 @@ class Aozora(AozoraScale):
             taginfo = currtag.split()
             if len(taginfo) == 1:
                 # おそらく <sub> , <sup>
-                sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<'))
+                sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<>'))
                 self.tagstack.insert(0, currtag) # 次回へ引き継ぐ
                 continue
 
@@ -2388,12 +2474,12 @@ class Aozora(AozoraScale):
                 targetlength = int(taginfo[2].split(u'=')[1].strip(u'">'))
                 if targetlength != 0: # 繰越で生じた空タグならスキップ
                     if currpos < len(sTestCurrent) - 1:
-                        # ルビのかかる本体の長さを求める
+                        # ルビのかかる親文字の長さを求める
                         sTarget = currpos + 1
                         while sTarget < len(sTestCurrent) - 1 and sTestCurrent[sTarget][0] != u'<':
                             sTarget += 1
                         hlen = len(u''.join(sTestCurrent[currpos+1:sTarget+1]))
-                        # ルビを本文の長さを勘案して分割
+                        # ルビを親文字の長さを勘案して分割
                         rubilen = int(round(len(rubi) * (hlen / float(targetlength)) ))
                         rubiafter = rubi[rubilen:]
                         rubi = rubi[:rubilen]
@@ -2415,7 +2501,7 @@ class Aozora(AozoraScale):
                         self.tagstack.insert(0, currtag)
 
             else:
-                sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<'))
+                sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<>'))
                 self.tagstack.insert(0, currtag) # 次回へ引き継ぐ
 
         return (u''.join(sTestCurrent), u''.join(sTestNext))

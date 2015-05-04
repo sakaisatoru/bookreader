@@ -38,8 +38,8 @@ class AozoraScale(object):
             u'$':0.625000,  u'&':0.750000,  u'%':0.812500,  u"'":0.200000,
             u'(':0.375000,  u')':0.375000,  u'*':0.250000,  u'+':0.687500,
             u',':0.250000,  u'-':0.315000,  u'.':0.250000,  u'/':0.500000,
-            u'0':0.500000,  u'1':0.500000,  u'2':0.500000,  u'3':0.500000,
-            u'4':0.500000,  u'5':0.500000,  u'6':0.500000,  u'7':0.500000,
+            u'0':0.647058,  u'1':0.647058,  u'2':0.647058,  u'3':0.647058,
+            u'4':0.647058,  u'5':0.647058,  u'6':0.647058,  u'7':0.647058,
             u'8':0.500000,  u'9':0.500000,  u':':0.250000,  u';':0.250000,
             u'<':0.687500,  u'=':0.687500,  u'>':0.687500,  u'?':0.500000,
             u'@':0.875000,  u'A':0.733333,  u'B':0.733333,  u'C':0.733333,
@@ -103,6 +103,8 @@ class AozoraScale(object):
 
     reFontsizefactor = re.compile( ur'(?P<name>size=".+?")' )
     reImgtag = re.compile( ur'<aozora img="(?P<name>.+?)" width="(?P<width>.+?)" height="(?P<height>.+?)">' )
+    reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
+
     def __init__(self):
         pass
 
@@ -116,6 +118,7 @@ class AozoraScale(object):
         tagname = u''
         tagstack = []
         fontsizename = u'normal'
+        adj = 1.0
 
         for s in sline:
             if inTag:
@@ -127,15 +130,23 @@ class AozoraScale(object):
                         # </tag>の出現とみなしてスタックから取り除く
                         # ペアマッチの処理は行わない
                         if tagstack != []:
-                            tmp = self.reFontsizefactor.search(tagstack.pop())
+                            tmp = self.reFontsizefactor.search(tagstack[-1])
                             if tmp:
                                 if tmp.group('name') in self.fontsizefactor:
                                     fontsizename = u'normal' # 文字サイズの復旧
+                            elif self.reAozoraHalf.search(tagstack.pop()):
+                                adj = 1.0 # 送り量の復旧
                     else:
                         tmp = self.reFontsizefactor.search(tagname)
                         if tmp:
                             if tmp.group('name') in self.fontsizefactor:
                                 fontsizename = tmp.group('name') # 文字サイズ変更
+                        else:
+                            # 連続して出現する括弧
+                            tmp = self.reAozoraHalf.search(tagname)
+                            if tmp:
+                                adj = float(tmp.group('name')) # 送り量調整
+
                         tagstack.append(tagname)
                         tagname = u''
             elif s == u'<':
@@ -143,7 +154,7 @@ class AozoraScale(object):
                 tagname = s
             else:
                 # 画面上における全長を計算
-                l += self.charwidth(s) * self.fontsizefactor[fontsizename]
+                l += self.charwidth(s) * self.fontsizefactor[fontsizename] * adj
         return int(math.ceil(l))
         #return int(math.floor(l))
         #return int(round(l))

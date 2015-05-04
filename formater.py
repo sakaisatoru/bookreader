@@ -2375,6 +2375,11 @@ class Aozora(AozoraScale):
         while substack:
             currpos, currtag = substack.pop()
             taginfo = currtag.split()
+            if len(taginfo) == 1:
+                # おそらく <sub> , <sup>
+                sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<'))
+                self.tagstack.insert(0, currtag) # 次回へ引き継ぐ
+                continue
 
             tagattr = taginfo[1].split(u'=')
             if tagattr[0] in [u'rubi', u'leftrubi']:

@@ -2067,8 +2067,8 @@ class Aozora(AozoraScale):
                         except IndexError:
                             pass
 
-                        # 調整可能文字での調整量は１文字高の半分
-                        n = fontheight * len(adjCurrent) // 2. - pixellcc + pixelsmax
+                        # 調整可能文字での調整量は１文字高の半分が目安
+                        n = fontheight * math.ceil(len(adjCurrent) / 2.) - pixellcc + pixelsmax
 
                         if n >= sum(fLenTmp):
                             # ピクセル値で調整可能範囲と比較

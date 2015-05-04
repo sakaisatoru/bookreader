@@ -2247,9 +2247,9 @@ class Aozora(AozoraScale):
                         if tmp:
                             # 割り注
                             wariheight = int(tmp.group('height'))
-                            if pixellcc + fontheight * wariheight * self.fontsizefactor['size="smaller"'] > pixelsmax:
+                            if pixellcc + fontheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
                                 # 行末迄に収まらなければ割り注を解除する
-                                warisize = int((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="smaller"']))
+                                warisize = int((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"']))
                                 waribun = u'　%s　' % tmp.group('name')
                                 waribunpos = waribun.find('［＃改行］')
                                 if waribunpos != -1:
@@ -2258,11 +2258,11 @@ class Aozora(AozoraScale):
                                 sTestCurrent.pop()
                                 fLenCurrent.pop()
 
-                                sTestCurrent.append(u'<span size="smaller">')
+                                sTestCurrent.append(u'<span size="x-small">')
                                 fLenCurrent.append(0.0)
 
                                 sTestCurrent.append(waribun[:warisize])
-                                fLenCurrent.append(fontheight * warisize *self.fontsizefactor['size="smaller"'])
+                                fLenCurrent.append(fontheight * warisize *self.fontsizefactor['size="x-small"'])
                                 pixellcc += fLenCurrent[-1]
                                 if pixellcc < pixelsmax:
                                     pixellcc = pixelsmax # ループ終了条件を満たす
@@ -2271,10 +2271,10 @@ class Aozora(AozoraScale):
                                 try:
                                     # 表示域確保用の空白及び閉じタグを抜去する
                                     pos = sline.find(u'</aozora>', pos) + 9#len(u'</aozora>')
-                                    sTestNext.insert(0, u'<span size="smaller">%s</span>%s' % (
+                                    sTestNext.insert(0, u'<span size="x-small">%s</span>%s' % (
                                         waribun[warisize:], sline[pos:] ))
                                 except IndexError:
-                                    sTestNext.insert(0, u'<span size="smaller">%s</span>' % (
+                                    sTestNext.insert(0, u'<span size="x-small">%s</span>' % (
                                         waribun[warisize:] ))
 
                                 continue

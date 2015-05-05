@@ -425,10 +425,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         # 連続して出現すする括弧等の送り量を調整する
                         honbunokuri = float(dicArg['half'])
                         if honbunokuri > 0:
-                            #length = round(length*honbunokuri)
                             length *= honbunokuri
                         else:
-                            #self.ypos += round(length * honbunokuri)
                             self.ypos += length * honbunokuri
                     if u'ofset' in dicArg:
                         # 文字の書き出し位置をずらす
@@ -437,12 +435,27 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         # 文字の送り量を増減する
                         length += float(dicArg['adj'])
 
-                    honbunxpos = int(math.ceil(span/2.))
-                    pangoctx.translate(self.xpos + xposoffset + honbunxpos,
-                                                self.ypos )  # 描画位置
-                    pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
-                    pangoctx.update_layout(layout)
-                    pangoctx.show_layout(layout)
+                    if u'dash' in dicArg:
+                        # ダッシュ
+                        # フォントを使わずcairoで描画する
+                        with cairocontext(self.sf) as dashctx:
+                            #dashctx.set_antialias(cairo.ANTIALIAS_GRAY)
+                            dashctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                            #dashctx.set_antialias(cairo.ANTIALIAS_NONE)
+                            dashctx.new_path()
+                            dashctx.set_line_width(1)
+                            dashctx.move_to(self.xpos + xposoffset + honbunxpos,
+                                                    self.ypos+1)
+                            dashctx.rel_line_to(0, length-3)
+                            dashctx.close_path()
+                            dashctx.stroke()
+                    else:
+                        honbunxpos = int(math.ceil(span/2.))
+                        pangoctx.translate(self.xpos + xposoffset + honbunxpos,
+                                                    self.ypos )  # 描画位置
+                        pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
+                        pangoctx.update_layout(layout)
+                        pangoctx.show_layout(layout)
                     del pc
 
                 del sTmp

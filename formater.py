@@ -129,8 +129,8 @@ class Aozora(AozoraScale):
     reGaiji6 = re.compile(ur'(※［＃ローマ数字(?P<num>\d\d?)、.+?］)' )
     # このプログラムで特に予約された文字
     dicReserveChar = {
-        u'感嘆符三つ':u'<aozora tatenakayoko="!!!">!!!</aozora>', # 河童、芥川龍之介
-        u'「IIII」':u'<aozora tatenakayoko="IIII">IIII</aozora>'   # ランボオ詩集、中原中也訳
+        u'感嘆符三つ':u'<aozora tatenakayoko="!!!">!!!</aozora>', # 例）河童、芥川龍之介
+        u'「IIII」':u'<aozora tatenakayoko="IIII">IIII</aozora>'   # 例）ランボオ詩集、中原中也訳
         }
     # 役物置換
     reKunoji = re.compile(ur'(／＼)')
@@ -154,7 +154,6 @@ class Aozora(AozoraScale):
                         ur'(?P<type>(行右小書き)|(上付き小文字)|' +
                         ur'(行左小書き)|(下付き小文字))］)')
 
-    #reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.??ママ.??)」の注記］)')
     reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.+?)」の注記］)')
     reMama2 = re.compile(ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)')
     reKogakiKatakana = re.compile(ur'(※［＃小書(き)?片仮名(?P<name>.+?)、.+?］)')
@@ -238,7 +237,6 @@ class Aozora(AozoraScale):
     reKaipage = re.compile(ur'［＃改ページ］|［＃改丁］|［＃改段］|［＃改見開き］')
 
     # 挿図
-    #reFig = re.compile(ur'(［＃(?P<name>.+?)）入る］)' )
     reFig = re.compile(
         ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
     reFig2 = re.compile(
@@ -258,6 +256,9 @@ class Aozora(AozoraScale):
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<ban>\d+?)版)|' +
         ur'((?P<suri>\d+?)刷)')
+
+    # 描画対策
+    reDash = re.compile( ur'(――)' )
 
     # 禁則
     kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
@@ -541,6 +542,11 @@ class Aozora(AozoraScale):
                 lnbuf = self.reKunoji.sub( u'〳〵', lnbuf )
                 lnbuf = self.reGunoji.sub( u'〴〵', lnbuf )
 
+                """ 描画対策
+                    ・dash の途切れ及び縦書きフォント無しを回避
+                """
+                lnbuf = self.reDash.sub(
+                                u'<aozora dash="dmy">――</aozora>', lnbuf )
                 """ Shift-jis未定義の文字を得る
                 """
                 tmp = self.reCTRLGaiji.search(lnbuf)
@@ -1337,7 +1343,10 @@ class Aozora(AozoraScale):
     def __honbunsearch(self, honbun, name):
         """ 本文を遡って name を検索し、その出現範囲を返す。
             name との比較に際して
-            <tag></tag>、［＃］は無視される。
+                <tag></tag>、［＃］は無視される。
+            但し、name 自体に <tag></tag>や［＃］を含む場合は
+            比較対象とする
+
             比較は行末から行頭に向かって行われることに注意。
             見つからなければ start とend に同じ値を返す。
             これを配列添字に使えばヌル文字となる。
@@ -1353,12 +1362,16 @@ class Aozora(AozoraScale):
         inTag = False
         inAtag = False
         tagstack = []
+
+        TagEnable = True if name.find(u'<') == -1 else False
+        AtagEnable = True if name.find(u'［＃') == -1 else False
+
         while l > 0 and pos > 0:
             pos -= 1
             if inAtag:
                 if honbun[pos:pos+2] == u'［＃':
                     inAtag = False
-            elif honbun[pos] == u'］':
+            elif AtagEnable and honbun[pos] == u'］':
                 inAtag = True
             elif inTag:
                 if honbun[pos] == u'<':
@@ -1375,7 +1388,7 @@ class Aozora(AozoraScale):
                             if end != -1:
                                 end = honbun.find(u'>', postmp)
 
-            elif honbun[pos] == u'>':
+            elif TagEnable and honbun[pos] == u'>':
                 inTag = True
             else:
                 if name[l-1] == honbun[pos]:
@@ -2068,7 +2081,9 @@ class Aozora(AozoraScale):
                             pass
 
                         # 調整可能文字での調整量は１文字高の半分が目安
-                        n = fontheight * math.ceil(len(adjCurrent) / 2.) - pixellcc + pixelsmax
+                        #n = fontheight * math.ceil(len(adjCurrent) / 2.) - pixellcc + pixelsmax
+                        #n = fontheight * round(len(adjCurrent) / 2.) - pixellcc + pixelsmax
+                        n = fontheight * len(adjCurrent) / 2. - pixellcc + pixelsmax
 
                         if n >= sum(fLenTmp):
                             # ピクセル値で調整可能範囲と比較
@@ -2114,7 +2129,7 @@ class Aozora(AozoraScale):
                         currpos -= 1
                     pixellcc -= fLenCurrent[currpos]
                     if sTestCurrent[currpos-1].find(u'<aozora half') == -1:
-                        # 既に送り量調整がかかっていればパス
+                        # 送り量調整がかかっていなければ調整する
                         if sTestCurrent[currpos][0] in self.kinsoku5:
                             fLenCurrent[currpos] *= 0.5
                         elif sTestCurrent[currpos][0] == u'・':

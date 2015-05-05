@@ -707,16 +707,17 @@ class ReaderUI(gtk.Window, ReaderSetting):
         #   下請けサブプロセス用スクリプトの書き出し
         self.drawingsubprocess = os.path.join(sys.path[0],u'draw.py')
         with open(self.drawingsubprocess,'w') as f0:
-            f0.write(   u'#!/usr/bin/python\n'+
-                        u'# -*- coding: utf-8 -*-\n'+
-                        u'#  draw.py\n'+
-                        u'import sys\n'+
-                        u'from cairocanvas import CairoCanvas\n'+
-                        u'if __name__ == "__main__":\n'+
-                        u'    n = sys.argv[1].split()\n'+
-                        u'    t = u"" if len(n) < 4 else n[3]\n'+
-                        u'    cTmp = CairoCanvas()\n'+
-                        u'    cTmp.writepage(long(n[0]), currentpage=int(n[1]), maxpage=int(n[2]), title=t)' )
+            f0.write(
+                u'#!/usr/bin/python\n'+
+                u'# -*- coding: utf-8 -*-\n'+
+                u'#  draw.py\n'+
+                u'import sys\n'+
+                u'from cairocanvas import CairoCanvas\n'+
+                u'if __name__ == "__main__":\n'+
+                u'    n = sys.argv[1].split()\n'+
+                u'    t = u"" if len(n) < 4 else not n.insert(4,u" ") and u"".join(n[3:])\n'+
+                u'    cTmp = CairoCanvas()\n'+
+                u'    cTmp.writepage(long(n[0]), currentpage=int(n[1]), maxpage=int(n[2]), title=t)' )
 
         self.dlgSetting = None  # 設定ダイアログ
         self.dlgBookopen = None # テキストオープンダイアログ
@@ -760,13 +761,18 @@ class ReaderUI(gtk.Window, ReaderSetting):
         dlg = WhatsNewUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL,
                                 gtk.STOCK_OPEN,     gtk.RESPONSE_OK))
-        res = dlg.run()
-        if res == gtk.RESPONSE_OK:
-            fn, z, worksid = dlg.get_selected_item() # 選択行がないのに呼ぶとエラー
-            dlg.destroy()
-            self.bookopen(fn, zipname=z, works=worksid) # destory後に呼ぶ
-        else:
-            dlg.destroy()
+        while True:
+            if dlg.run() == gtk.RESPONSE_OK:
+                fn, z, worksid = dlg.get_selected_item()
+                if not fn:
+                    # 選択行がない
+                    aozoradialog.msgerrinfo(u'作品が選択されていません。', self)
+                    continue
+                dlg.destroy()
+                self.bookopen(fn, zipname=z, works=worksid) # destory後に呼ぶ
+            else:
+                dlg.destroy()
+            break
 
     def mokuji_jump_cb(self, widget):
         """ 目次ジャンプ
@@ -899,17 +905,22 @@ class ReaderUI(gtk.Window, ReaderSetting):
                                      gtk.STOCK_OPEN,    gtk.RESPONSE_ACCEPT))
         if mode == u'A':
             self.dlgBookopen.filter_works2author(self.cc.worksid)
-        a = self.dlgBookopen.run()
-        if a == gtk.RESPONSE_ACCEPT:
-            fn, z, w = self.dlgBookopen.get_filename()
 
-            self.dlgBookopen.hide_all()
-        elif a == gtk.RESPONSE_DELETE_EVENT:
-            # ダイアログが閉じられた
-            self.dlgBookopen.destroy()
-            self.dlgBookopen = None
-        else:
-            self.dlgBookopen.hide_all()
+        while True:
+            a = self.dlgBookopen.run()
+            if a == gtk.RESPONSE_ACCEPT:
+                fn, z, w = self.dlgBookopen.get_filename()
+                if not fn:
+                    # テキストが選択されていない
+                    continue
+                self.dlgBookopen.hide_all()
+            elif a == gtk.RESPONSE_DELETE_EVENT:
+                # ダイアログが閉じられた
+                self.dlgBookopen.destroy()
+                self.dlgBookopen = None
+            else:
+                self.dlgBookopen.hide_all()
+            break
         if fn != u'':
             self.bookopen(fn, zipname=z, works=w)
 
@@ -993,19 +1004,16 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 n = 0
             if n >= 0:
                 self.currentpage = n
-            #cTmp = CairoCanvas()
-            #cTmp.writepage(self.cc.currentpage[self.currentpage])
-            #del cTmp
-            # pango のメモリリークに対応するためサブプロセスへ移行
-            subprocess.call(['python',self.drawingsubprocess,
-                        u'%ld %d %d %s' % (self.cc.currentpage[self.currentpage],
-                                            self.currentpage,
-                                            self.cc.pagecounter,
-                                            self.cc.booktitle)])
+            # pango周辺にメモリリークの疑いの為、サブプロセスへ移行
+            subprocess.call(['python', self.drawingsubprocess,
+                    u'%ld %d %d %s' % (self.cc.currentpage[self.currentpage],
+                                        self.currentpage,
+                                        self.cc.pagecounter,
+                                        self.cc.booktitle)])
             self.imagebuf.set_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
-            bookname,author = self.cc.get_booktitle()
-            self.set_title(u'【%s】 %s - 青空文庫リーダー' % (bookname, author))
+            self.set_title(u'【%s】 %s - 青空文庫リーダー' % (
+                                        self.cc.booktitle, self.cc.bookauthor))
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass
@@ -1110,9 +1118,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
         for tmp in aoTmp.formater():
             pass
         self.cc = copy.copy(aoTmp.currentText)
-        #cTmp = CairoCanvas()
-        #cTmp.writepage(0)
-        #del cTmp
         subprocess.call(['python',self.drawingsubprocess, '0 0 0 '])
         del aoTmp
         self.imagebuf.clear()

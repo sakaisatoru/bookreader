@@ -685,7 +685,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         self.selectworksid, self.selectzip = self.works.get_value()
         if self.selectworksid == None:
             # テキストが選択されていない
-            aozoradialog.msgerrinfo(u'テキストを選択してください。', self)
+            aozoradialog.msgerrinfo(u'作品を選択してください。', self)
             self.selectfile = u''
             self.selectzip = u''
             self.selectworksid = 0

@@ -166,7 +166,7 @@ class Aozora(AozoraScale):
     reSyatai = re.compile(ur'［＃「(?P<name>.+?)」は斜体］')
 
     # 左注記
-    reLeftrubi = re.compile(ur'［＃「(?P<name>.+?)」の左に「(?P<rubi>.+?)」の注記］')
+    reLeftrubi = re.compile(ur'［＃「(?P<name>.+?)」の左に「(?P<rubi>.+?)」の(?P<type>(注記)|(ルビ))］')
     reLeftrubi2 = re.compile(ur'［＃左に注記付き］')
     reLeftrubi2owari = re.compile(ur'［＃左に「(?P<name>.+?)」の注記付き終わり］')
 
@@ -489,7 +489,15 @@ class Aozora(AozoraScale):
                 return u'<aozora dash="dmy">%s</aozora>' % a.group('name')
             return u''
 
+        def __aozoratag_replace(a):
+            """ 単純なPangoタグの置換の下請け
+            """
+            if a.group() in self.dicAozoraTag:
+                return self.dicAozoraTag[a.group()]
+            return a.group()
 
+        """----------------------------------------------------------------
+        """
         if not sourcefile:
             sourcefile = self.currentText.sourcefile
 
@@ -749,17 +757,15 @@ class Aozora(AozoraScale):
 
                 """ ［＃　で始まるタグの処理
                 """
+
+                """ 単純な Pango タグへの置換
+                """
+                lnbuf = self.reCTRL.sub( __aozoratag_replace, lnbuf )
+
                 isRetry = False # タグが閉じなかった場合の再処理フラグ
                 while True:
                     tmp = self.reCTRL2.search(lnbuf)
                     while tmp:
-                        """ 単純な Pango タグへの置換
-                        """
-                        if tmp.group() in self.dicAozoraTag:
-                            lnbuf = lnbuf[:tmp.start()] + self.dicAozoraTag[tmp.group()] + lnbuf[tmp.end():]
-                            tmp = self.reCTRL2.search(lnbuf)
-                            continue
-
                         """ 未実装タグの除去
                         """
                         if self.reOmit.match(tmp.group()):
@@ -784,16 +790,18 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 類似処理のまとめ
+                        """
+                        if tmp.group() in [u'［＃縦中横］', u'［＃キャプション］']:
+                            posstack.append(tmp.span())
+                            posstack.append(tmp.group())
+                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
+                            continue
+
                         """ 縦中横（開始／終了型）
                             直後に閉じタグが出現すること　及び
                             複数行に及ぶことがないことを前提にフラグで処理する
                         """
-                        if tmp.group() == u'［＃縦中横］':
-                            posstack.append(tmp.span())
-                            posstack.append(u'［＃縦中横］')
-                            tmp = self.reCTRL2.search(lnbuf, tmp.end())
-                            continue
-
                         """ 縦中横（開始／終了型）終わり
                         """
                         if tmp.group() == u'［＃縦中横終わり］':
@@ -971,7 +979,7 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-                        """ 左注記
+                        """ 左注記あるいは左ルビ
                         """
                         tmp2 = self.reLeftrubi.match(tmp.group())
                         if tmp2:
@@ -979,7 +987,7 @@ class Aozora(AozoraScale):
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<aozora leftrubi="%s" length="%s">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
-                                        tmp2.group(u'rubi'),
+                                        tmp2.group(u'rubi') if tmp2.group(u'type') == u'ルビ' else u'〔%s〕' % tmp2.group(u'rubi').strip(u'〔〕'),
                                         len(tmp2.group(u'name')),
                                         lnbuf[tmpStart:tmpEnd],
                                         lnbuf[tmpEnd:tmp.start()],
@@ -1007,12 +1015,6 @@ class Aozora(AozoraScale):
                         """ キャプション（開始/終了型）
                             同一行中に閉じられることを期待して
                         """
-                        if tmp.group() == u'［＃キャプション］':
-                            posstack.append(tmp.span())
-                            posstack.append(u'［＃キャプション］')
-                            tmp = self.reCTRL2.search(lnbuf,tmp.end())
-                            continue
-
                         if tmp.group() == u'［＃キャプション終わり］':
                             if posstack[-1] != u'［＃キャプション］':
                                 logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
@@ -2304,12 +2306,44 @@ class Aozora(AozoraScale):
                             # 割り注
                             wariheight = int(tmp.group('height'))
                             if pixellcc + fontheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
+                                # 行末迄に収まらなければ割り注を分割する
+                                sTestCurrent.pop()
+                                fLenCurrent.pop()
+
+                                warisize = int(math.floor((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"'])))
+                                waribun = tmp.group('name').replace(u'［＃改行］', u'')
+                                print warisize
+                                waricurrent = waribun[:warisize*2]
+                                heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(fontheight) ))
+                                warinext = waribun[warisize*2:]
+                                heightnext = int(math.ceil(math.ceil(len(warinext)/2.) * self.fontsizefactor['size="x-small"']))
+
+                                sTestCurrent.append(u'<aozora warichu="%s" height="%d">' % (waricurrent, warisize))
+                                fLenCurrent.append(0.0)
+                                sTestCurrent.append(u'　' * heightcurrent)
+                                fLenCurrent.append(float(heightcurrent)*fontheight+1)
+                                pixellcc += fLenCurrent[-1]
+                                if pixellcc < pixelsmax:
+                                    pixellcc = pixelsmax # ループ終了条件を満たす
+                                sTestCurrent.append(u'</aozora>')
+                                fLenCurrent.append(0.0)
+
+                                # 残りを次行へ送る
+                                sTestNext.insert(0, u'</aozora>')
+                                sTestNext.insert(0, u'　' * heightnext)
+                                sTestNext.insert(0, u'<aozora warichu="%s" height="%d">' % (warinext, math.ceil(len(warinext)/2.)))
+
+                                pos = sline.find(u'</aozora>',pos) + 9
+                                continue
+
+                                """
                                 # 行末迄に収まらなければ割り注を解除する
                                 warisize = int((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"']))
-                                waribun = u'　%s　' % tmp.group('name')
-                                waribunpos = waribun.find('［＃改行］')
+                                waribun = u'　%s　' % tmp.group('name').replace(u'［＃改行］',u'')
+
+                                waribunpos = waribun.find(u'［＃改行］')
                                 if waribunpos != -1:
-                                    waribun = waribun[:waribunpos] + waribun[waribunpos+len('［＃改行］'):]
+                                    waribun = waribun[:waribunpos] + waribun[waribunpos+len(u'［＃改行］'):]
 
                                 sTestCurrent.pop()
                                 fLenCurrent.pop()
@@ -2334,6 +2368,7 @@ class Aozora(AozoraScale):
                                         waribun[warisize:] ))
 
                                 continue
+                                """
 
                         elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
                             # 縦中横　特殊処理　本文文字列高さを常に１文字+1pixelとみなす

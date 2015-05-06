@@ -1083,8 +1083,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'既知の問題点［＃「既知の問題点」は罫囲み］［＃「既知の問題点」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
                 u'・プログラム内で使用する作業領域の解放を Python まかせにしており、このためメモリを相当使います。\n'+
-                u'・全体的に動作が遅いです。\n'+
-                u'・行末揃えは不完全です。これは文字の均等割付を行わない為です。\n'+
+                u'・全体的《ぜんたいてき》［＃「全体的」に傍点］に動作《どうさ》［＃「動作」に白丸傍点］が遅《おそ》いです。\n'+
+                u'・行末揃え［＃「行末揃え」の左に「ぎょうまつそろえ」のルビ］［＃「行末揃え」の左に白丸傍点］は不完全［＃「不完全」の左に「ふかんぜん」のルビ］です。これは文字［＃「文字」の左に「もじ」のルビ］［＃「文字」の左に傍点］の均等割付［＃「均等割付」の左に「きんとうわりつけ」の注記］を行わない為です。\n'+
                 u'・フォントによっては縦書き用の字形を持たないため、正しく表示されないことがあります。\n'+
                 u'・注記が重複すると正しく表示されない場合があります。\n'+
                 u'・傍点の本文トレースは厳密なものではありません。\n'+
@@ -1097,7 +1097,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'［＃ここから１字下げ］\n' +
                 u'Copyright 2015 sakaisatoru  endeavor2wako@gmail.com\n'+
                 u'\n'+
-                u'This program is free software; you can redistribute it and/or modify '+
+                u'［＃罫囲み］This program is free software; you can redistribute it and/or modify '+
                 u'it under the terms of the GNU General Public License as published by '+
                 u'the Free Software Foundation; either version 2 of the License, or '+
                 u'(at your option) any later version.'+
@@ -1105,7 +1105,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'This program is distributed in the hope that it will be useful,'+
                 u'but WITHOUT ANY WARRANTY; without even the implied warranty of '+
                 u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the '+
-                u'GNU General Public License for more details.'+
+                u'GNU General Public License for more details.［＃罫囲み終わり］'+
                 u'\n'+
                 u'You should have received a copy of the GNU General Public License '+
                 u'along with this program; if not, write to the Free Software '+

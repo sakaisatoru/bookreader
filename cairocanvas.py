@@ -279,10 +279,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     if dicArg[key] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
                         boutenfont = self.font
                         xofset = xofset /5. if xofset < 0 else xofset
-                        boutenoffset = round(xofset*1.3) if xofset > 0 else 0
+                         # ルビ位置補正の為、フラグが必要
+                        self.boutenoffset = round(xofset*1.3) if xofset > 0 else -0.01
                     else:
                         boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
-                        boutenoffset = (xofset * -0.1) if xofset < 0 else (xofset * 1.1)
+                        self.boutenoffset = (xofset * 0.05) if xofset < 0 else (xofset * 1.1)
                         tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
                     for s in data:
                         with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
@@ -292,7 +293,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             pc.set_base_gravity('east')
                             pc.set_gravity_hint('natural')
                             layout.set_text(self.dicBouten[dicArg[key]])
-                            panctx00.translate(self.xpos + xofset + boutenoffset,
+                            panctx00.translate(self.xpos + xofset + self.boutenoffset,
                                                             tmpypos)
                             tmpypos += step
                             panctx00.rotate(1.57075)
@@ -301,11 +302,63 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         del pc
                         del layout
 
+        def __rubi_common(key, xofset):
+            """ ルビ表示
+            """
+            with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
+                layout = pangoctx00.create_layout()
+                pc = layout.get_context()       # Pango を得る
+                pc.set_base_gravity('east')     # markup 前に実行
+                pc.set_gravity_hint('natural')   # markup 前に実行
+                layout.set_font_description(self.font_rubi)
+
+                # ルビにママをつける場合の処理
+                # ２行表示とする
+                rubipos = dicArg[key].rfind(u'〔ルビママ〕')
+                if rubipos != -1:
+                    rubitmp = u'%s\n%s' % (
+                            dicArg[key][rubipos:],
+                            dicArg[key][:rubipos])
+                    rubioffset = rubispan # 開始位置X座標のオフセット
+                else:
+                    rubitmp = dicArg[key]
+                    rubioffset = 0
+
+                layout.set_markup(rubitmp)
+                rubilength,rubispan = layout.get_pixel_size()
+                # 表示位置 垂直方向のセンタリング
+                y = self.ypos + int((length-rubilength) // 2.)
+                if y < 0:
+                    y = 0
+                if y < self.rubilastYpos:
+                    y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
+
+                # 傍点がある場合は重ね書きを回避する
+                if key == u'rubi' and self.boutenoffset > 0:
+                    rubispan *= 1.5 # 右補正
+                elif key == u'leftrubi' and self.boutenoffset < 0:
+                    rubispan *= -1 # 左補正
+                elif key == u'leftrubi':
+                    rubispan = 0
+                    rubioffset = 0
+
+                pangoctx00.translate(self.xpos + xofset + rubispan + rubioffset, y)
+
+                pangoctx00.rotate(1.57075)
+                pangoctx00.update_layout(layout)
+                pangoctx00.show_layout(layout)
+                self.rubilastYpos = y + rubilength #ルビの最末端を保存
+                del pc
+                del layout
+
+        """------------------------------------------------------------------
+        """
         # 初期化
+        self.boutenoffset = 0
+
         vector = 0
         fontspan = 1
         xposoffset = 0
-        boutenoffset = 0
         rubispan = 0
         dicArg = {}
         sTmp = data
@@ -436,7 +489,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     pc = layout.get_context()
                     pc.set_base_gravity('east')
                     pc.set_gravity_hint('natural')
-                    layout.set_markup(u'<span size="smaller">%s</span>' % ''.join(sTmp))
+                    layout.set_markup(u'<span size="x-small">%s</span>' % ''.join(sTmp))
                     x0,y = layout.get_pixel_size()
                     pangoctx.translate(self.xpos + y//2,
                                     self.ypos + int(round(float(length-x0)/2.)))
@@ -570,71 +623,19 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 傍線・傍点
                     __bousen_common(u'bousen', honbunxpos)
 
+                # 大域変数で傍点との重なりを回避するのでbousen処理の直後に置くこと
+                if u'rubi' in dicArg:
+                    # ルビ
+                    __rubi_common(u'rubi', honbunxpos)
+
                 if u'leftbousen' in dicArg:
                     # 左傍線・傍点
                     __bousen_common(u'leftbousen', -honbunxpos)
 
-                if u'rubi' in dicArg:
-                    with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
-                        # ルビ
-                        layout = pangoctx00.create_layout()
-                        pc = layout.get_context()       # Pango を得る
-                        pc.set_base_gravity('east')     # markup 前に実行
-                        pc.set_gravity_hint('natural')   # markup 前に実行
-                        layout.set_font_description(self.font_rubi)
-
-                        # ルビにママをつける場合の処理
-                        # ２行表示とする
-                        rubipos = dicArg[u'rubi'].rfind(u'〔ルビママ〕') # if dicArg[u'rubi'] else -1
-                        if rubipos != -1:
-                            rubitmp = u'%s\n%s' % (
-                                    dicArg[u'rubi'][rubipos:],
-                                    dicArg[u'rubi'][:rubipos])
-                            rubioffset = rubispan # 開始位置X座標のオフセット
-                        else:
-                            rubitmp = dicArg[u'rubi'] #if dicArg[u'rubi'] else u''
-                            rubioffset = 0
-                        layout.set_markup(rubitmp)
-                        rubilength,rubispan = layout.get_pixel_size()
-                        # 表示位置 垂直方向のセンタリング
-                        y = self.ypos + int((length-rubilength) // 2.)
-                        if y < 0:
-                            y = 0
-                        if y < self.rubilastYpos:
-                            y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
-                        if boutenoffset:
-                            rubispan *= 2 # 傍点がある場合は重ね書きを回避する
-                        pangoctx00.translate(self.xpos + honbunxpos + rubispan + rubioffset, y)
-                        pangoctx00.rotate(1.57075)
-                        pangoctx00.update_layout(layout)
-                        pangoctx00.show_layout(layout)
-                        self.rubilastYpos = y + rubilength #ルビの最末端を保存
-                        del pc
-                        del layout
-
+                # 大域変数で傍点との重なりを回避するのでleftbousen処理の直後に置くこと
                 if u'leftrubi' in dicArg:
-                    with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
-                        # 左ルビ
-                        layout = pangoctx00.create_layout()
-                        pc = layout.get_context()       # Pango を得る
-                        pc.set_base_gravity('east')     # markup 前に実行
-                        pc.set_gravity_hint('natural')   # markup 前に実行
-                        layout.set_font_description(self.font_rubi)
-                        layout.set_markup(dicArg[u'leftrubi'])
-                        rubilength,rubispan = layout.get_pixel_size()
-                        # 表示位置センタリング
-                        y = self.ypos + int((length-rubilength) // 2.)
-                        if y < 0:
-                            y = 0
-                        if y < self.leftrubilastYpos:
-                            y = self.leftrubilastYpos # 直前のルビとの干渉をとりあえず回避する
-                        pangoctx00.translate(self.xpos - honbunxpos ,y)
-                        pangoctx00.rotate(1.57075)
-                        pangoctx00.update_layout(layout)
-                        pangoctx00.show_layout(layout)
-                        self.leftrubilastYpos = y + rubilength #左ルビの最末端を保存
-                        del pc
-                        del layout
+                    # 左ルビ
+                    __rubi_common(u'leftrubi', -honbunxpos)
 
         # ypos 更新
         self.ypos += length

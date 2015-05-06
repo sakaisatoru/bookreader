@@ -258,7 +258,7 @@ class Aozora(AozoraScale):
         ur'((?P<suri>\d+?)刷)')
 
     # 描画対策
-    reDash = re.compile( ur'(――)' )
+    reDash = re.compile( ur'(?P<name>―{2,})' ) # 2文字以上のDASHの連結
 
     # 禁則
     kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
@@ -482,6 +482,14 @@ class Aozora(AozoraScale):
                 行右小書き、太字、左傍線など
 
         """
+        def __dashsub(a):
+            """ ２文字以上のDASHの連結の下請け
+            """
+            if a.group('name'):
+                return u'<aozora dash="dmy">%s</aozora>' % a.group('name')
+            return u''
+
+
         if not sourcefile:
             sourcefile = self.currentText.sourcefile
 
@@ -541,10 +549,10 @@ class Aozora(AozoraScale):
                 lnbuf = self.reGunoji.sub( u'〴〵', lnbuf )
 
                 """ 描画対策
-                    ・dash の途切れ及び縦書きフォント無しを回避
+                    dash の途切れ及び縦書きフォント無しを回避
                 """
-                lnbuf = self.reDash.sub(
-                                u'<aozora dash="dmy">――</aozora>', lnbuf )
+                lnbuf = self.reDash.sub( __dashsub, lnbuf )
+
                 """ Shift-jis未定義の文字を得る
                 """
                 tmp = self.reCTRLGaiji.search(lnbuf)

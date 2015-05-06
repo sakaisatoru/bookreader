@@ -98,6 +98,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.leftrubilastYpos = 0   # 直前の左ルビの最末端
         self.tagstack = []
         self.attrstack = []
+        self.inKeikakomigyou = False # 罫囲み（行中）のフラグ
 
         """ Pangoのバグに対する対策
             オリジナルのPangoがタグによる重力制御を振り切るケースが多々ある
@@ -212,12 +213,95 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     def handle_endtag(self, tag):
         if self.tagstack != []:
             if self.tagstack[-1] == tag:
+                try:
+                    if self.attrstack[-1][0][0] == u'keikakomigyou':
+                        if self.attrstack[-1][0][1] in [u'3', u'0']:
+                            # 罫囲み（行中）の閉じ罫線（下側罫線）
+                            # handle_data では都度引かれてしまうのでここで処理する
+                            with cairocontext(self.sf) as ctx00:
+                                ctx00.set_antialias(cairo.ANTIALIAS_NONE)
+                                ctx00.set_line_width(1)
+                                # 下
+                                ctx00.move_to(self.xpos - self.keisenxpos, self.ypos)
+                                ctx00.rel_line_to(self.keisenxpos*2, 0)
+                                ctx00.stroke()
+                                self.inKeikakomigyou = False
+                except IndexError:
+                    pass
                 self.tagstack.pop()
                 self.attrstack.pop()
 
     def handle_data(self, data):
         """ 挟まれたテキスト部分が得られる
         """
+
+        def __bousen_common(key, xofset):
+            """ 傍線・傍点表示
+            """
+            with cairocontext(self.sf) as ctx00:
+                ctx00.set_antialias(cairo.ANTIALIAS_NONE)
+                if dicArg[key][-1] == u'線':
+                    ctx00.new_path()
+                    ctx00.set_line_width(1)
+                    if dicArg[key] == u'破線':
+                        ctx00.set_dash((3.5,3.5,3.5,3.5))
+                    elif dicArg[key] == u'鎖線':
+                        ctx00.set_dash((1.5,1.5,1.5,1.5))
+                    elif dicArg[key] == u'二重傍線':
+                        ctx00.move_to(self.xpos + xofset +2, self.ypos)
+                        ctx00.rel_line_to(0, length)
+                        ctx00.stroke()
+
+                    if dicArg[key] == u'波線':
+                        ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                        spn = 5 # 周期
+                        vx = 3 # 振幅
+                        tmpx = self.xpos + xofset
+                        for y in xrange(0, length - spn, spn):
+                            tmpy = self.ypos + y
+                            ctx00.move_to(tmpx, tmpy)
+                            ctx00.curve_to( tmpx, tmpy,
+                                            tmpx+vx, tmpy+spn/2,
+                                            tmpx, tmpy+spn)
+                            vx *= -1
+                    else:
+                        # 波線以外を描画
+                        ctx00.move_to(self.xpos + xofset, self.ypos)
+                        ctx00.rel_line_to(0, length)
+                    ctx00.stroke()
+                else:
+                    # 傍点
+                    # 本文表示長さ(ピクセル長)を文字数で割ったステップに
+                    # 1文字づつ描画する。このためかなりメモリを費消する。
+                    sB = u''
+                    step = round(length / float(len(data)))
+                    tmpypos = self.ypos
+                    if dicArg[key] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
+                        boutenfont = self.font
+                        xofset = xofset /5. if xofset < 0 else xofset
+                        boutenoffset = round(xofset*1.3) if xofset > 0 else 0
+                    else:
+                        boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
+                        boutenoffset = (xofset * -0.1) if xofset < 0 else (xofset * 1.1)
+                        tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
+                    for s in data:
+                        with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
+                            layout = panctx00.create_layout()
+                            layout.set_font_description(boutenfont)
+                            pc = layout.get_context()
+                            pc.set_base_gravity('east')
+                            pc.set_gravity_hint('natural')
+                            layout.set_text(self.dicBouten[dicArg[key]])
+                            panctx00.translate(self.xpos + xofset + boutenoffset,
+                                                            tmpypos)
+                            tmpypos += step
+                            panctx00.rotate(1.57075)
+                            panctx00.update_layout(layout)
+                            panctx00.show_layout(layout)
+                        del pc
+                        del layout
+
+        # 初期化
         vector = 0
         fontspan = 1
         xposoffset = 0
@@ -232,7 +316,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             while True:
                 s = self.tagstack[pos]
                 if s == u'aozora':
-                    # 拡張したタグは必ず引数をとる
+                    # 拡張したタグは必ず属性をとる
                     for i in self.attrstack[pos]:
                         dicArg[i[0]] = i[1]
                     # 一部のタグは本文を引数で置換する
@@ -439,9 +523,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         # ダッシュ
                         # フォントを使わずcairoで描画する
                         with cairocontext(self.sf) as dashctx:
-                            #dashctx.set_antialias(cairo.ANTIALIAS_GRAY)
+                            # cairo.ANTIALIAS_GRAY, cairo.ANTIALIAS_NONE
                             dashctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                            #dashctx.set_antialias(cairo.ANTIALIAS_NONE)
                             dashctx.new_path()
                             dashctx.set_line_width(1)
                             dashctx.move_to(self.xpos + xposoffset + honbunxpos,
@@ -461,55 +544,35 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 del sTmp
                 del layout
 
-                if u'bousen' in dicArg:
-                    # 傍線 但し波線を実装していません
+                if u'keikakomigyou' in dicArg:
+                    # 罫囲み（行中における）
+                    # １行中に他のタグが出現すると、その都度上側罫線を描いて
+                    # しまうのでフラグで回避する
+                    # 下側罫線はタグの終端検出時に描画する
                     with cairocontext(self.sf) as ctx00:
                         ctx00.set_antialias(cairo.ANTIALIAS_NONE)
-                        if dicArg[u'bousen'][-1] == u'線':
-                            ctx00.new_path()
-                            ctx00.set_line_width(1)
-                            if dicArg[u'bousen'] == u'破線':
-                                ctx00.set_dash((3.5,3.5,3.5,3.5))
-                            elif dicArg[u'bousen'] == u'鎖線':
-                                ctx00.set_dash((1.5,1.5,1.5,1.5))
-                            elif dicArg[u'bousen'] == u'二重傍線':
-                                ctx00.move_to(self.xpos + honbunxpos +2, self.ypos)
-                                ctx00.rel_line_to(0, length)
-                                ctx00.stroke()
-                            elif dicArg[u'bousen'] == u'波線':
-                                pass
-                            ctx00.move_to(self.xpos + honbunxpos, self.ypos)
-                            ctx00.rel_line_to(0, length)
-                            ctx00.stroke()
-                        else:
-                            # 傍点
-                            # 本文表示長さ(ピクセル長)を文字数で割ったステップに
-                            # 1文字づつ描画する。このためかなりメモリを費消する。
-                            sB = u''
-                            step = int(round(length / float(len(data))))
-                            boutenoffset = int(round(honbunxpos*1.3))
-                            tmpypos = self.ypos
-                            if dicArg[u'bousen'] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
-                                boutenfont = self.font
-                            else:
-                                boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
-                                tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
-                            for s in data:
-                                with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
-                                    layout = panctx00.create_layout()
-                                    layout.set_font_description(boutenfont)
-                                    pc = layout.get_context()
-                                    pc.set_base_gravity('east')
-                                    pc.set_gravity_hint('natural')
-                                    layout.set_text(self.dicBouten[dicArg[u'bousen']])
-                                    panctx00.translate( self.xpos + honbunxpos + boutenoffset,
-                                                                    tmpypos)
-                                    tmpypos += step
-                                    panctx00.rotate(1.57075)
-                                    panctx00.update_layout(layout)
-                                    panctx00.show_layout(layout)
-                                del pc
-                                del layout
+                        ctx00.set_line_width(1)
+                        self.keisenxpos = honbunxpos
+                        # 右
+                        ctx00.move_to(self.xpos + honbunxpos, self.ypos)
+                        ctx00.rel_line_to(0, length)
+                        # 左
+                        ctx00.move_to(self.xpos - honbunxpos, self.ypos)
+                        ctx00.rel_line_to(0, length)
+                        if not self.inKeikakomigyou and dicArg[u'keikakomigyou'] in [u'1', u'0']:
+                            # 上
+                            ctx00.move_to(self.xpos - self.keisenxpos, self.ypos)
+                            ctx00.rel_line_to(self.keisenxpos * 2, 0)
+                            self.inKeikakomigyou = True
+                        ctx00.stroke()
+
+                if u'bousen' in dicArg:
+                    # 傍線・傍点
+                    __bousen_common(u'bousen', honbunxpos)
+
+                if u'leftbousen' in dicArg:
+                    # 左傍線・傍点
+                    __bousen_common(u'leftbousen', -honbunxpos)
 
                 if u'rubi' in dicArg:
                     with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
@@ -575,6 +638,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
         # ypos 更新
         self.ypos += length
+
 
 class CairoCanvas(ReaderSetting, AozoraScale):
     """ cairo / pangocairo を使って文面を縦書きする

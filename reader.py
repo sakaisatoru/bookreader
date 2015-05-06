@@ -931,7 +931,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.currentpage = 0
         if self.isNowFormatting:
             return # フォーマット中の読み込みを抑止
-        if self.cc.sourcefile != fn:
+
+        # 同じファイルなら開かない
+        if self.cc.sourcefile != fn or self.cc.zipfilename != zipname:
             self.savecurrenttexthistory() # 履歴に保存
             self.miHistory.update(self.bookhistory.iter())
             self.isNowFormatting = True
@@ -1076,11 +1078,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'実装されていない機能［＃「実装されていない機能」は中見出し］（……以下に代替）\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
                 u'・窓見出し……同行見出し\n'+
-                u'・波線（波形傍線）……傍線\n'+
-                u'・囲み罫線（一行にかかるもの）……無し\n'+
                 u'［＃字下げ終わり］\n'+
                 u'\n'+
-                u'既知の問題点［＃「既知の問題点」は中見出し］\n'+
+                u'既知の問題点［＃「既知の問題点」は罫囲み］［＃「既知の問題点」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
                 u'・プログラム内で使用する作業領域の解放を Python まかせにしており、このためメモリを相当使います。\n'+
                 u'・全体的に動作が遅いです。\n'+
@@ -1111,7 +1111,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'along with this program; if not, write to the Free Software '+
                 u'Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, '+
                 u'MA 02110-1301, USA.\n'+
-                u'［＃字下げ終わり］\n')
+                u'\n')
 
         aoTmp = Aozora()
         aoTmp.set_source(s)

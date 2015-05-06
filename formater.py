@@ -142,11 +142,11 @@ class Aozora(AozoraScale):
     reCTRL3 = re.compile(ur'(［＃(?P<name>.*?)］)')
     reCTRLGaiji = re.compile(ur'(?P<aozoratag>※［＃.*?］)')
     # 傍線・傍点
-    reBouten = re.compile(ur'(［＃「(?P<name>.+?)」に(?P<type>.*?)' + \
+    reBouten = re.compile(ur'(［＃「(?P<name>.+?)」(?P<position>の左)?に(?P<type>.*?)' + \
                         ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))］)')
-    reBouten2 = re.compile(ur'［＃(?P<type>.*?)' + \
+    reBouten2 = re.compile(ur'［＃(?P<position>左に)?(?P<type>.*?)' + \
                         ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))］')
-    reBouten2owari = re.compile(ur'［＃(?P<type>.*?)' + \
+    reBouten2owari = re.compile(ur'［＃(?P<position>左に)?(?P<type>.*?)' + \
                         ur'(?P<type2>(傍点)|(傍線)|(波線)|(破線)|(鎖線))' + \
                         ur'終わり］' )
 
@@ -161,8 +161,6 @@ class Aozora(AozoraScale):
     reRubi = re.compile(ur'《.*?》')
     reRubiclr = re.compile(ur'＃')
     reRubimama = AozoraTag(ur'(［＃ルビの「(?P<name>.+?)」はママ］)')
-
-    reLeftBousen = re.compile(ur'［＃「(?P<name>.+?)」の左に(?P<type>二重)?傍線］')
 
     reFutoji = re.compile(ur'［＃「(?P<name>.+?)」は太字］')
     reSyatai = re.compile(ur'［＃「(?P<name>.+?)」は斜体］')
@@ -224,6 +222,8 @@ class Aozora(AozoraScale):
     # 罫囲み
     reKeikakomi = re.compile(ur'［＃ここから罫囲み］')
     reKeikakomiowari = re.compile(ur'［＃ここで罫囲み終わり］')
+    # 罫囲み（行中）
+    reKeikakomiGyou = re.compile(ur'(［＃「(?P<name>.+?)」は罫囲み］)')
 
     # 見出し
     reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(?P<type>同行|窓)??(?P<midashisize>大|中|小)見出し］')
@@ -276,10 +276,6 @@ class Aozora(AozoraScale):
         u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
         u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
         u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
-        u'［＃左に傍線］':u'<span underline="single">',
-            u'［＃左に傍線終わり］':u'</span>',
-        u'［＃左に二重傍線］':u'<span underline="double">',
-            u'［＃左に二重傍線終わり］':u'</span>',
         u'［＃太字］':u'<span font_desc="Sans">',
         u'［＃ここから太字］':u'<span font_desc="Sans">',
         u'［＃斜体］':u'<span style="italic">',
@@ -295,7 +291,9 @@ class Aozora(AozoraScale):
         u'［＃横組み］':u'<aozora yokogumi="dmy">',
         u'［＃ここから横組み］':u'<aozora yokogumi="dmy">',
         u'［＃横組み終わり］':u'</aozora>',
-        u'［＃ここで横組み終わり］':u'</aozora>' }
+        u'［＃ここで横組み終わり］':u'</aozora>',
+        u'［＃罫囲み］':u'<aozora keikakomigyou="0">',
+        u'［＃罫囲み終わり］':u'</aozora>' }
 
     # 文字の大きさ
     dicMojisize = {
@@ -747,14 +745,16 @@ class Aozora(AozoraScale):
                 while True:
                     tmp = self.reCTRL2.search(lnbuf)
                     while tmp:
+                        """ 単純な Pango タグへの置換
+                        """
                         if tmp.group() in self.dicAozoraTag:
-                            # 単純な Pango タグへの置換
                             lnbuf = lnbuf[:tmp.start()] + self.dicAozoraTag[tmp.group()] + lnbuf[tmp.end():]
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 未実装タグの除去
+                        """
                         if self.reOmit.match(tmp.group()):
-                            # 未実装タグの除去
                             logging.info( u'未実装タグを検出: %s' % tmp.group() )
                             self.loggingflag = True
                             lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
@@ -900,18 +900,20 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 挿図（キャプション付き他、独立段落）
+                            次段で処理する
+                            reFigで分離できないのでここでトラップする
+                        """
                         tmp2 = self.reFig2.match(tmp.group())
                         if tmp2:
-                            # 挿図（キャプション付き他、独立段落）
-                            # 次段で処理する
-                            # reFigで分離できないのでここでトラップする
                             tmp = self.reCTRL2.search(lnbuf,tmp.end())
                             continue
 
+                        """ 挿図（段落内挿入）
+                            拡大・縮小は行わない
+                        """
                         tmp2 = self.reFig.match(tmp.group())
                         if tmp2:
-                            # 挿図（段落内挿入）
-                            # 拡大・縮小は行わない
                             try:
                                 fname = tmp2.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
@@ -947,9 +949,10 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 横組み
+                        """
                         tmp2 = self.reYokogumi.match(tmp.group())
                         if tmp2:
-                            # 横組み
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<aozora yokogumi="dmy">%s</aozora>%s%s' % (
@@ -960,9 +963,10 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 左注記
+                        """
                         tmp2 = self.reLeftrubi.match(tmp.group())
                         if tmp2:
-                            # 左注記
                             tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<aozora leftrubi="%s" length="%s">%s</aozora>%s%s' % (
@@ -975,10 +979,11 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf,tmpStart)
                             continue
 
+                        """ キャプション
+                            暫定処理：小文字で表示
+                        """
                         tmp2 = self.reCaption.match(tmp.group())
                         if tmp2:
-                            #   キャプション
-                            #   暫定処理：小文字で表示
                             tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             # 横書きにするので内容への修飾を外す
@@ -991,9 +996,10 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf,tmpStart)
                             continue
 
+                        """ キャプション（開始/終了型）
+                            同一行中に閉じられることを期待して
+                        """
                         if tmp.group() == u'［＃キャプション］':
-                            #   キャプション（開始/終了型）
-                            #   同一行中に閉じられることを期待して
                             posstack.append(tmp.span())
                             posstack.append(u'［＃キャプション］')
                             tmp = self.reCTRL2.search(lnbuf,tmp.end())
@@ -1013,11 +1019,12 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 文字の大きさ
+                            文字の大きさ２　と互換性がないので、こちらを
+                            先に処理すること
+                        """
                         tmp2 = self.reMojisize.match(tmp.group())
                         if tmp2:
-                            #   文字の大きさ
-                            #   文字の大きさ２　と互換性がないので、こちらを
-                            #   先に処理すること
                             sNameTmp = tmp2.group(u'name') + tmp2.group(u'size')
                             try:
                                 sSizeTmp = self.dicMojisize[sNameTmp]
@@ -1035,13 +1042,14 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 文字の大きさ２
+                            開始／終了型　及び　ブロック修飾兼用
+                            文字の大きさ　と互換性がない（誤検出する）ので、
+                            こちらを後に処理すること
+                            閉じタグは</span>に単純置換される
+                        """
                         tmp2 = self.reMojisize2.match(tmp.group())
                         if tmp2:
-                            #   文字の大きさ２
-                            #   開始／終了型　及び　ブロック修飾兼用
-                            #   文字の大きさ　と互換性がない（誤検出する）ので、
-                            #   こちらを後に処理すること
-                            #   閉じタグは</span>に単純置換される
                             sNameTmp = tmp2.group(u'name') + tmp2.group(u'size')
                             try:
                                 sSizeTmp = self.dicMojisize[sNameTmp]
@@ -1053,27 +1061,15 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-                        tmp2 = self.reLeftBousen.match(tmp.group())
-                        if tmp2:
-                            #   左に（二重）傍線
-                            tmpStart,tmpEnd = self.__honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            lnbuf = u'%s<span underline="%s">%s</span>%s%s' % (
-                                lnbuf[:tmpStart],
-                                'single' if not tmp2.group('type') else 'double',
-                                lnbuf[tmpStart:tmpEnd],
-                                lnbuf[tmpEnd:tmp.start()],
-                                lnbuf[tmp.end():] )
-                            tmp = self.reCTRL2.search(lnbuf)
-                            continue
-
+                        """ 傍点・傍線
+                        """
                         tmp2 = self.reBouten.match(tmp.group())
                         if tmp2:
-                            #   傍点・傍線
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            lnbuf = u'%s<aozora bousen="%s">%s</aozora>%s%s' % (
+                            lnbuf = u'%s<aozora %s="%s">%s</aozora>%s%s' % (
                                 lnbuf[:tmpStart],
+                                u'bousen' if not tmp2.group('position') else u'leftbousen',
                                 tmp2.group('type') + tmp2.group('type2'),
                                 lnbuf[tmpStart:tmpEnd],
                                 lnbuf[tmpEnd:tmp.start()],
@@ -1088,8 +1084,9 @@ class Aozora(AozoraScale):
                         if tmp2:
                             # ［＃傍点］
                             aozorastack.append(tmp.group())
-                            lnbuf = u'%s<aozora bousen="%s">%s' % (
+                            lnbuf = u'%s<aozora %s="%s">%s' % (
                                 lnbuf[:tmp.start()],
+                                u'bousen' if not tmp2.group('position') else u'leftbousen',
                                 tmp2.group('type') + tmp2.group('type2'),
                                         lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
@@ -1107,10 +1104,11 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 行右小書き・上付き小文字、行左小書き・下付き小文字
+                            pango のタグを流用
+                        """
                         tmp2 = self.reGyomigikogaki.match(tmp.group())
                         if tmp2:
-                            #   行右小書き・上付き小文字、行左小書き・下付き小文字
-                            #   pango のタグを流用
                             sNameTmp = tmp2.group(u'name')
                             reTmp = re.compile( ur'%s$' % sNameTmp )
                             lnbuf = u'%s%s%s' % (
@@ -1121,10 +1119,11 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 太字
+                            pango のタグを流用
+                        """
                         tmp2 = self.reFutoji.match(tmp.group())
                         if tmp2:
-                            #   太字
-                            #   pango のタグを流用
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span font_desc="Sans">%s</span>%s%s' % (
@@ -1135,10 +1134,11 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 斜体
+                            pango のタグを流用
+                        """
                         tmp2 = self.reSyatai.match(tmp.group())
                         if tmp2:
-                            #   斜体
-                            #   pango のタグを流用
                             tmpStart,tmpEnd = self.__honbunsearch(
                                     lnbuf[:tmp.start()],tmp2.group(u'name'))
                             lnbuf = u'%s<span style="italic">%s</span>%s%s' % (
@@ -1149,10 +1149,11 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 訓点送り仮名
+                            pango のタグを流用
+                        """
                         tmp2 = self.reKuntenOkuri.match(tmp.group())
                         if tmp2:
-                            #   訓点送り仮名
-                            #   pango のタグを流用
                             lnbuf = u'%s<sup>%s</sup>%s' % (
                                 lnbuf[:tmp.start()],
                                     tmp2.group(u'name'),
@@ -1160,10 +1161,11 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 返り点
+                            pango のタグを流用
+                        """
                         tmp2 = self.reKaeriten.match(tmp.group())
                         if tmp2:
-                            #   返り点
-                            #   pango のタグを流用
                             lnbuf = u'%s<sub>%s</sub>%s' % (
                                 lnbuf[:tmp.start()],
                                     tmp2.group(u'name'),
@@ -1171,11 +1173,12 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        """ 注記 及び ママ註記
+                        """
                         tmp2 = self.reMama.match(tmp.group())
                         if not tmp2:
                             tmp2 = self.reMama2.match(tmp.group())
                         if tmp2:
-                            #   注記 及び ママ註記
                             sNameTmp = tmp2.group(u'name')
                             reTmp = re.compile( ur'%s$' % sNameTmp )
                             lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
@@ -1185,10 +1188,25 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-                        #   見出し
-                        #   ここでは正確なページ番号が分からないので、
-                        #   見出し出現のフラグだけ立てて、目次作成は後段で行う。
-                        #   ここでは複数行見出しはサポートしない
+                        """ 罫囲み
+                        """
+                        tmp2 = self.reKeikakomiGyou.match(tmp.group())
+                        if tmp2:
+                            tmpStart,tmpEnd = self.__honbunsearch(
+                                    lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            lnbuf = u'%s<aozora keikakomigyou="0">%s</aozora>%s%s' % (
+                                    lnbuf[:tmpStart],
+                                        lnbuf[tmpStart:tmpEnd],
+                                        lnbuf[tmpEnd:tmp.start()],
+                                            lnbuf[tmp.end():] )
+                            tmp = self.reCTRL2.search(lnbuf)
+                            continue
+
+                        """ 見出し
+                            ここでは正確なページ番号が分からないので、
+                            見出し出現のフラグだけ立てて、目次作成は後段で行う。
+                            ここでは複数行見出しはサポートしない
+                        """
                         tmp2 = self.reMidashi.match(tmp.group())
                         if tmp2:
                             # 1行見出し
@@ -2010,18 +2028,33 @@ class Aozora(AozoraScale):
                 sTestTmp = []
                 fLenTmp = []
                 try:
+                    """ ワードラップ
+                    """
+                    # 前方参照してワードの区切りを探す
                     while sTestCurrent[-1][0] in self.charwidth_serif and \
                                                 sTestCurrent[-1][0].isalnum():
-                        """ ワードラップ（仮）
-                        """
                         sTestTmp.insert(0, sTestCurrent.pop())
                         fLenTmp.insert(0,fLenCurrent.pop())
 
-                    sTestNext = sTestTmp + sTestNext
-                    pixellcc -= sum(fLenTmp)
+                    for a in sTestCurrent:
+                        # 無限ループを回避するため、ラップしたワードが1行の
+                        # 長さを上回るようならキャンセルする。本来ならそれだ
+                        # けでよいのだが、この後インデントで行頭に空白が付され
+                        # １行の長さを上回ると無限ループとなる。
+                        # その為、長さに関わらずラップしたワードが（空白以外）の
+                        # 行先頭要素であればキャンセルする。
+                        if not a[0] in [u' ', u'　']:#0x20,全角空白
+                            # 正常終了
+                            sTestNext = sTestTmp + sTestNext
+                            pixellcc -= sum(fLenTmp)
+                            break
+                    else:
+                        # キャンセル
+                        sTestCurrent += sTestTmp
+                        fLenCurrent += fLenTmp
                 except IndexError:
-                    # 行末から行頭まで連綿と英数字が続く場合はエラーになる（はず）。
-                    # エラー時はキャンセルされる
+                    # 行末から行頭まで連綿と英数字が続く場合はエラーになる
+                    # ラップ不可能としてキャンセルする
                     sTestCurrent += sTestTmp
                     fLenCurrent += fLenTmp
 
@@ -2483,13 +2516,26 @@ class Aozora(AozoraScale):
                 continue
 
             tagattr = taginfo[1].split(u'=')
-            if tagattr[0] in [u'rubi', u'leftrubi']:
+
+            if tagattr[0] == u'keikakomigyou':
+                # 罫囲みの分割
+                # かかる文字の長さを求める
+                sTarget = currpos + 1
+                while sTarget < len(sTestCurrent) - 1 and sTestCurrent[sTarget][0] != u'<':
+                    sTarget += 1
+                (modeself, modenext) = [(1,3) , (1,2) , (2,2) , (2,3)][int(tagattr[1].strip('">'))]
+                sTestCurrent[currpos] = u'<aozora keikakomigyou="%d">' % modeself
+                sTestCurrent.append(u'</aozora>')
+                self.tagstack.insert(0, u'<aozora keikakomigyou="%d">' % modenext)
+
+            elif tagattr[0] in [u'rubi', u'leftrubi']:
                 # ルビの分かち書きの有無
                 rubi = tagattr[1].strip(u'">')
                 targetlength = int(taginfo[2].split(u'=')[1].strip(u'">'))
                 if targetlength != 0: # 繰越で生じた空タグならスキップ
                     if currpos < len(sTestCurrent) - 1:
                         # ルビのかかる親文字の長さを求める
+                        # （但し，ルビタグより内側に他のタグが無いことを前提としたルーチン）
                         sTarget = currpos + 1
                         while sTarget < len(sTestCurrent) - 1 and sTestCurrent[sTarget][0] != u'<':
                             sTarget += 1

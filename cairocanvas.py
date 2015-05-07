@@ -236,71 +236,73 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         """
 
         def __bousen_common(key, xofset):
-            """ 傍線・傍点表示
+            """ 傍線表示
             """
             with cairocontext(self.sf) as ctx00:
                 ctx00.set_antialias(cairo.ANTIALIAS_NONE)
-                if dicArg[key][-1] == u'線':
-                    ctx00.new_path()
-                    ctx00.set_line_width(1)
-                    if dicArg[key] == u'破線':
-                        ctx00.set_dash((3.5,3.5,3.5,3.5))
-                    elif dicArg[key] == u'鎖線':
-                        ctx00.set_dash((1.5,1.5,1.5,1.5))
-                    elif dicArg[key] == u'二重傍線':
-                        ctx00.move_to(self.xpos + xofset +2, self.ypos)
-                        ctx00.rel_line_to(0, length)
-                        ctx00.stroke()
-
-                    if dicArg[key] == u'波線':
-                        ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                        spn = 5 # 周期
-                        vx = 3 # 振幅
-                        tmpx = self.xpos + xofset
-                        for y in xrange(0, length - spn, spn):
-                            tmpy = self.ypos + y
-                            ctx00.move_to(tmpx, tmpy)
-                            ctx00.curve_to( tmpx, tmpy,
-                                            tmpx+vx, tmpy+spn/2,
-                                            tmpx, tmpy+spn)
-                            vx *= -1
-                    else:
-                        # 波線以外を描画
-                        ctx00.move_to(self.xpos + xofset, self.ypos)
-                        ctx00.rel_line_to(0, length)
+                ctx00.new_path()
+                ctx00.set_line_width(1)
+                if dicArg[key] == u'破線':
+                    ctx00.set_dash((3.5,3.5,3.5,3.5))
+                elif dicArg[key] == u'鎖線':
+                    ctx00.set_dash((1.5,1.5,1.5,1.5))
+                elif dicArg[key] == u'二重傍線':
+                    ctx00.move_to(self.xpos + xofset +2, self.ypos)
+                    ctx00.rel_line_to(0, length)
                     ctx00.stroke()
+
+                if dicArg[key] == u'波線':
+                    ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                    spn = 5 # 周期
+                    vx = 3 # 振幅
+                    tmpx = self.xpos + xofset
+                    for y in xrange(0, length, spn):
+                        tmpy = self.ypos + y
+                        ctx00.move_to(tmpx, tmpy)
+                        ctx00.curve_to(tmpx,tmpy, tmpx+vx,tmpy+spn/2, tmpx,tmpy+spn)
+                        vx *= -1
                 else:
-                    # 傍点
-                    # 本文表示長さ(ピクセル長)を文字数で割ったステップに
-                    # 1文字づつ描画する。このためかなりメモリを費消する。
-                    sB = u''
-                    step = round(length / float(len(data)))
-                    tmpypos = self.ypos
-                    if dicArg[key] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
-                        boutenfont = self.font
-                        xofset = xofset /5. if xofset < 0 else xofset
-                         # ルビ位置補正の為、フラグが必要
-                        self.boutenoffset = round(xofset*1.3) if xofset > 0 else -0.01
-                    else:
-                        boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
-                        self.boutenoffset = (xofset * 0.05) if xofset < 0 else (xofset * 1.1)
-                        tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
-                    for s in data:
-                        with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
-                            layout = panctx00.create_layout()
-                            layout.set_font_description(boutenfont)
-                            pc = layout.get_context()
-                            pc.set_base_gravity('east')
-                            pc.set_gravity_hint('natural')
-                            layout.set_text(self.dicBouten[dicArg[key]])
-                            panctx00.translate(self.xpos + xofset + self.boutenoffset,
-                                                            tmpypos)
-                            tmpypos += step
-                            panctx00.rotate(1.57075)
-                            panctx00.update_layout(layout)
-                            panctx00.show_layout(layout)
-                        del pc
-                        del layout
+                    # 波線以外を描画
+                    ctx00.move_to(self.xpos + xofset, self.ypos)
+                    ctx00.rel_line_to(0, length)
+                ctx00.stroke()
+
+        def __bouten_common(key, xofset):
+            """ 傍点表示
+            """
+            with cairocontext(self.sf) as ctx00:
+                ctx00.set_antialias(cairo.ANTIALIAS_NONE)
+                # 傍点
+                # 本文表示長さ(ピクセル長)を文字数で割ったステップに
+                # 1文字づつ描画する。このためかなりメモリを費消する。
+                sB = u''
+                step = round(length / float(len(data)))
+                tmpypos = self.ypos
+                if dicArg[key] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
+                    boutenfont = self.font
+                    xofset = xofset /5. if xofset < 0 else xofset
+                     # ルビ位置補正の為、符号をフラグとして利用
+                    self.boutenoffset = round(xofset*1.3) if xofset > 0 else -0.01
+                else:
+                    boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
+                    self.boutenoffset = (xofset * 0.05) if xofset < 0 else (xofset * 1.1)
+                    tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
+                for s in data:
+                    with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
+                        layout = panctx00.create_layout()
+                        layout.set_font_description(boutenfont)
+                        pc = layout.get_context()
+                        pc.set_base_gravity('east')
+                        pc.set_gravity_hint('natural')
+                        layout.set_text(self.dicBouten[dicArg[key]])
+                        panctx00.translate(self.xpos + xofset + self.boutenoffset,
+                                                        tmpypos)
+                        tmpypos += step
+                        panctx00.rotate(1.57075)
+                        panctx00.update_layout(layout)
+                        panctx00.show_layout(layout)
+                    del pc
+                    del layout
 
         def __rubi_common(key, xofset):
             """ ルビ表示
@@ -316,16 +318,13 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # ２行表示とする
                 rubipos = dicArg[key].rfind(u'〔ルビママ〕')
                 if rubipos != -1:
-                    rubitmp = u'%s\n%s' % (
-                            dicArg[key][rubipos:],
-                            dicArg[key][:rubipos])
-                    rubioffset = rubispan # 開始位置X座標のオフセット
+                    rubitmp = u'%s\n%s' % (dicArg[key][rubipos:], dicArg[key][:rubipos])
                 else:
                     rubitmp = dicArg[key]
-                    rubioffset = 0
-
                 layout.set_markup(rubitmp)
                 rubilength,rubispan = layout.get_pixel_size()
+                rubioffset = 0
+
                 # 表示位置 垂直方向のセンタリング
                 y = self.ypos + int((length-rubilength) // 2.)
                 if y < 0:
@@ -620,24 +619,31 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         ctx00.stroke()
 
                 if u'bousen' in dicArg:
-                    # 傍線・傍点
+                    # 傍線
                     __bousen_common(u'bousen', honbunxpos)
+                if u'bouten' in dicArg:
+                    # 傍点
+                    __bouten_common(u'bouten', honbunxpos)
 
-                # 大域変数で傍点との重なりを回避するのでbousen処理の直後に置くこと
+                # 大域変数で傍点との重なりを回避するのでbouten/bousen処理の直後に置くこと
                 if u'rubi' in dicArg:
                     # ルビ
                     __rubi_common(u'rubi', honbunxpos)
 
                 if u'leftbousen' in dicArg:
-                    # 左傍線・傍点
+                    # 左傍線
                     __bousen_common(u'leftbousen', -honbunxpos)
 
-                # 大域変数で傍点との重なりを回避するのでleftbousen処理の直後に置くこと
+                if u'leftbouten' in dicArg:
+                    # 左傍点
+                    __bouten_common(u'leftbouten', -honbunxpos)
+
+                # 大域変数で傍点との重なりを回避するのでleft bouten/bousen処理の直後に置くこと
                 if u'leftrubi' in dicArg:
                     # 左ルビ
                     __rubi_common(u'leftrubi', -honbunxpos)
 
-        # ypos 更新
+        # 次の呼び出しでの表示位置
         self.ypos += length
 
 

@@ -269,7 +269,7 @@ class Aozora(AozoraScale):
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
     hajimekakko = u'（［｛〔〈《「『【〘〖〝‘“｟«'
-
+    owarikakko =  u'）］｝〕〉》」』】〙〗〟’”｠»'
     # 単純な置換
     dicAozoraTag = {
         u'［＃行右小書き］':u'<sup>',   u'［＃行右小書き終わり］':u'</sup>',
@@ -490,11 +490,55 @@ class Aozora(AozoraScale):
             return u''
 
         def __aozoratag_replace(a):
-            """ 単純なPangoタグの置換の下請け
+            """ 単純なPangoタグへの置換の下請け
             """
             if a.group() in self.dicAozoraTag:
                 return self.dicAozoraTag[a.group()]
             return a.group()
+
+        def __gaiji_replace(a):
+            """ Shift-jis 未収録文字の置換
+            """
+            a2 = self.reGaiji3.match(a.group())
+            if a2:
+                # 外字置換（JIS第3、第4水準）
+                k = jis3.sconv(a2.group('number'))
+                if not k:
+                    #logging.info( u'JIS未登録の外字を検出：%s' % a.group())
+                    k = u'［'+a.group()[2:]
+                return k
+
+            a2 = self.reGaiji4.match(a.group())
+            if a2:
+                # 外字置換（Unicode文字）
+                return unichr(int(a2.group('number'),16))
+
+            a2 = self.reKogakiKatakana.match(a.group())
+            if a2:
+                #   小書き片仮名
+                #   ヱの小文字など、JISにフォントが無い場合
+                return u'<span size="smaller">%s</span>' % a2.group(u'name')
+
+            a2 = self.reGaiji6.match(a.group())
+            if a2:
+                #   ローマ数字対策
+                #   1 - 3999 迄
+                return u'［＃縦中横］%s［＃縦中横終わり］' % self.romasuji(a2.group('num'))
+
+            # JISにもUnicodeにも定義されていない文字の注釈
+            # こちらで準備するか、そうでなければ
+            # ※［＃「」、底本ページ-底本行］ -> ※「」
+            a2 = self.reGaiji5.match(a.group())
+            if a2:
+                if a2.group(u'name') in self.dicReserveChar:
+                    k = self.dicReserveChar[a2.group(u'name')]
+                else:
+                    k = a2.group(u'name').strip(u'「」')
+                    #logging.info(u'未定義文字を検出 : %s' % k )
+                    #loggingflag = True
+                return k
+
+            return u''
 
         """----------------------------------------------------------------
         """
@@ -559,67 +603,11 @@ class Aozora(AozoraScale):
                 """ 描画対策
                     dash の途切れ及び縦書きフォント無しを回避
                 """
-                lnbuf = self.reDash.sub( __dashsub, lnbuf )
+                lnbuf = self.reDash.sub(__dashsub, lnbuf)
 
                 """ Shift-jis未定義の文字を得る
                 """
-                tmp = self.reCTRLGaiji.search(lnbuf)
-                while tmp:
-                    tmp2 = self.reGaiji3.match(tmp.group())
-                    if tmp2:
-                        # 外字置換（JIS第3、第4水準）
-                        k = jis3.sconv(tmp2.group('number'))
-                        if not k:
-                            logging.info( u'JIS未登録の外字を検出：%s' % tmp.group())
-                            k = u'［'+tmp.group()[2:]
-                        lnbuf = lnbuf[:tmp.start()] + k + lnbuf[tmp.end():]
-                        tmp = self.reCTRLGaiji.search(lnbuf)
-                        continue
-
-                    tmp2 = self.reGaiji4.match(tmp.group())
-                    if tmp2:
-                        # 外字置換（Unicode文字）
-                        lnbuf = lnbuf[:tmp.start()] + unichr(int(tmp2.group('number'),16)) + lnbuf[tmp.end():]
-                        tmp = self.reCTRLGaiji.search(lnbuf)
-                        continue
-
-                    tmp2 = self.reKogakiKatakana.match(tmp.group())
-                    if tmp2:
-                        #   小書き片仮名
-                        #   ヱの小文字など、JISにフォントが無い場合
-                        lnbuf = u'%s<span size="smaller">%s</span>%s' % (
-                            lnbuf[:tmp.start()],
-                            tmp2.group(u'name'),
-                            lnbuf[tmp.end():] )
-                        tmp = self.reCTRLGaiji.search(lnbuf)
-                        continue
-
-                    tmp2 = self.reGaiji6.match(tmp.group())
-                    if tmp2:
-                        #   ローマ数字対策
-                        #   1 - 3999 迄
-                        sTmp = self.romasuji(tmp2.group('num'))
-                        lnbuf = u'%s［＃縦中横］%s［＃縦中横終わり］%s' % (
-                            lnbuf[:tmp.start()],
-                            sTmp,
-                            lnbuf[tmp.end():] )
-                        tmp = self.reCTRLGaiji.search(lnbuf)
-                        continue
-
-                    # JISにもUnicodeにも定義されていない文字の注釈
-                    # こちらで準備するか、そうでなければ
-                    # ※［＃「」、底本ページ-底本行］ -> ※「」
-                    tmp2 = self.reGaiji5.match(tmp.group())
-                    if tmp2:
-                        if tmp2.group(u'name') in self.dicReserveChar:
-                            k = self.dicReserveChar[tmp2.group(u'name')]
-                        else:
-                            k = tmp2.group(u'name').strip(u'「」')
-                            logging.info(u'未定義文字を検出 : %s' % k )
-                            loggingflag = True
-                        lnbuf = lnbuf[:tmp.start()] + k + lnbuf[tmp.end():]
-                        tmp = self.reCTRLGaiji.search(lnbuf)
-                        continue
+                lnbuf = self.reCTRLGaiji.sub(__gaiji_replace, lnbuf)
 
                 """ ルビにつくママ
                     ルビに変換する
@@ -734,12 +722,14 @@ class Aozora(AozoraScale):
                                     continue
 
                             if lnbuf[pos+1] in self.kakko and lnbuf[pos+1:pos+3] != u'［＃':
-                                # 後ろにも括弧が続くか、且つタグの開始でないか
-                                retline.append(
+                                if not (lnbuf[pos] in self.hajimekakko and lnbuf[pos+1] in self.owarikakko):
+                                    # 後ろにも括弧が続くか、且つタグの開始でないか
+                                    # 但し開閉の順()で続く場合は調整しない。
+                                    retline.append(
                                     u'%s<aozora half="0.5">%s</aozora>' % (lnbuf[anchor:pos], lnbuf[pos]))
-                                pos += 1
-                                anchor = pos
-                                continue
+                                    pos += 1
+                                    anchor = pos
+                                    continue
                     except IndexError:
                         pass
                     pos += 1
@@ -1077,13 +1067,13 @@ class Aozora(AozoraScale):
                         if tmp2:
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            lnbuf = u'%s<aozora %s="%s">%s</aozora>%s%s' % (
+                            lnbuf = u'%s<aozora %s%s="%s%s">%s</aozora>%s%s' % (
                                 lnbuf[:tmpStart],
-                                u'bousen' if not tmp2.group('position') else u'leftbousen',
-                                tmp2.group('type') + tmp2.group('type2'),
+                                u'' if not tmp2.group('position') else u'left',
+                                u'bouten' if tmp2.group('type2') == u'傍点' else u'bousen',
+                                tmp2.group('type'),        tmp2.group('type2'),
                                 lnbuf[tmpStart:tmpEnd],
-                                lnbuf[tmpEnd:tmp.start()],
-                                lnbuf[tmp.end():] )
+                                lnbuf[tmpEnd:tmp.start()], lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -1193,7 +1183,7 @@ class Aozora(AozoraScale):
                             reTmp = re.compile( ur'%s$' % sNameTmp )
                             lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
                                 reTmp.sub( u'', lnbuf[:tmp.start()]),
-                                tmp2.group(u'mama').strip(u'〔〕'), len(sNameTmp),
+                                tmp2.group(u'mama').strip(u'（〔〕）'), len(sNameTmp),
                                 sNameTmp, lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
@@ -2312,7 +2302,6 @@ class Aozora(AozoraScale):
 
                                 warisize = int(math.floor((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"'])))
                                 waribun = tmp.group('name').replace(u'［＃改行］', u'')
-                                print warisize
                                 waricurrent = waribun[:warisize*2]
                                 heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(fontheight) ))
                                 warinext = waribun[warisize*2:]

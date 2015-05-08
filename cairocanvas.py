@@ -626,7 +626,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     __bouten_common(u'bouten', honbunxpos)
 
                 # 大域変数で傍点との重なりを回避するのでbouten/bousen処理の直後に置くこと
-                if u'rubi' in dicArg:
+                # 親文字に送り量調整された括弧類や句読点類が含まれると、ルビを繰り返し
+                # 表示してしまうので、事前にチェックする。
+                if u'rubi' in dicArg and not data in self.kakko:
                     # ルビ
                     __rubi_common(u'rubi', honbunxpos)
 
@@ -639,7 +641,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     __bouten_common(u'leftbouten', -honbunxpos)
 
                 # 大域変数で傍点との重なりを回避するのでleft bouten/bousen処理の直後に置くこと
-                if u'leftrubi' in dicArg:
+                # 親文字に送り量調整された括弧類や句読点類が含まれると、ルビを繰り返し
+                # 表示してしまうので、事前にチェックする。
+                if u'leftrubi' in dicArg and not data in self.kakko:
                     # 左ルビ
                     __rubi_common(u'leftrubi', -honbunxpos)
 

@@ -54,19 +54,36 @@
         詳細はソースをご覧ください。
         <aozora img>            段落内に挿入される画像
         <aozora img2>           独立した段落に挿入される画像
-        <aozora leftrubi>       左注記
         <aozora caption>        画像のキャプション
-        <aozora bousen>         傍線・傍点
+        <aozora bousen>         傍線
+        <aozora bouten>         傍点
         <aozora tatenakayoko>   縦中横
         <aozora warichu>        割り注
-        <aozora rubi>           ルビ
-        <aozora dash>           ダッシュ
+        <aozora rubi>           ルビあるいは注記
+        <aozora dash>           ダッシュの連結
         <aozora half>           １文字の送り量（全角を１とする比率）
         <aozora ofset>          文字開始位置調整（ピクセル値）
         <aozora adj>            文字送り量調整（ピクセル値）
-        <aozora leftbousen>     左傍線・傍点
+        <aozora leftrubi>       左ルビあるいは左注記
+        <aozora leftbouten>     左傍点
+        <aozora leftbousen>     左傍線
+        <aozora keikakomigyou>  罫囲み（行中）
+        <aozora keikakomi>      罫囲み（段落）
+        <aozora yokogumi>       横組
 
     開発履歴
+    ２０１５年５月８日
+        ・ルビや注記が繰り返し表示されてしまうバグを修正。
+        　親文字に括弧や句読点が含まれる場合、これらが送り量調整の対象となり
+        　タグを付されることで、１文字単位で表示されるのが原因です。
+        　　模式文字列 <rubi><adj>「</adj>親文字</rubi>
+        　　この例の場合、"「"表示の際にrubiが呼び出され、次の"親文字"表示でも
+        　　呼び出されます。
+        　ルビであれば親文字に句読点類や括弧類を含むことは少ないと思います。
+        　注記の場合は問題が生じるかも知れません。
+        ・底本からの変更を示す注記を、左注記として表示するようにしました。
+        　但し、ルビに関しては省略します。
+
     ２０１５年５月７日
         ・ルビ表示でエラーとなるバグを修正。
         ・外字（Shift-jis未収録文字）の置換をre.sub に変更。

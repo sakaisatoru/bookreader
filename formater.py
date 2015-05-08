@@ -190,9 +190,9 @@ class Aozora(AozoraScale):
     # 横組み
     reYokogumi = re.compile(ur'(［＃「(?P<name>.+?)」は横組み］)')
 
-    # 未実装タグ
-    reOmit = re.compile(
-                ur'(［＃(ルビの)?「(?P<name>.+?)」は底本では「(?P<name2>.+?)」］)')
+    # 底本注記
+    reTeibon = re.compile(
+                ur'(［＃(?P<rubi>ルビの)??「(?P<name>.+?)」は底本では「(?P<name2>.+?)」］)')
 
     # ルーチン内に直書きしているタグ
     """     ＃ページの左右中央
@@ -542,6 +542,8 @@ class Aozora(AozoraScale):
 
         """----------------------------------------------------------------
         """
+        debug_bp = 0                # debug 用
+
         if not sourcefile:
             sourcefile = self.currentText.sourcefile
 
@@ -549,7 +551,6 @@ class Aozora(AozoraScale):
         boutoudone = False          # ヘッダ処理が終わったことを示す
         footerflag = False
         aozorastack = []            # ［＃形式タグ用のスタック
-        pangotagstack = []          # pango タグ用のスタック
 
         posstack = []               # 開始/終了型タグ処理用スタック
 
@@ -756,15 +757,6 @@ class Aozora(AozoraScale):
                 while True:
                     tmp = self.reCTRL2.search(lnbuf)
                     while tmp:
-                        """ 未実装タグの除去
-                        """
-                        if self.reOmit.match(tmp.group()):
-                            logging.info( u'未実装タグを検出: %s' % tmp.group() )
-                            self.loggingflag = True
-                            lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
-                            tmp = self.reCTRL2.search(lnbuf)
-                            continue
-
                         """ 縦中横
                         """
                         tmp2 = self.reTatenakayoko.match(tmp.group())
@@ -780,7 +772,7 @@ class Aozora(AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-                        """ 類似処理のまとめ
+                        """ （類似処理のまとめ）
                         """
                         if tmp.group() in [u'［＃縦中横］', u'［＃キャプション］']:
                             posstack.append(tmp.span())
@@ -984,6 +976,38 @@ class Aozora(AozoraScale):
                                         lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf,tmpStart)
                             continue
+
+                        """ 底本注記を左注釈として表示
+                            但し、ルビについては省略
+                        """
+                        tmp2 = self.reTeibon.match(tmp.group())
+                        if tmp2:
+                            tmpStart,tmpEnd = self.__honbunsearch(
+                                            lnbuf[:tmp.start()],tmp2.group(u'name'))
+
+                            if not tmp2.group(u'rubi'):
+                                #lnbuf = u'%s<aozora leftrubi="〔%s底本では「%s」〕" length="%d">%s</aozora>%s%s' % (
+                                lnbuf = u'%s<aozora leftrubi="〔%s〕" length="%d">%s</aozora>%s%s' % (
+                                        lnbuf[:tmpStart],
+                                        #(u'ルビの%sは' % tmp2.group(u'name')) if tmp2.group(u'rubi') else u'',
+                                        tmp2.group(u'name2'),
+                                        len(tmp2.group(u'name')),
+                                        lnbuf[tmpStart:tmpEnd],
+                                        lnbuf[tmpEnd:tmp.start()],
+                                        lnbuf[tmp.end():] )
+                                tmp = self.reCTRL2.search(lnbuf, tmpStart)
+
+                            else:
+                                lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                                tmp = self.reCTRL2.search(lnbuf)
+                            continue
+                            """
+                            logging.info( u'未実装タグを検出: %s' % tmp.group() )
+                            self.loggingflag = True
+                            lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
+                            tmp = self.reCTRL2.search(lnbuf,tmpStart)
+                            continue
+                            """
 
                         """ キャプション
                             暫定処理：小文字で表示

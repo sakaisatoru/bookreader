@@ -65,14 +65,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 sub
 
     """
-     # 右側傍点及び傍線
-    dicBouten = {
-        u'白ゴマ傍点':u'﹆',
-        u'丸傍点':u'●',      u'白丸傍点':u'○',    u'黒三角傍点':u'▲',
-        u'白三角傍点':u'△',  u'二重丸傍点':u'◎',  u'蛇の目傍点':u'◉',
-        u'ばつ傍点':u'×',    u'傍点':u'﹅',
-        u'波線':u'〜〜' }
-
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
 
@@ -270,39 +262,71 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         def __bouten_common(key, xofset):
             """ 傍点表示
             """
-            with cairocontext(self.sf) as ctx00:
-                ctx00.set_antialias(cairo.ANTIALIAS_NONE)
-                # 傍点
-                # 本文表示長さ(ピクセル長)を文字数で割ったステップに
-                # 1文字づつ描画する。このためかなりメモリを費消する。
-                sB = u''
-                step = round(length / float(len(data)))
-                tmpypos = self.ypos
-                if dicArg[key] in [u'白ゴマ傍点', u'ばつ傍点', u'傍点']:
-                    boutenfont = self.font
-                    xofset = xofset /5. if xofset < 0 else xofset
-                     # ルビ位置補正の為、符号をフラグとして利用
-                    self.boutenoffset = round(xofset*1.3) if xofset > 0 else -0.01
+            def ___cairo_bouten():
+                # 傍点・白ゴマ傍点
+                ctx00.move_to(tmpx, tmpy)
+                ctx00.curve_to(tmpx+d, tmpy,  tmpx+d, tmpy+d,  tmpx+d, tmpy+d)
+                ctx00.curve_to(tmpx+d, tmpy+d,
+                                tmpx+r+r/2, tmpy+d+r/2,  tmpx+r, tmpy+d)
+                ctx00.curve_to(tmpx+r, tmpy+r, tmpx, tmpy, tmpx, tmpy)
+
+            def ___cairo_batsu():
+                # ばつ傍点
+                ctx00.move_to(tmpx, tmpy)
+                ctx00.rel_line_to(d, d)
+                ctx00.move_to(tmpx+d, tmpy)
+                ctx00.rel_line_to(-d, d)
+
+            def ___cairo_maru():
+                # 白丸・黒丸・二重丸（外円）・蛇の目（外円）傍点
+                ctx00.new_sub_path()
+                ctx00.arc(tmpx+r,tmpy+r,r, 0, 2*3.1415)
+
+            def ___cairo_maru2():
+                # 二重丸（内円）・蛇の目（内円）傍点
+                ___cairo_maru()
+                ctx00.stroke() # ここで外円を描く
+                ctx00.arc(tmpx+r,tmpy+r,r/2., 0, 2*3.1415)
+                if dicArg[key] == u'蛇の目傍点':
+                    ctx00.fill()
                 else:
-                    boutenfont = self.font_rubi # 使う文字が大きいのでサイズを下げる
-                    self.boutenoffset = (xofset * 0.05) if xofset < 0 else (xofset * 1.1)
-                    tmpypos += int(round((self.fontheight - self.rubifontheight)/2.))
+                    ctx00.stroke()
+
+            def ___cairo_sankaku():
+                # 白三角・黒三角傍点
+                xx = r * 0.9226 # 底辺 外接円の面積=3辺の積/(4*半径)より
+                yy = r * 0.7989 # 高さ
+                ctx00.move_to(tmpx+r, tmpy+r - yy)
+                ctx00.rel_line_to(xx,2*yy)
+                ctx00.rel_line_to(-2*xx,0)
+                ctx00.rel_line_to(xx,-2*yy)
+
+            dicfunc = {
+                u'ばつ傍点':___cairo_batsu,
+                u'白ゴマ傍点':___cairo_bouten, u'傍点':___cairo_bouten,
+                u'白丸傍点':___cairo_maru, u'黒丸傍点':___cairo_maru,
+                u'二重丸傍点':___cairo_maru2, u'蛇の目傍点':___cairo_maru2,
+                u'白三角傍点':___cairo_sankaku, u'黒三角傍点':___cairo_sankaku
+                }
+
+            with cairocontext(self.sf) as ctx00:
+                step = round(length / float(len(data))) # 送り量
+                d = self.fontwidth /4.          # 表示幅、例えば白丸の直径
+                r = d / 2.                      # 表示幅の半分、例えば白丸の半径
+                # 表示領域左上座標
+                tmpx = self.xpos + xofset + r * (-2 if xofset < 0 else 1)
+                tmpy = self.ypos + d + r
+                ctx00.new_path()
+                ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT) # cairo.ANTIALIAS_NONE
+                ctx00.set_line_width(d/5.7)     # フォントサイズに連動する
                 for s in data:
-                    with cairocontext(self.sf) as ctx002, pangocairocontext(ctx002) as panctx00:
-                        layout = panctx00.create_layout()
-                        layout.set_font_description(boutenfont)
-                        pc = layout.get_context()
-                        pc.set_base_gravity('east')
-                        pc.set_gravity_hint('natural')
-                        layout.set_text(self.dicBouten[dicArg[key]])
-                        panctx00.translate(self.xpos + xofset + self.boutenoffset,
-                                                        tmpypos)
-                        tmpypos += step
-                        panctx00.rotate(1.57075)
-                        panctx00.update_layout(layout)
-                        panctx00.show_layout(layout)
-                    del pc
-                    del layout
+                    dicfunc[dicArg[key]]()      # 引数は大域渡し
+                    tmpy += step
+                if dicArg[key] == u'傍点' or u'黒' in dicArg[key]:
+                    ctx00.fill()
+                else:
+                    ctx00.stroke()
+            self.boutenofset = -d if xofset < 0 else (d+r)
 
         def __rubi_common(key, xofset):
             """ ルビ表示
@@ -333,15 +357,19 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
 
                 # 傍点がある場合は重ね書きを回避する
-                if key == u'rubi' and self.boutenoffset > 0:
+                """
+                if key == u'rubi' and self.boutenofset > 0:
                     rubispan *= 1.5 # 右補正
-                elif key == u'leftrubi' and self.boutenoffset < 0:
+                elif key == u'leftrubi' and self.boutenofset < 0:
                     rubispan *= -1 # 左補正
-                elif key == u'leftrubi':
+
+                """
+                if key == u'leftrubi':
                     rubispan = 0
                     rubioffset = 0
-
-                pangoctx00.translate(self.xpos + xofset + rubispan + rubioffset, y)
+                #"""
+                pangoctx00.translate(self.xpos + xofset + rubispan + \
+                                            rubioffset + self.boutenofset, y)
 
                 pangoctx00.rotate(1.57075)
                 pangoctx00.update_layout(layout)
@@ -353,7 +381,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         """------------------------------------------------------------------
         """
         # 初期化
-        self.boutenoffset = 0
+        self.boutenofset = 0
 
         vector = 0
         fontspan = 1

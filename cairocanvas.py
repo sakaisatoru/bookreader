@@ -73,11 +73,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         AozoraScale.__init__(self)
         ReaderSetting.__init__(self)
         self.sf = canvas
-        self.xposoffsetold = 0
-        self.oldlength = 0. # self.oldlength = 0
+        self.oldlength = 0.
         self.oldwidth = 0
         self.rubilastYpos = 0       # 直前のルビの最末端
-        self.leftrubilastYpos = 0   # 直前の左ルビの最末端
+        self.rubilastXofset = 0     # 直前のルビが左右いずれかを保持
 
     def destroy(self):
         del self.tagstack
@@ -87,7 +86,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.xpos = xpos
         self.ypos = ypos
         self.rubilastYpos = 0       # 直前のルビの最末端
-        self.leftrubilastYpos = 0   # 直前の左ルビの最末端
         self.tagstack = []
         self.attrstack = []
         self.inKeikakomigyou = False # 罫囲み（行中）のフラグ
@@ -347,44 +345,35 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     rubitmp = dicArg[key]
                 layout.set_markup(rubitmp)
                 rubilength,rubispan = layout.get_pixel_size()
-                rubioffset = 0
 
                 # 表示位置 垂直方向のセンタリング
                 y = self.ypos + int((length-rubilength) // 2.)
                 if y < 0:
                     y = 0
-                if y < self.rubilastYpos:
-                    y = self.rubilastYpos # 直前のルビとの干渉をとりあえず回避する
+                if y < self.rubilastYpos and self.rubilastXofset * xofset > 0:
+                    # ルビが連なる場合、直前のルビとの干渉を回避する
+                    y = self.rubilastYpos
 
-                # 傍点がある場合は重ね書きを回避する
-                """
-                if key == u'rubi' and self.boutenofset > 0:
-                    rubispan *= 1.5 # 右補正
-                elif key == u'leftrubi' and self.boutenofset < 0:
-                    rubispan *= -1 # 左補正
-
-                """
                 if key == u'leftrubi':
                     rubispan = 0
-                    rubioffset = 0
                 #"""
                 pangoctx00.translate(self.xpos + xofset + rubispan + \
-                                            rubioffset + self.boutenofset, y)
+                                            self.boutenofset, y)
 
                 pangoctx00.rotate(1.57075)
                 pangoctx00.update_layout(layout)
                 pangoctx00.show_layout(layout)
-                self.rubilastYpos = y + rubilength #ルビの最末端を保存
+                self.rubilastYpos = y + rubilength  # ルビの最末端を保存
+                self.rubilastXofset = xofset # ルビが左右いずれかであるかを保持
                 del pc
                 del layout
 
         """------------------------------------------------------------------
         """
         # 初期化
-        self.boutenofset = 0
+        self.boutenofset = 0    # 傍点描画後のルビ位置補正値
 
-        vector = 0
-        fontspan = 1
+        #fontspan = 1
         xposoffset = 0
         rubispan = 0
         dicArg = {}
@@ -408,14 +397,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     #<sup>単独ではベースラインがリセットされる為、外部で指定する
                     #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
-                    fontspan = self.fontmagnification(u'<%s>' % s)
+                    #fontspan = self.fontmagnification(u'<%s>' % s)
                     #sTest = [u'<sup>', sTmp, u'</sup>']
                     sTest = [u'<span size="small">', sTmp, u'</span>']
                 elif s == u'sub':
                     #<sub>単独ではベースラインがリセットされる為、外部で指定する
                     #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
-                    fontspan = self.fontmagnification(u'<%s>' % s)
+                    #fontspan = self.fontmagnification(u'<%s>' % s)
                     #sTest = [u'<sub>', sTmp, u'</sub>']
                     sTest = [u'<span size="small">', sTmp, u'</span>']
                 else:

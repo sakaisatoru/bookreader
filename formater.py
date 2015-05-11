@@ -967,9 +967,15 @@ class Aozora(AozoraScale):
                         if tmp2:
                             tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
+                            tmprubi = tmp2.group(u'rubi')
+                            if tmp2.group(u'type') != u'ルビ':
+                                 if not (tmprubi[0] in self.hajimekakko and tmprubi[-1] in self.owarikakko):
+                                    # 注記であることを示すため亀甲括弧を付すが、
+                                    # 注記の両端に括弧類がある場合はくどいので付さない
+                                    tmprubi = u'〔%s〕' % tmp2.group(u'rubi')
                             lnbuf = u'%s<aozora leftrubi="%s" length="%s">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
-                                        tmp2.group(u'rubi') if tmp2.group(u'type') == u'ルビ' else u'〔%s〕' % tmp2.group(u'rubi').strip(u'〔〕'),
+                                        tmprubi,
                                         len(tmp2.group(u'name')),
                                         lnbuf[tmpStart:tmpEnd],
                                         lnbuf[tmpEnd:tmp.start()],
@@ -984,30 +990,21 @@ class Aozora(AozoraScale):
                         if tmp2:
                             tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
-
-                            if not tmp2.group(u'rubi'):
-                                #lnbuf = u'%s<aozora leftrubi="〔%s底本では「%s」〕" length="%d">%s</aozora>%s%s' % (
-                                lnbuf = u'%s<aozora leftrubi="〔%s〕" length="%d">%s</aozora>%s%s' % (
+                            if tmp2.group(u'rubi'):
+                                # ルビに対する注記は表示しない（できない）
+                                lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                                tmp = self.reCTRL2.search(lnbuf)
+                            else:
+                                # <>による修飾は抜去される
+                                lnbuf = u'%s<aozora leftrubi="〔底本では%s〕" length="%d">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
-                                        #(u'ルビの%sは' % tmp2.group(u'name')) if tmp2.group(u'rubi') else u'',
-                                        tmp2.group(u'name2'),
-                                        len(tmp2.group(u'name')),
+                                        self.reTagRemove.sub(u'', tmp2.group(u'name2')),
+                                        len(self.reTagRemove.sub(u'', tmp2.group(u'name'))),
                                         lnbuf[tmpStart:tmpEnd],
                                         lnbuf[tmpEnd:tmp.start()],
                                         lnbuf[tmp.end():] )
                                 tmp = self.reCTRL2.search(lnbuf, tmpStart)
-
-                            else:
-                                lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
-                                tmp = self.reCTRL2.search(lnbuf)
                             continue
-                            """
-                            logging.info( u'未実装タグを検出: %s' % tmp.group() )
-                            self.loggingflag = True
-                            lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
-                            tmp = self.reCTRL2.search(lnbuf,tmpStart)
-                            continue
-                            """
 
                         """ キャプション
                             暫定処理：小文字で表示
@@ -2327,8 +2324,17 @@ class Aozora(AozoraScale):
                                 warisize = int(math.floor((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"'])))
                                 waribun = tmp.group('name').replace(u'［＃改行］', u'')
                                 waricurrent = waribun[:warisize*2]
-                                heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(fontheight) ))
                                 warinext = waribun[warisize*2:]
+                                try:
+                                    while warinext[0] in self.kinsoku:
+                                        # 次行への行頭禁則文字の持ち越しを回避する
+                                        waricurrent += warinext[0]
+                                        warinext = warinext[1:]
+                                        warisize += 0.5 # 表示高さ補正
+                                except IndexError:
+                                    pass
+                                warisize = int(math.ceil(warisize))
+                                heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(fontheight) ))
                                 heightnext = int(math.ceil(math.ceil(len(warinext)/2.) * self.fontsizefactor['size="x-small"']))
 
                                 sTestCurrent.append(u'<aozora warichu="%s" height="%d">' % (waricurrent, warisize))
@@ -2348,40 +2354,6 @@ class Aozora(AozoraScale):
 
                                 pos = sline.find(u'</aozora>',pos) + 9
                                 continue
-
-                                """
-                                # 行末迄に収まらなければ割り注を解除する
-                                warisize = int((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"']))
-                                waribun = u'　%s　' % tmp.group('name').replace(u'［＃改行］',u'')
-
-                                waribunpos = waribun.find(u'［＃改行］')
-                                if waribunpos != -1:
-                                    waribun = waribun[:waribunpos] + waribun[waribunpos+len(u'［＃改行］'):]
-
-                                sTestCurrent.pop()
-                                fLenCurrent.pop()
-
-                                sTestCurrent.append(u'<span size="x-small">')
-                                fLenCurrent.append(0.0)
-
-                                sTestCurrent.append(waribun[:warisize])
-                                fLenCurrent.append(fontheight * warisize *self.fontsizefactor['size="x-small"'])
-                                pixellcc += fLenCurrent[-1]
-                                if pixellcc < pixelsmax:
-                                    pixellcc = pixelsmax # ループ終了条件を満たす
-                                sTestCurrent.append(u'</span>')
-                                fLenCurrent.append(0.0)
-                                try:
-                                    # 表示域確保用の空白及び閉じタグを抜去する
-                                    pos = sline.find(u'</aozora>', pos) + 9#len(u'</aozora>')
-                                    sTestNext.insert(0, u'<span size="x-small">%s</span>%s' % (
-                                        waribun[warisize:], sline[pos:] ))
-                                except IndexError:
-                                    sTestNext.insert(0, u'<span size="x-small">%s</span>' % (
-                                        waribun[warisize:] ))
-
-                                continue
-                                """
 
                         elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
                             # 縦中横　特殊処理　本文文字列高さを常に１文字+1pixelとみなす
@@ -2564,7 +2536,8 @@ class Aozora(AozoraScale):
 
         while substack:
             currpos, currtag = substack.pop()
-            taginfo = currtag.split()
+            taginfo = currtag.split() # 属性に空白が含まれるとバグとなる可能性あり
+
             if len(taginfo) == 1:
                 # おそらく <sub> , <sup>
                 sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<>'))
@@ -2579,6 +2552,8 @@ class Aozora(AozoraScale):
                 sTarget = currpos + 1
                 while sTarget < len(sTestCurrent) - 1 and sTestCurrent[sTarget][0] != u'<':
                     sTarget += 1
+                # 描画内容の遷移テーブル  mode 1 始め 2 中間 3 終わり
+                # 例：最初は0 (1,3を得る)  1を分割すると1と2が得られる
                 (modeself, modenext) = [(1,3) , (1,2) , (2,2) , (2,3)][int(tagattr[1].strip('">'))]
                 sTestCurrent[currpos] = u'<aozora keikakomigyou="%d">' % modeself
                 sTestCurrent.append(u'</aozora>')
@@ -2586,8 +2561,13 @@ class Aozora(AozoraScale):
 
             elif tagattr[0] in [u'rubi', u'leftrubi']:
                 # ルビの分かち書きの有無
+                if tagattr[1][-1] != '"':
+                    # ルビ内にスペースが含まれており分断されてしまったので
+                    # 修復する
+                    tagattr[1] = u'%s %s' % (tagattr[1],taginfo[2])
+
                 rubi = tagattr[1].strip(u'">')
-                targetlength = int(taginfo[2].split(u'=')[1].strip(u'">'))
+                targetlength = int(taginfo[-1].split(u'=')[1].strip(u'">'))
                 if targetlength != 0: # 繰越で生じた空タグならスキップ
                     if currpos < len(sTestCurrent) - 1:
                         # ルビのかかる親文字の長さを求める
@@ -2597,7 +2577,10 @@ class Aozora(AozoraScale):
                             sTarget += 1
                         hlen = len(u''.join(sTestCurrent[currpos+1:sTarget+1]))
                         # ルビを親文字の長さを勘案して分割
-                        rubilen = int(round(len(rubi) * (hlen / float(targetlength)) ))
+                        # 注記として付与された〔〕をカウントしない
+                        rubilen = int(round(len(rubi.strip(u'〔〕')) * (hlen / float(targetlength)) ))
+                        if u'〔' in rubi:
+                            rubilen += 1 # 分割位置の調整
                         rubiafter = rubi[rubilen:]
                         rubi = rubi[:rubilen]
 

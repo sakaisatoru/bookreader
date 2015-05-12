@@ -89,6 +89,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.tagstack = []
         self.attrstack = []
         self.inKeikakomigyou = False # 罫囲み（行中）のフラグ
+        self.keisenxpos = 0
 
         """ Pangoのバグに対する対策
             オリジナルのPangoがタグによる重力制御を振り切るケースが多々ある
@@ -97,21 +98,21 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         """
         sTmp = []
         end = len(data)
-        tagstack = []
+        localtagstack = []
         pos_start = 0
         pos_end = 0
         while pos_start < end:
             if data[pos_start:pos_start+2] == u'</':
                 # 既存の閉じタグ
-                if tagstack and tagstack[-1] == u'<aozora yokogumi':
+                if localtagstack and localtagstack[-1] == u'<aozora yokogumi2':
                     # このルーチンで挿入したタグがあれば先に閉じる
-                    tagstack.pop()
+                    localtagstack.pop()
                     sTmp.append( u'</aozora>' )
 
                 pos_end = data.find( u'>', pos_start)
                 if pos_end != -1:
-                    if tagstack:
-                        tagstack.pop()
+                    if localtagstack:
+                        localtagstack.pop()
                     sTmp.append(data[pos_start:pos_end+1])
                     pos_start = pos_end + 1
                     continue
@@ -121,7 +122,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pos_end = data.find( u'>', pos_start)
                 if pos_end != -1:
                     pos_end += 1
-                    tagstack.append(data[pos_start:pos_end])
+                    localtagstack.append(data[pos_start:pos_end])
                     sTmp.append(data[pos_start:pos_end])
                     pos_start = pos_end
                     continue
@@ -131,18 +132,29 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # 但し
                 #   既にyokogumiタグがある あるいは 縦中横のなかである
                 #   なら見送る
-                for s in tagstack:
+                for s in localtagstack:
                     if s.find(u'<aozora yokogumi') != -1 or s.find(u'tatenakayoko') != -1:
                         break
                 else:
-                    tagstack.append( u'<aozora yokogumi' )
+                    localtagstack.append( u'<aozora yokogumi2' )
                     sTmp.append( u'<aozora yokogumi="dmy">' )
 
-            elif tagstack and tagstack[-1] == u'<aozora yokogumi':
+            elif localtagstack and u'<aozora yokogumi2' in localtagstack:
                 # 縦書き文字検出
                 # このルーチンでの横組みが指定されていれば閉じる
-                tagstack.pop()
-                sTmp.append( u'</aozora>' )
+                localtagstack.pop()
+                postmp = -1
+                try:
+                    while sTmp[postmp][0:2] != u'</' and sTmp[postmp][0] == u'<':
+                        # この文字にタグが掛かっている場合、遡って閉じる
+                        postmp -= 1
+                    postmp += 1
+                    if postmp == 0:
+                        sTmp.append( u'</aozora>' )
+                    else:
+                        sTmp.insert(postmp,u'</aozora>' )
+                except IndexError:
+                    sTmp.append( u'</aozora>' )
 
             sTmp.append(data[pos_start])
             pos_start += 1
@@ -339,8 +351,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # ルビにママをつける場合の処理
                 # ２行表示とする
                 rubipos = dicArg[key].rfind(u'〔ルビママ〕')
+                if rubipos == -1:
+                    rubipos = dicArg[key].rfind(u'〔ママ〕')
                 if rubipos != -1:
                     rubitmp = u'%s\n%s' % (dicArg[key][rubipos:], dicArg[key][:rubipos])
+                    rubitmp = rubitmp.strip(u'\n') # １行しかない場合は改行を外す
                 else:
                     rubitmp = dicArg[key]
                 layout.set_markup(rubitmp)
@@ -373,7 +388,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         # 初期化
         self.boutenofset = 0    # 傍点描画後のルビ位置補正値
 
-        #fontspan = 1
         xposoffset = 0
         rubispan = 0
         dicArg = {}
@@ -397,15 +411,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     #<sup>単独ではベースラインがリセットされる為、外部で指定する
                     #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
-                    #fontspan = self.fontmagnification(u'<%s>' % s)
-                    #sTest = [u'<sup>', sTmp, u'</sup>']
                     sTest = [u'<span size="small">', sTmp, u'</span>']
                 elif s == u'sub':
                     #<sub>単独ではベースラインがリセットされる為、外部で指定する
                     #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
-                    #fontspan = self.fontmagnification(u'<%s>' % s)
-                    #sTest = [u'<sub>', sTmp, u'</sub>']
                     sTest = [u'<span size="small">', sTmp, u'</span>']
                 else:
                     # 引数復元
@@ -566,7 +576,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # ※少しでも処理速度を稼ぐため上にも似たルーチンがあります
                     pc = layout.get_context() # Pango を得る
                     # 正しいlengthを得るため、予め文字の向きを決める
-                    if u'yokogumi' in dicArg:
+                    if u'yokogumi' in dicArg or u'yokogumi2' in dicArg:
                         pc.set_base_gravity('south')
                         pc.set_gravity_hint('natural')
                     else:
@@ -644,7 +654,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 # 大域変数で傍点との重なりを回避するのでbouten/bousen処理の直後に置くこと
                 # 親文字に送り量調整された括弧類や句読点類が含まれると、ルビを繰り返し
-                # 表示してしまうので、事前にチェックする。
+                # 表示してしまう。
                 if u'rubi' in dicArg and not data in self.kakko:
                     # ルビ
                     __rubi_common(u'rubi', honbunxpos)
@@ -659,10 +669,22 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 # 大域変数で傍点との重なりを回避するのでleft bouten/bousen処理の直後に置くこと
                 # 親文字に送り量調整された括弧類や句読点類が含まれると、ルビを繰り返し
-                # 表示してしまうので、事前にチェックする。
+                # 表示してしまう。
                 if u'leftrubi' in dicArg and not data in self.kakko:
                     # 左ルビ
                     __rubi_common(u'leftrubi', -honbunxpos)
+                    # 多重表示を回避するため、一度表示したタグを抜去する
+                    for pos, s in enumerate(self.tagstack):
+                        if self.tagstack[pos] == u'aozora':
+                            for i in self.attrstack[pos]:
+                                if i[0] == u'leftrubi' and i[1] == dicArg[u'leftrubi']:
+                                    #self.tagstack.pop(pos)
+                                    self.attrstack.pop(pos)
+                                    self.attrstack.insert(pos, [(u'dmy',u'dmy')])
+                                    break
+                            else:
+                                continue
+                            break
 
         # 次の呼び出しでの表示位置
         self.ypos += length

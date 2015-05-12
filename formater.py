@@ -154,8 +154,7 @@ class Aozora(AozoraScale):
                         ur'(?P<type>(行右小書き)|(上付き小文字)|' +
                         ur'(行左小書き)|(下付き小文字))］)')
 
-    reMama = re.compile(ur'(［＃「(?P<name>.+?)」に「(?P<mama>.+?)」の注記］)')
-    reMama2 = re.compile(ur'(［＃「(?P<name>.+?)」は(?P<mama>.??ママ.??)］)')
+    reMama = re.compile(ur'(［＃「(?P<name>.+?)」(に|は)(?P<type>(「(?P<mama>.+?)」の注記)|(.??ママ.??))］)')
     reKogakiKatakana = re.compile(ur'(※［＃小書(き)?片仮名(?P<name>.+?)、.+?］)')
 
     reRubi = re.compile(ur'《.*?》')
@@ -657,7 +656,7 @@ class Aozora(AozoraScale):
                         isSPanchor = False
                         retline.append(u'<aozora rubi="%s" length="%s">%s</aozora>' % (
                             lnbuf[rubiTop+1:pos],
-                            self.__boutencount(lnbuf[anchor:rubiTop]),#本文側長さ
+                            self.__boutencount(self.reTagRemove.sub(u'', lnbuf[anchor:rubiTop])),#本文側長さ
                             lnbuf[anchor:rubiTop] ))
                         anchor = pos + 1
                     elif inRubi:
@@ -1197,15 +1196,26 @@ class Aozora(AozoraScale):
                         """ 注記 及び ママ註記
                         """
                         tmp2 = self.reMama.match(tmp.group())
-                        if not tmp2:
-                            tmp2 = self.reMama2.match(tmp.group())
                         if tmp2:
                             sNameTmp = tmp2.group(u'name')
                             reTmp = re.compile( ur'%s$' % sNameTmp )
-                            lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
-                                reTmp.sub( u'', lnbuf[:tmp.start()]),
-                                tmp2.group(u'mama').strip(u'（〔〕）'), len(sNameTmp),
-                                sNameTmp, lnbuf[tmp.end():] )
+                            tmprubipos = sNameTmp.find(u'rubi="')
+                            if tmprubipos != -1:
+                                # 親文字にルビタグが含まれる場合は結合する
+                                tmprubipos2 = sNameTmp[tmprubipos+6:].find(u'"')
+                                lnbuf = u'%s%s%s%s%s' % (
+                                    reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                    sNameTmp[:tmprubipos+6+tmprubipos2],
+                                    u'〔ママ〕' if tmp2.group('type').find(u'ママ') != -1 else u'',
+                                    sNameTmp[tmprubipos+6+tmprubipos2:],
+                                    lnbuf[tmp.end():])
+                            else:
+                                sNameTmp2 = tmp2.group('type') if not tmp2.group(u'mama') else tmp2.group(u'mama')
+                                lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
+                                    reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                    sNameTmp2.strip(u'（〔〕）'), len(sNameTmp),
+                                    sNameTmp, lnbuf[tmp.end():] )
+
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 

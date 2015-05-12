@@ -23,8 +23,6 @@
 from readersub_nogui import ReaderSetting
 import aozoradialog
 
-#import sys
-#import codecs
 import os.path
 import os
 import stat
@@ -32,8 +30,6 @@ import logging
 
 import gtk
 import gobject
-
-#sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
 class Logviewer(aozoradialog.ao_dialog, ReaderSetting):
     """ ログファイルを表示する

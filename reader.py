@@ -765,8 +765,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
             if dlg.run() == gtk.RESPONSE_OK:
                 fn, z, worksid = dlg.get_selected_item()
                 if not fn:
-                    # 選択行がない
-                    aozoradialog.msgerrinfo(u'作品が選択されていません。', self)
+                    # 選択行がない　あるいはダウンロードをキャンセルした
                     continue
                 dlg.destroy()
                 self.bookopen(fn, zipname=z, works=worksid) # destory後に呼ぶ
@@ -1068,7 +1067,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年5［＃「5」は縦中横］月11［＃「11」は縦中横］日\n'+
+                u'［＃１字下げ］非安定版　2015［＃「2015」は縦中横］年5［＃「5」は縦中横］月16［＃「16」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+

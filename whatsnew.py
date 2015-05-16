@@ -204,15 +204,16 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
 
     def row_activated_treeview_cb(self, path, viewcol, col):
         """ 作品リストをダブルクリックした時の処理
-            ダイアログを開いたまま、青空文庫のダウンロードを行う
         """
         self.response_cb(self, gtk.RESPONSE_OK)
 
     def get_selected_item(self):
-        """ 選択された作品をダウンロードする
-            ファイル名、ZIP名、(URLから類推した)作品ID
+        """ 選択された作品をダウンロードする。
+            ファイル名、ZIP名、(URLから類推した)作品ID　を返す。
         """
         (c,d) = self.bl_data.get_selection().get_selected_rows() # 選択された行
+        if len(d) < 1:
+            aozoradialog.msgerrinfo(u'作品が選択されていません。', self)
         f = False
         iters = [c.get_iter(p) for p in d]
         for i in iters:

@@ -51,15 +51,8 @@ class Download(object):
 
     def selected_book(self, url, chklocal=True):
         """ 指定したURLにアクセスしてダウンロードを試みる。
-            (True,最後に展開したファイル名) を返す。
-            エラーの場合は (False, エラーメッセージ)を返す。
-
-            2014/01/20
-                chklocal 追加
-                Trueであれば、ローカルの青空ディレクトリに同名ファイルが
-                存在しないかチェックし、ダウンロードの是非を問う。
-
-                ファイルの展開先を /tmp へ変更。
+            (True,最後に展開したファイル名,ローカルファイル名) を返す。
+            エラーの場合は (False, エラーメッセージ,'')を返す。
         """
         readcodecs = 'UTF-8'
         reTarget = re.compile( ur'.+?<td><a href="(?P<TARGETFILE>.+?.zip)">.+?.zip</a></td>' )
@@ -93,8 +86,12 @@ class Download(object):
                         """ ローカルにアーカイブが既存する場合は、
                             問い合わせる。
                         """
-                        isDownload = aozoradialog.msgyesno( u'既にダウンロード' + \
-                                        u'されています。上書きしますか？',self)
+                        isDownload = aozoradialog.msgyesnocancel(
+                            u'既にダウンロードされています。上書きしますか？',
+                            self)
+                    if isDownload == gtk.RESPONSE_CANCEL:
+                        # ひとつのダウンロードをキャンセルする
+                        continue
                     try:
                         if isDownload == gtk.RESPONSE_YES:
                             urllib.urlretrieve( sTargetURL, sLocalfilename)
@@ -122,7 +119,6 @@ class Download(object):
         if not flag:
             return (False, u'ダウンロードできません。この作品はルビあり' + \
                             u'テキストファイルで登録されていません。','' )
-        #print sLocalfilename
         return (True, lastselectfile, sLocalfilename)
 
 

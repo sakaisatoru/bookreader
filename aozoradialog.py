@@ -144,6 +144,18 @@ def msgyesno(s, oya=None):
     dlg.destroy()
     return rv
 
+def msgyesnocancel(s, oya=None):
+    """ 3択
+    """
+    dlg = ao_messagedialog(parent=oya, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+            type=gtk.MESSAGE_QUESTION,  message_format=s)
+    dlg.add_buttons(gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL,
+                    gtk.STOCK_NO,       gtk.RESPONSE_NO,
+                    gtk.STOCK_YES,      gtk.RESPONSE_YES )
+    dlg.set_position(gtk.WIN_POS_CENTER)
+    rv = dlg.run()
+    dlg.destroy()
+    return rv
 
 
 

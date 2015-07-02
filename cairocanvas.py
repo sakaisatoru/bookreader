@@ -354,7 +354,13 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 if rubipos == -1:
                     rubipos = dicArg[key].rfind(u'〔ママ〕')
                 if rubipos != -1:
-                    rubitmp = u'%s\n%s' % (dicArg[key][rubipos:], dicArg[key][:rubipos])
+                    if rubipos <= len(dicArg[key])/2.:
+                        # ルビが短い
+                        rubitmp = u'%s\n%s' % (dicArg[key][rubipos:],
+                            dicArg[key][:rubipos].center(len(dicArg[key][rubipos:])*2))
+                    else:
+                        rubitmp = u'%s\n%s' % (dicArg[key][rubipos:].center(len(dicArg[key][:rubipos])*2),
+                            dicArg[key][:rubipos])
                     rubitmp = rubitmp.strip(u'\n') # １行しかない場合は改行を外す
                 else:
                     rubitmp = dicArg[key]

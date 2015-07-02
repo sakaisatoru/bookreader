@@ -287,7 +287,7 @@ class ReaderSetting(object):
         """
         #   スクリーンサイズ
         #             XGA   WXGA    WSVGA   SVGA
-        screendata = [(996 , 672) , (1240 , 752) , (880 , 460) , (740 , 460)]
+        screendata = [(996 , 672) , (1240 , 752) , (996 , 560) , (740 , 460)]
         self.currentversion = u'0.32' # 設定ファイルのバージョン
         self.dicScreen = {}
         for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):

@@ -288,7 +288,7 @@ class ReaderSetting(object):
         #   スクリーンサイズ
         #             XGA   WXGA    WSVGA   SVGA
         screendata = [(996 , 672) , (1240 , 752) , (996 , 560) , (740 , 460)]
-        self.currentversion = u'0.32' # 設定ファイルのバージョン
+        self.currentversion = u'0.33' # 設定ファイルのバージョン
         self.dicScreen = {}
         for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
             self.dicScreen[k] = screendata.pop()
@@ -340,6 +340,8 @@ class ReaderSetting(object):
                 u'fontcolor':u'#1cae1c5e0000',
                 u'fontname':u'Serif',
                 u'fontsize':u'12',
+                u'boldfontname':u'Sans',
+                u'boldfontsize':u'12',
                 u'fontheight':u'',
                 u'leftmargin':u'10',
                 u'lines':u'24',

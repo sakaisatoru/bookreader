@@ -283,6 +283,17 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.hbox2.pack_start(self.rubifontlabel)
         self.hbox2.pack_end(self.rubifontsel)
 
+        # 2.1行目 -- 太字フォントセレクタ行 --
+        self.boldfontlabel = gtk.Label( u'太字表示フォント' )
+        self.boldfontsel = gtk.FontButton( u'%s %s' % (self.get_value(u'boldfontname'),
+                                    self.get_value(u'boldfontsize')))
+        self.boldfontsel.set_use_font(True)
+        self.boldfontsel.set_show_size(True)
+        #self.boldfontsel.connect( "font-set", self.boldfontsel_cb )
+        self.hbox21 = gtk.HBox()
+        self.hbox21.pack_start(self.boldfontlabel)
+        self.hbox21.pack_end(self.boldfontsel)
+
         # 2.5行目 -- colour selector --
         self.btFontcolor = gtk.ColorButton()
         self.btFontcolor.set_title(u'文字の色を選択してください')
@@ -371,6 +382,7 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         # まとめ (gtk.Dialogのデフォルトの表示域 vboxへpack)
         self.vbox.pack_start(self.hbox1)
         self.vbox.pack_start(self.hbox2)
+        self.vbox.pack_start(self.hbox21)
         self.vbox.pack_start(self.hbox25)
         self.vbox.pack_start(self.hbox5)
         self.vbox.show_all()
@@ -394,6 +406,8 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
                         1)
         fontname = widget.get_font_name().rstrip( u'.0123456789' ).lstrip(u' ')
         self.fontsel.set_font_name(u'%s %s' % (fontname,fontsize))
+
+
 
     def settingupdate(self):
         """ 設定の更新

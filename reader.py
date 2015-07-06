@@ -427,6 +427,11 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         fontname = self.rubifontsel.get_font_name().rstrip('.1234567890')
         fontsize = float(self.rubifontsel.get_font_name()[len(fontname):])
         self.set_value(u'rubifontsize', '%s' % round(fontsize,1))
+        fontname = self.boldfontsel.get_font_name().rstrip('.1234567890')
+        fontsize = float(self.boldfontsel.get_font_name()[len(fontname):])
+        self.set_value(u'boldfontname', fontname.strip(u' '))
+        self.set_value(u'boldfontsize','%s' % round(fontsize,1))
+
         self.set_value(u'topmargin',    str(int(self.topmargin.get_value())))
         self.set_value(u'bottommargin', str(int(self.bottommargin.get_value())))
         self.set_value(u'leftmargin',   str(int(self.leftmargin.get_value())))

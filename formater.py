@@ -116,7 +116,7 @@ class AozoraTag(object):
         return None if index == -1 else self.reTmp.search(s,index)
 
 
-class Aozora(AozoraScale):
+class Aozora(ReaderSetting, AozoraScale):
     """
     """
     # ヘッダ・フッタ境界
@@ -269,14 +269,16 @@ class Aozora(AozoraScale):
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
     hajimekakko = u'（［｛〔〈《「『【〘〖〝‘“｟«'
     owarikakko =  u'）］｝〕〉》」』】〙〗〟’”｠»'
+    """
     # 単純な置換
     dicAozoraTag = {
         u'［＃行右小書き］':u'<sup>',   u'［＃行右小書き終わり］':u'</sup>',
         u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
         u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
         u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
-        u'［＃太字］':u'<span font_desc="Sans">',
-        u'［＃ここから太字］':u'<span font_desc="Sans">',
+        u'［＃太字］':(u'<span font_desc="%s">' % self.get_value( "boldfontname" )),
+        #u'［＃ここから太字］':u'<span font_desc="Sans">',
+        u'［＃ここから太字］':(u'<span font_desc="%s">' % self.get_value( "boldfontname" )),
         u'［＃斜体］':u'<span style="italic">',
         u'［＃ここから斜体］':u'<span style="italic">' ,
         u'［＃大きな文字終わり］':u'</span>',
@@ -293,7 +295,7 @@ class Aozora(AozoraScale):
         u'［＃ここで横組み終わり］':u'</aozora>',
         u'［＃罫囲み］':u'<aozora keikakomigyou="0">',
         u'［＃罫囲み終わり］':u'</aozora>' }
-
+    """
     # 文字の大きさ
     dicMojisize = {
         u'大き１':u'large',    u'大き２':u'x-large',
@@ -304,11 +306,39 @@ class Aozora(AozoraScale):
 
 
     def __init__( self, chars=40, lines=25 ):
+        ReaderSetting.__init__(self)
         AozoraScale.__init__(self)
         self.readcodecs = u'shift_jis'
         self.currentText = AozoraCurrentTextinfo()
         self.set_source()
         self.charsmax = self.currentText.chars - 1 # 最後の1文字は禁則処理用に確保
+
+        # 単純な置換
+        # 設定ファイルから変数を拾うため、ここに移動。
+        self.dicAozoraTag = {
+            u'［＃行右小書き］':u'<sup>',   u'［＃行右小書き終わり］':u'</sup>',
+            u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
+            u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
+            u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
+            u'［＃太字］':(u'<span font_desc="%s">' % self.get_value( "boldfontname" )),
+            u'［＃ここから太字］':(u'<span font_desc="%s">' % self.get_value( "boldfontname" )),
+            u'［＃斜体］':u'<span style="italic">',
+            u'［＃ここから斜体］':u'<span style="italic">' ,
+            u'［＃大きな文字終わり］':u'</span>',
+            u'［＃ここで大きな文字終わり］':u'</span>',
+            u'［＃小さな文字終わり］':u'</span>',
+            u'［＃ここで小さな文字終わり］':u'</span>',
+            u'［＃斜体終わり］':u'</span>',
+            u'［＃ここで斜体終わり］':u'</span>',
+            u'［＃太字終わり］':u'</span>',
+            u'［＃ここで太字終わり］':u'</span>',
+            u'［＃横組み］':u'<aozora yokogumi="dmy">',
+            u'［＃ここから横組み］':u'<aozora yokogumi="dmy">',
+            u'［＃横組み終わり］':u'</aozora>',
+            u'［＃ここで横組み終わり］':u'</aozora>',
+            u'［＃罫囲み］':u'<aozora keikakomigyou="0">',
+            u'［＃罫囲み終わり］':u'</aozora>' }
+
 
     def set_source( self, s=u'', z=u'', w=0 ):
         """ 青空文庫ファイルをセット
@@ -1146,8 +1176,9 @@ class Aozora(AozoraScale):
                         if tmp2:
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            lnbuf = u'%s<span font_desc="Sans">%s</span>%s%s' % (
+                            lnbuf = u'%s<span font_desc="%s">%s</span>%s%s' % (
                                         lnbuf[:tmpStart],
+                                            self.get_value("boldfontname"),
                                             lnbuf[tmpStart:tmpEnd],
                                             lnbuf[tmpEnd:tmp.start()],
                                                 lnbuf[tmp.end():] )
@@ -1246,8 +1277,9 @@ class Aozora(AozoraScale):
                             self.midashi = tmp2.group(u'midashi')
                             tmpStart,tmpEnd = self.__honbunsearch(
                                     lnbuf[:tmp.start()],self.midashi)
-                            lnbuf = u'%s<span face="Sans"%s>%s</span>%s%s' % (
+                            lnbuf = u'%s<span face="%s"%s>%s</span>%s%s' % (
                                 lnbuf[:tmpStart],
+                                self.get_value("boldfontname"),
                                 u' size="larger"' if self.sMidashiSize == u'大' else u'',
                                 lnbuf[tmpStart:tmpEnd],
                                 lnbuf[tmpEnd:tmp.start()],
@@ -1279,8 +1311,9 @@ class Aozora(AozoraScale):
                             self.midashi = self.__removetag(lnbuf[pos_end:tmp.start()])
                             self.sMidashiSize = tmp2.group('midashisize')
 
-                            lnbuf = u'%s<span face="Sans"%s>%s</span>%s' % (
+                            lnbuf = u'%s<span face="%s"%s>%s</span>%s' % (
                                 lnbuf[:pos_start],
+                                self.get_value("boldfontname"),
                                 u' size="larger"' if self.sMidashiSize == u'大' else u'',
                                 lnbuf[pos_end:tmp.start()],
                                 lnbuf[tmp.end():] )
@@ -1699,8 +1732,9 @@ class Aozora(AozoraScale):
                         self.inFukusuMidashi = True
                         self.midashi = u''
 
-                        lnbuf = u'%s<span face="Sans"%s>%s' % (
+                        lnbuf = u'%s<span face="%s"%s>%s' % (
                             lnbuf[:tmp.start()],
+                            self.get_value("boldfontname"),
                             u' size="larger"' if self.sMidashiSize == u'大' else u'',
                             lnbuf[tmp.end():] )
                         tmp = self.reCTRL2.search(lnbuf)

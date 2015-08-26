@@ -2438,7 +2438,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             continue
 
                         elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
-                            print "debug %s" % fontsizename
+                            #print "debug %s" % fontsizename
                             # 訓点・返り点対応
                             if fontsizename == u'size="small"':
                                 fontsizename = u'size="x-small"'
@@ -2448,7 +2448,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                 pass
                             else:
                                 fontsizename = u'size="small"'
-                            print "after %s" % fontsizename
+                            #print "after %s" % fontsizename
                         else:
                             tmp = self.reAozoraHalf.search(sline[tagnamestart:pos])
                             if tmp:

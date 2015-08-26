@@ -288,7 +288,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 ctx00.rel_line_to(-d, d)
 
             def ___cairo_maru():
-                # 白丸・黒丸・二重丸（外円）・蛇の目（外円）傍点
+                # 白丸・黒丸（輪郭）・二重丸（外円）・蛇の目（外円）傍点
                 ctx00.new_sub_path()
                 ctx00.arc(tmpx+r,tmpy+r,r, 0, 2*3.1415)
 
@@ -312,10 +312,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 ctx00.rel_line_to(xx,-2*yy)
 
             dicfunc = {
+                # stroke                      fill
                 u'ばつ傍点':___cairo_batsu,
-                u'白ゴマ傍点':___cairo_bouten, u'傍点':___cairo_bouten,
-                u'白丸傍点':___cairo_maru, u'黒丸傍点':___cairo_maru,
-                u'二重丸傍点':___cairo_maru2, u'蛇の目傍点':___cairo_maru2,
+                u'白ゴマ傍点':___cairo_bouten,  u'傍点':___cairo_bouten,
+                u'白丸傍点':___cairo_maru,      u'丸傍点':___cairo_maru,
+                u'二重丸傍点':___cairo_maru2,   u'蛇の目傍点':___cairo_maru2,
                 u'白三角傍点':___cairo_sankaku, u'黒三角傍点':___cairo_sankaku
                 }
 
@@ -329,10 +330,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 ctx00.new_path()
                 ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT) # cairo.ANTIALIAS_NONE
                 ctx00.set_line_width(d/5.7)     # フォントサイズに連動する
-                for s in data:
+                # 傍点を描く。修飾対象文字が縦中横で修飾される場合は１文字扱い。
+                for s in data if not u'tatenakayoko' in dicArg else u' ':
                     dicfunc[dicArg[key]]()      # 引数は大域渡し
                     tmpy += step
-                if dicArg[key] == u'傍点' or u'黒' in dicArg[key]:
+                if dicArg[key] in [u'傍点', u'丸傍点', u'蛇の目傍点', u'黒三角傍点']:
                     ctx00.fill()
                 else:
                     ctx00.stroke()
@@ -389,6 +391,22 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 del pc
                 del layout
 
+        def __fontsizechange(parentsize, default):
+            """ 一段階大きい（あるいは小さい）フォントサイズを得る
+            """
+            if not parentsize:
+                size = default
+            else:
+                tmp = parentsize.split(u'-')
+                size = u''
+                if len(tmp) == 1:
+                    size = u'x-%s' % tmp[0]
+                else:
+                    size = u'x%s' % parentsize
+                if u'xxx' in size:
+                    size = parentsize #
+            return size
+
         """------------------------------------------------------------------
         """
         # 初期化
@@ -398,6 +416,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         rubispan = 0
         dicArg = {}
         sTmp = data
+        fontsizename = u''
         try:
             # タグスタックに積まれている書式指定を全て付す
             # Pangoでうまく処理できないタグはここで代替処理する
@@ -418,11 +437,17 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
                     sTest = [u'<span size="small">', sTmp, u'</span>']
+                    # 本文サイズとの相対値としたいが、タグを内側からチェックしているので
+                    # 本文側のサイズを知ることができない！
+                    # 例：<span size=><sup>hoge</sup></span>
+                    # 　　<sup>が先にチェックされている
+                    #sTest = [u'<span size="%s">' % __fontsizechange(fontsizename, u'small'), sTmp, u'</span>']
                 elif s == u'sub':
                     #<sub>単独ではベースラインがリセットされる為、外部で指定する
                     #また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
                     sTest = [u'<span size="small">', sTmp, u'</span>']
+                    #sTest = [u'<span size="%s">' % __fontsizechange(fontsizename, u'small'), sTmp, u'</span>']
                 else:
                     # 引数復元
                     sTest = []
@@ -430,6 +455,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     if self.attrstack[pos] != []:
                         for i in self.attrstack[pos]:
                             sTest.append(u' %s="%s"' % (i[0],i[1]))
+                            # 変更されたフォントサイズを得る
+                            if s == u'span':
+                                if i[0] == u'size':
+                                    fontsizename = i[1]
+
                         sTest.append(u'>')
                         sTest.append(sTmp)
                         sTest.append(u'</%s>' % self.tagstack[pos])
@@ -576,6 +606,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)
                     del pc
+                    # ルビ、傍点、傍線類の表示位置を設定
+                    honbunxpos = xposoffset + int(math.ceil(y/2.))
 
                 else:
                     # 本文表示本体

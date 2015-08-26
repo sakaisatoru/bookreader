@@ -571,7 +571,6 @@ class Aozora(ReaderSetting, AozoraScale):
 
         """----------------------------------------------------------------
         """
-        debug_bp = 0                # debug 用
 
         if not sourcefile:
             sourcefile = self.currentText.sourcefile
@@ -2439,9 +2438,17 @@ class Aozora(ReaderSetting, AozoraScale):
                             continue
 
                         elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
+                            print "debug %s" % fontsizename
                             # 訓点・返り点対応
-                            fontsizename = u'size="small"'
-
+                            if fontsizename == u'size="small"':
+                                fontsizename = u'size="x-small"'
+                            elif fontsizename == u'size="x-small"':
+                                fontsizename = u'size="xx-small"'
+                            elif fontsizename == u'size="xx-small"':
+                                pass
+                            else:
+                                fontsizename = u'size="small"'
+                            print "after %s" % fontsizename
                         else:
                             tmp = self.reAozoraHalf.search(sline[tagnamestart:pos])
                             if tmp:

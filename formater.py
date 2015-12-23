@@ -2122,17 +2122,37 @@ class Aozora(ReaderSetting, AozoraScale):
                     sTestCurrent += sTestTmp
                     fLenCurrent += fLenTmp
 
-                if sTestCurrent[-1][0] in self.kinsoku2:
+                if sTestCurrent[-1][0] in self.kinsoku2 or \
+                    (sTestCurrent[-1][:2] == u'</' and (sTestCurrent[-2][0] in self.kinsoku2)):
                     """ 行末禁則処理
                         禁則文字が続く場合は全て次行先頭へ追い出す
-                        現在、タグの処理を省略
-                            タグが出現した場合、先読み([-2]を読む)して禁則文字なら
-                            処理を継続。閉じタグならtagstackへの積み直しが必要で、
-                            さらに遡って調べなくてはならない。
                     """
-                    while sTestCurrent[-1][0] in self.kinsoku2:
-                        sTestNext.insert(0, sTestCurrent.pop())
-                        pixellcc -= fLenCurrent.pop()
+                    try:
+                        while True:
+                            if sTestCurrent[-1][:2] == u'</' and (sTestCurrent[-2][0] in self.kinsoku2):
+                                # タグ付きの場合の処理
+                                # 閉じタグを移動
+                                sTestNext.insert(0, sTestCurrent.pop())
+                                pixellcc -= fLenCurrent.pop()
+                                # 禁則文字を移動
+                                sTestNext.insert(0, sTestCurrent.pop())
+                                pixellcc -= fLenCurrent.pop()
+                                # タグを移動
+                                sTestNext.insert(0, sTestCurrent.pop())
+                                pixellcc -= fLenCurrent.pop()
+                                continue
+
+                            if sTestCurrent[-1][0] in self.kinsoku2:
+                                sTestNext.insert(0, sTestCurrent.pop())
+                                pixellcc -= fLenCurrent.pop()
+                                continue
+
+                            break
+
+                    except IndexError:
+                        print u'行末禁則処理IndexErrro'
+                        pass
+
                 elif not sTestNext: # 次行先頭への送り込みがなければ
                     """ 行頭禁則処理
                         調整可能な範囲で前行末へ追い出す。

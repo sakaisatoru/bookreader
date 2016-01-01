@@ -48,7 +48,8 @@ class aozoraDB(ReaderSetting):
 
         作品DB works[ID:record]
             作品ID, 作品名, 副題, 作品名よみ, 文字違い種別,
-                                        テキストファイルURL(zipfile入手先)
+                                        テキストファイルURL(zipfile入手先),
+                                        XHTMLファイルURL
         人物DB author[ID:record]
             人物ID, 姓名（連結）, 姓よみ名よみ（連結）, 役割フラグ
 
@@ -136,8 +137,8 @@ class aozoraDB(ReaderSetting):
                 if not fi[0] in self.works:
                 # 作品新規登録
                     rec += 1
-                    self.works[fi[0]] = u'%s|%s|%s|%s|%s|%s' % (
-                                        fi[0],fi[1],fi[4],fi[2],fi[9],fi[45] )
+                    self.works[fi[0]] = u'%s|%s|%s|%s|%s|%s|%s' % (
+                                        fi[0],fi[1],fi[4],fi[2],fi[9],fi[45],fi[50] )
                     # よみがな - 作品
                     self.idxYomiWorks.append((fi[2],fi[0]))
                     # よみがな - 人物
@@ -276,7 +277,8 @@ class workslistUI(gtk.ScrolledWindow):
                         gobject.TYPE_STRING, gobject.TYPE_STRING,
                         gobject.TYPE_STRING, gobject.TYPE_STRING,
                         gobject.TYPE_STRING, gobject.TYPE_STRING,
-                        gobject.TYPE_STRING, gobject.TYPE_STRING ))
+                        gobject.TYPE_STRING, gobject.TYPE_STRING,
+                        gobject.TYPE_STRING ))
         self.tv.set_rules_hint(True)
         self.tv.get_selection().set_mode(gtk.SELECTION_MULTIPLE)#(gtk.SELECTION_SINGLE)
         self.tv.set_headers_clickable(True)
@@ -304,12 +306,14 @@ class workslistUI(gtk.ScrolledWindow):
 
         self.selectfile = None
         self.selectURL = None
+        self.selectXHTML = None
 
     def set_list(self, key, keytype):
         """ 該当する作品リストを得る
             作品DB works[ID:record]
                 作品ID, 作品名, 副題, 作品名よみ, 文字違い種別,
-                                            テキストファイルURL(zipfile入手先)
+                                            テキストファイルURL(zipfile入手先),
+                                            XHTMLファイルURL
             人物DB author[ID:record]
                 人物ID, 姓名（連結）, 姓よみ名よみ（連結）, 役割フラグ
         """
@@ -330,7 +334,7 @@ class workslistUI(gtk.ScrolledWindow):
                         author.append(
                             u'(%s)' % self.currentDB.author[i].split('|')[3])
             self.tv.get_model().append((n[0],n[1],n[2],n[3],n[4],
-                                                ndc,u''.join(author),n[5]))
+                                                ndc,u''.join(author),n[5], n[6]))
 
     def set_database(self, db):
         """ データベースのアタッチ
@@ -353,6 +357,7 @@ class workslistUI(gtk.ScrolledWindow):
             for i in iters:
                 self.selectfile = c.get_value(i, 0)
                 self.selectURL = c.get_value(i, 7)
+                self.selectXHTML = c.get_value(i, 8)
             f = True
         except IndexError:
             pass
@@ -362,9 +367,9 @@ class workslistUI(gtk.ScrolledWindow):
         """ 選択された作品IDとURLを返す
         """
         if self.get_selected_item():
-            return self.selectfile, self.selectURL
+            return self.selectfile, self.selectURL, self.selectXHTML
         else:
-            return None, None
+            return None, None, None
 
 
 class AuthorWorksUI(gtk.HPaned):
@@ -382,6 +387,7 @@ class AuthorWorksUI(gtk.HPaned):
         self.add2(self.workslist)
         self.worksID = None
         self.worksURL = None
+        self.worksXHTML = None
         self.exit_cb = exit_cb  # 処理終了用出口関数
 
     def author_set_yomi(self, yomi):
@@ -413,12 +419,12 @@ class AuthorWorksUI(gtk.HPaned):
     def works_row_activated_treeview_cb(self, path, viewcol, col):
         """ 作品をクリックしたときの処理
         """
-        self.worksID, self.worksURL = self.workslist.get_value()
+        self.worksID, self.worksURL, self.worksXHTML = self.workslist.get_value()
         self.exit_cb(self, gtk.RESPONSE_ACCEPT)
 
     def get_value(self):
-        self.worksID, self.worksURL = self.workslist.get_value()
-        return self.worksID, self.worksURL
+        self.worksID, self.worksURL, self.worksXHTML = self.workslist.get_value()
+        return self.worksID, self.worksURL, self.worksXHTML
 
     def set_database(self, db):
         self.currentDB = db
@@ -590,6 +596,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
 
         self.selectfile = u''
         self.selectzip = u''
+        self.selectxhtml = u''
         self.selectworksid = 0
 
     def entAuthor_key_press_event_cb(self, wiget, event):
@@ -682,7 +689,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         """ ダウンロードしてファイル名、ZIP名、作品IDを返す
         """
         f = False
-        self.selectworksid, self.selectzip = self.works.get_value()
+        self.selectworksid, self.selectzip, self.selectxhtml = self.works.get_value()
         if self.selectworksid == None:
             # テキストが選択されていない
             aozoradialog.msgerrinfo(u'作品を選択してください。', self)
@@ -693,17 +700,23 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
 
         dlg = DownloadUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
-        if dlg.set_download_url(self.selectzip, ow=self.chkDL.get_active()):
+        if dlg.set_download_url(self.selectzip if self.selectzip != u'' else self.selectxhtml,
+                                    ow=self.chkDL.get_active()):
             f = False if dlg.run() == gtk.RESPONSE_CANCEL else True
         localfile = dlg.get_localfilename()
         dlg.destroy()
         if f:
-            a = self.__ZipFile(localfile, u'r' )
-            a.extractall(self.aozoratextdir)
-            for b in a.namelist():
-                if os.path.basename(b)[-4:].lower() == '.txt':
-                    self.selectfile = os.path.join(self.aozoratextdir, b)
-                    self.selectzip = a.filename
+            if self.selectzip != u'':
+                a = self.__ZipFile(localfile, u'r' )
+                a.extractall(self.aozoratextdir)
+                for b in a.namelist():
+                    if os.path.basename(b)[-4:].lower() == '.txt':
+                        self.selectfile = os.path.join(self.aozoratextdir, b)
+                        self.selectzip = a.filename
+            else:
+                rv = aozoradialog.msgyesno(u'このテキストはxhtml形式(ファイルは %s)です。 \n閲覧するにはブラウザが必要です。続けますか？' % localfile, self )
+                if rv == gtk.RESPONSE_YES:
+                    subprocess.Popen(['xdg-open', localfile])
         else:
             aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。', self)
             self.selectfile = u''

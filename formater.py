@@ -304,6 +304,8 @@ class Aozora(ReaderSetting, AozoraScale):
     # Pangoタグを除去する
     reTagRemove = re.compile(ur'<[^>]*?>')
 
+    # 青空タグを除去する
+    reAozoraTagRemove = re.compile( ur'<aozora.+?>|</aozora>' )
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
@@ -1042,12 +1044,18 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmpStart,tmpEnd = self.__honbunsearch(
                                             lnbuf[:tmp.start()],tmp2.group(u'name'))
                             # 横書きにするので内容への修飾を外す
-                            sTmp = self.__removetag(lnbuf[tmpStart:tmpEnd])
-                            lnbuf = u'%s<aozora caption="%s">　</aozora>%s%s' % (
-                                        lnbuf[:tmpStart],
-                                        sTmp,
-                                        lnbuf[tmpEnd:tmp.start()],
-                                        lnbuf[tmp.end():] )
+                            """
+                                sTmp = self.__removetag(lnbuf[tmpStart:tmpEnd])
+                                lnbuf = u'%s<aozora caption="%s">　</aozora>%s%s' % (
+                                            lnbuf[:tmpStart],
+                                            sTmp,
+                                            lnbuf[tmpEnd:tmp.start()],
+                                            lnbuf[tmp.end():] )
+                            """
+                            lnbuf = u'%s［＃ここからキャプション］\n%s\n［＃ここでキャプション終わり］%s' % (
+                                            lnbuf[:tmpStart],
+                                            lnbuf[tmpStart:tmpEnd],
+                                            lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf,tmpStart)
                             continue
 
@@ -1060,10 +1068,10 @@ class Aozora(ReaderSetting, AozoraScale):
                             posstack.pop()
                             pos_start,pos_end = posstack.pop()
                             # 横書きにするので内容への修飾を外す
-                            sTmp = self.__removetag(lnbuf[pos_end:tmp.start()])
-                            lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
+                            #sTmp = self.__removetag(lnbuf[pos_end:tmp.start()])
+                            lnbuf = u'%s［＃ここからキャプション］\n%s\n［＃ここでキャプション終わり］%s' % (
                                     lnbuf[:pos_start],
-                                    sTmp,
+                                    lnbuf[pos_end:tmp.start()],
                                     lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
@@ -1554,6 +1562,8 @@ class Aozora(ReaderSetting, AozoraScale):
             workfilestack = []                  # 作業用一時ファイル
             isNoForming = False                 # 行の整形を抑止する
 
+            figstack = []                       # 画像用スタック
+
             for lnbuf in self.__formater_pass1():
                 lnbuf = lnbuf.rstrip('\n')
                 yield
@@ -1617,10 +1627,13 @@ class Aozora(ReaderSetting, AozoraScale):
                         while figspan > 0:
                             self.__write2file(dfile, '\n')
                             figspan -= 1
-                        self.__write2file( dfile,
-                            u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f">　</aozora>\n' % (
-                                fname, figwidth, figheight, tmpRasio ))
 
+                        """
+                            self.__write2file( dfile,
+                                u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f">　</aozora>\n' % (
+                                    fname, figwidth, figheight, tmpRasio ))
+                        """
+                        figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f" ' % (fname, figwidth, figheight, tmpRasio)) + u'cap="%s">　</aozora>\n' )
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -1631,6 +1644,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         切り替える。
                     """
                     if tmp.group() == u'［＃ここからキャプション］':
+                        print tmp.group()
+                        print lnbuf[tmp.end():]
                         # カレントハンドルを退避して、一時ファイルを
                         # 作成して出力先を切り替える。
                         workfilestack.append(dfile)
@@ -1654,16 +1669,22 @@ class Aozora(ReaderSetting, AozoraScale):
                         dfile.seek(0)
                         for sCenter in dfile:
                             sTmp += sCenter.rstrip(u'\n')+u'\\n'
+                        print u'sTmp %s' % sTmp
                         # 出力先を復元
                         dfile.close()
                         dfile = workfilestack.pop()
                         # 行の整形を再開
                         isNoForming = False
                         # キャプション
-                        lnbuf = u'%s<aozora caption="%s">　</aozora>%s' % (
-                                    lnbuf[:tmp.start()],
-                                    sTmp,
-                                    lnbuf[tmp.end():] )
+                        # 直前に出現した挿図の属性として出力される。もし、挿図が無ければ
+                        # 表示されない
+                        if figstack:
+                            lnbuf = u'%s%s%s' % (lnbuf[:tmp.start()],
+                                (figstack.pop() % self.reAozoraTagRemove.sub(u'',sTmp)),
+                                        lnbuf[tmp.end():])
+                            print u'formater : lnbuf %s' % lnbuf
+                        else:
+                            lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 

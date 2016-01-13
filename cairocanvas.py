@@ -54,7 +54,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 img
                 img2
                 warichu
-                caption
+                caption     # 廃止
                 rubi
                 bousen
                 leftrubi
@@ -520,7 +520,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         self.ypos + int(self.get_value(u'fontheight'))*1)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
-                                os.path.join(self.aozoratextdir,dicArg[u'img2']) )
+                                os.path.join(self.aozoratextdir,dicArg[u'img2']))
 
                     ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
                     # scaleで画像を縮小すると座標系全てが影響を受ける為、
@@ -529,14 +529,40 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    #length = int(float(self.get_value(u'fontheight'))*1 +
-                    #    math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio'])))
                     length = float(self.get_value(u'fontheight'))*1 + \
                         math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
-                    # 後続のキャプション用に退避
+                    # キャプション用に退避
                     self.oldlength = length
                     self.oldwidth = int(round(float(dicArg[u'width']) *
                                                         float(dicArg[u'rasio'])))
+                    # 画像が表示されていればキャプションも表示する。
+                    # コンテキストは画像で使ってしまっているので、新規に作成しなおす。
+                    if self.oldwidth > 0:
+                        with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
+                            ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
+                                    self.fontmagnification( u'size="smaller"' )) ))
+                            sTmp = u''
+                            for s0 in dicArg[u'cap'].split(u'\\n'):
+                                while len(s0) > ch:
+                                    sTmp += s0[:ch] + u'\n'
+                                    s0 = s0[ch:]
+                                sTmp += s0[:ch] + u'\n'
+                            sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
+                            pc = layout.get_context() # Pango を得る
+                            pc.set_base_gravity('south')
+                            pc.set_gravity_hint('natural')
+                            layout.set_markup(sTmp)
+                            length, y = layout.get_pixel_size()
+                            pangoctx00.translate(
+                                self.xpos + xposoffset,
+                                self.ypos + 5 + self.oldlength)
+                            pangoctx00.rotate(0)
+                            pangoctx00.update_layout(layout)
+                            pangoctx00.show_layout(layout)
+                        del pc
+                        length = y
+                    else:
+                        length = 0. #length = 0
                     del img
 
                 elif u'warichu' in dicArg:
@@ -559,39 +585,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)
                     del pc
-
-                elif u'caption' in dicArg:
-                    # キャプション
-                    # 直前に画像がなかったり改ページされている場合は失敗するので、
-                    # 処理そのものをキャンセルする
-                    #
-                    # set_widthが思うようにいかないので手動で改行位置を求める
-                    # ch : １行あたりの文字数
-                    if self.oldwidth > 0:
-                        ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
-                                self.fontmagnification( u'size="smaller"' )) ))
-                        sTmp = u''
-                        for s0 in dicArg[u'caption'].split(u'\\n'):
-                            while len(s0) > ch:
-                                sTmp += s0[:ch] + u'\n'
-                                s0 = s0[ch:]
-                            sTmp += s0[:ch] + u'\n'
-                        sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
-                        pc = layout.get_context() # Pango を得る
-                        pc.set_base_gravity('south')
-                        pc.set_gravity_hint('natural')
-                        layout.set_markup(sTmp)
-                        length, y = layout.get_pixel_size()
-                        pangoctx.translate(
-                            self.xpos + int(self.get_value(u'linewidth')) + (self.oldwidth - length)//2,
-                                                    self.ypos + 5 + self.oldlength)
-                        pangoctx.rotate(0)
-                        pangoctx.update_layout(layout)
-                        pangoctx.show_layout(layout)
-                        del pc
-                        length = y
-                    else:
-                        length = 0. #length = 0
 
                 elif u'tatenakayoko' in dicArg:
                     # 縦中横 直前の表示位置を元にセンタリングする

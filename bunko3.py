@@ -26,8 +26,6 @@ import aozoradialog
 import ndc
 
 import logging
-#import sys
-#import codecs
 import os.path
 import os
 import urllib
@@ -38,8 +36,6 @@ import subprocess
 
 import gtk
 import gobject
-
-#sys.stdout=codecs.getwriter( 'UTF-8' )(sys.stdout)
 
 class aozoraDB(ReaderSetting):
     """ インデックスファイルを読み込んでデータベースを作成する

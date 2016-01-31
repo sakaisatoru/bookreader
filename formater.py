@@ -1574,7 +1574,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmpW = float(self.currentText.get_value(u'scrnwidth')) - \
                                 float(self.currentText.get_value(u'rightmargin')) - \
                                         float(self.currentText.get_value(u'leftmargin'))
-                        #tmpW //= 2. # 許可される最大幅
+
                         # 表示領域に収まるような倍率を求める
                         tmpRasio = min((tmpH / figheight),(tmpW / figwidth))
                         if tmpRasio > 1.0:
@@ -1666,7 +1666,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         sTmp = u''
                         dfile.seek(0)
                         for sCenter in dfile:
-                            sTmp += sCenter.rstrip(u'\n')+u'\\n'
+                            #sTmp += sCenter.rstrip(u'\n')+u'\\n'
+                            sTmp += sCenter
                         if tmp.start() > 0:
                             # 青空文庫の揺らぎへの対策
                             # このタグは本来行頭に置かれる（単独で出現する）べきものだが、
@@ -1681,14 +1682,15 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 行の整形を再開
                         isNoForming = False
                         # キャプション
-                        # 直前に出現した挿図の属性として出力される。もし、挿図が無ければ
-                        # 表示されない
                         if figstack:
-                            self.__write2file(dfile, figstack.pop() % self.reAozoraTagRemove.sub(u'',sTmp))
+                            sFigtag = figstack.pop()
+                            # dummy のキャプションを渡して fig を出力
+                            self.__write2file(dfile, sFigtag % u'※複数行からなるキャプションを割愛')
+
+
+
+
                             lnbuf = lnbuf[tmp.end():]
-                            #lnbuf = u'%s%s' % (
-                            #    (figstack.pop() % self.reAozoraTagRemove.sub(u'',sTmp)),
-                            #            lnbuf[tmp.end():])
                         else:
                             lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
                         tmp = self.reCTRL2.search(lnbuf)

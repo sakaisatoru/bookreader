@@ -73,10 +73,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         AozoraScale.__init__(self)
         ReaderSetting.__init__(self)
         self.sf = canvas
-        self.oldlength = 0.
         self.oldwidth = 0
         self.rubilastYpos = 0       # 直前のルビの最末端
         self.rubilastXofset = 0     # 直前のルビが左右いずれかを保持
+        self.figstack = []          # キャプション表示位置を保持する
 
     def destroy(self):
         del self.tagstack
@@ -131,9 +131,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # 横書き文字ならタグを挿入する
                 # 但し
                 #   既にyokogumiタグがある あるいは 縦中横のなかである
+                #   caption の中である
                 #   なら見送る
                 for s in localtagstack:
                     if s.find(u'<aozora yokogumi') != -1 or s.find(u'tatenakayoko') != -1:
+                        break
+                    if s.find(u'<aozora caption') != -1:
                         break
                 else:
                     localtagstack.append( u'<aozora yokogumi2' )
@@ -417,6 +420,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         dicArg = {}
         sTmp = data
         fontsizename = u''
+
         try:
             # タグスタックに積まれている書式指定を全て付す
             # Pangoでうまく処理できないタグはここで代替処理する
@@ -532,38 +536,37 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     length = float(self.get_value(u'fontheight'))*1 + \
                         math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
                     # キャプション用に退避
-                    self.oldlength = length
-                    self.oldwidth = int(round(float(dicArg[u'width']) *
-                                                        float(dicArg[u'rasio'])))
-                    # 画像が表示されていればキャプションも表示する。
-                    # コンテキストは画像で使ってしまっているので、新規に作成しなおす。
-                    if self.oldwidth > 0:
-                        with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
-                            ch = int(round(self.oldwidth / (float(self.get_value(u'fontheight')) *
-                                    self.fontmagnification( u'size="smaller"' )) ))
-                            sTmp = u''
-                            for s0 in dicArg[u'cap'].split(u'\\n'):
-                                while len(s0) > ch:
-                                    sTmp += s0[:ch] + u'\n'
-                                    s0 = s0[ch:]
-                                sTmp += s0[:ch] + u'\n'
-                            sTmp = u'<span size="smaller">%s</span>' % sTmp.rstrip(u'\n')
-                            pc = layout.get_context() # Pango を得る
-                            pc.set_base_gravity('south')
-                            pc.set_gravity_hint('natural')
-                            layout.set_markup(sTmp)
-                            length, y = layout.get_pixel_size()
-                            pangoctx00.translate(
-                                self.xpos + xposoffset,
-                                self.ypos + 5 + self.oldlength)
-                            pangoctx00.rotate(0)
-                            pangoctx00.update_layout(layout)
-                            pangoctx00.show_layout(layout)
-                        del pc
-                        length = y
-                    else:
-                        length = 0. #length = 0
+                    self.figstack.append((self.xpos,
+                        self.ypos + int(self.get_value(u'fontheight'))*1 + length,
+                        round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
                     del img
+
+                elif u'caption' in dicArg:
+                    # 画像が表示されていればキャプションを横書きで表示する。
+                    #if self.oldwidth > 0:
+                    if self.figstack:
+                        (self.xpos, self.ypos, tmpwidth) = self.figstack.pop()
+                        ch = int(round(tmpwidth / (float(self.get_value(u'fontheight')) *
+                                self.fontmagnification( u'size="smaller"' )) ))
+                        s0 = sTmp[:ch-1]
+                        for i in range(ch-1, len(sTmp), ch):
+                            s0 = u'%s\n%s' % (s0, sTmp[i:i+ch])
+
+                        sTmp = u'<span size="smaller">%s</span>' % s0 #.rstrip(u'\n')
+                        pc = layout.get_context() # Pango を得る
+                        pc.set_base_gravity('south')
+                        pc.set_gravity_hint('natural')
+                        layout.set_markup(sTmp)
+                        span, length = layout.get_pixel_size()
+                        pangoctx.translate(
+                            self.xpos + xposoffset,
+                            self.ypos )
+                        pangoctx.rotate(0)
+                        pangoctx.update_layout(layout)
+                        pangoctx.show_layout(layout)
+                        del pc
+                    else:
+                        length = 0.
 
                 elif u'warichu' in dicArg:
                     # 割り注

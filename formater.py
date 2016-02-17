@@ -271,33 +271,7 @@ class Aozora(ReaderSetting, AozoraScale):
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
     hajimekakko = u'（［｛〔〈《「『【〘〖〝‘“｟«'
     owarikakko =  u'）］｝〕〉》」』】〙〗〟’”｠»'
-    """
-    # 単純な置換
-    dicAozoraTag = {
-        u'［＃行右小書き］':u'<sup>',   u'［＃行右小書き終わり］':u'</sup>',
-        u'［＃行左小書き］':u'<sub>',   u'［＃行左小書き終わり］':u'</sub>',
-        u'［＃上付き小文字］':u'<sup>', u'［＃上付き小文字終わり］':u'</sup>',
-        u'［＃下付き小文字］':u'<sub>', u'［＃下付き小文字終わり］':u'</sub>',
-        u'［＃太字］':(u'<span font_desc="%s">' % self.get_value( "boldfontname" )),
-        #u'［＃ここから太字］':u'<span font_desc="Sans">',
-        u'［＃ここから太字］':(u'<span font_desc="%s">' % self.get_value( "boldfontname" )),
-        u'［＃斜体］':u'<span style="italic">',
-        u'［＃ここから斜体］':u'<span style="italic">' ,
-        u'［＃大きな文字終わり］':u'</span>',
-        u'［＃ここで大きな文字終わり］':u'</span>',
-        u'［＃小さな文字終わり］':u'</span>',
-        u'［＃ここで小さな文字終わり］':u'</span>',
-        u'［＃斜体終わり］':u'</span>',
-        u'［＃ここで斜体終わり］':u'</span>',
-        u'［＃太字終わり］':u'</span>',
-        u'［＃ここで太字終わり］':u'</span>',
-        u'［＃横組み］':u'<aozora yokogumi="dmy">',
-        u'［＃ここから横組み］':u'<aozora yokogumi="dmy">',
-        u'［＃横組み終わり］':u'</aozora>',
-        u'［＃ここで横組み終わり］':u'</aozora>',
-        u'［＃罫囲み］':u'<aozora keikakomigyou="0">',
-        u'［＃罫囲み終わり］':u'</aozora>' }
-    """
+
     # 文字の大きさ
     dicMojisize = {
         u'大き１':u'large',    u'大き２':u'x-large',
@@ -806,7 +780,6 @@ class Aozora(ReaderSetting, AozoraScale):
 
                         """ （類似処理のまとめ）
                         """
-                        #if tmp.group() in [u'［＃縦中横］', u'［＃キャプション］']:
                         if tmp.group() == u'［＃縦中横］':
                             posstack.append(tmp.span())
                             posstack.append(tmp.group())
@@ -935,8 +908,9 @@ class Aozora(ReaderSetting, AozoraScale):
                             次段で処理する
                             reFigで分離できないのでここでトラップする
                         """
-                        tmp2 = self.reFig2.match(tmp.group())
-                        if tmp2:
+                        if self.reFig2.match(tmp.group()):
+                        #tmp2 = self.reFig2.match(tmp.group())
+                        #if tmp2:
                             tmp = self.reCTRL2.search(lnbuf,tmp.end())
                             continue
 
@@ -953,10 +927,11 @@ class Aozora(ReaderSetting, AozoraScale):
                                 figwidth = tmpPixBuff.get_width()
                                 if figwidth > self.currentText.canvas_linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
-                                    sNameTmp = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
-                                            fname, figwidth, figheight)
+                                    #sNameTmp = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
+                                    lnbuf = u'%s［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］%s' % (
+                                            lnbuf[:tmp.start()], fname, figwidth, figheight, lnbuf[tmp.end():])
                                     del tmpPixBuff
-                                    lnbuf = lnbuf[:tmp.start()] + sNameTmp + lnbuf[tmp.end():]
+                                    #lnbuf = lnbuf[:tmp.start()] + sNameTmp + lnbuf[tmp.end():]
                                     tmp = self.reCTRL2.search(lnbuf)
                                     continue
 
@@ -1488,6 +1463,22 @@ class Aozora(ReaderSetting, AozoraScale):
     def formater(self, output_file=u'', mokuji_file=u''):
         """ フォーマッタ
         """
+
+        def __insertfig(tag, lines):
+            """ 挿図出力の下請け
+                図の挿入に際しては、事前に改行を送り込んで表示領域を取得する必要が
+                あるため、ここにまとめる。
+            """
+            print tag, lines
+            if self.linecounter + lines >= self.currentText.pagelines:
+                # 画像がはみ出すようなら改ページする
+                while not self.__write2file(dfile, '\n'):
+                    pass
+            while lines > 0:
+                self.__write2file(dfile, '\n')
+                lines -= 1
+            self.__write2file(dfile, tag)
+
         if output_file:
             self.destfile = output_file
         if mokuji_file:
@@ -1526,10 +1517,23 @@ class Aozora(ReaderSetting, AozoraScale):
             isNoForming = False                 # 行の整形を抑止する
 
             figstack = []                       # 画像用スタック
+            figcapcount = 0                     # 挿図からキャプションまでの行数を保持
 
             for lnbuf in self.__formater_pass1():
                 lnbuf = lnbuf.rstrip('\n')
                 yield
+
+                """ 挿図が出現中
+                """
+                if figstack:
+                    figcapcount += 1
+                    if not lnbuf:
+                        # 空行であれば挿図して終わる
+                        a = figstack.pop()
+                        __insertfig(a[0]+'\n',a[1])
+                        figcapcount = 0
+                        continue
+
                 """ 空行の処理
                 """
                 if not lnbuf: #len(lnbuf) == 0:
@@ -1543,14 +1547,21 @@ class Aozora(ReaderSetting, AozoraScale):
                 IndentJitsuki = False
                 tmp = self.reCTRL2.search(lnbuf)
                 while tmp:
-
                     """ 挿図
                         キャンバスの大きさに合わせて画像を縮小する。
-                            ページからはみ出るようであれば挿図前に
-                            改ページする。
+                        ページからはみ出るようであれば挿図前に改ページする。
+                        挿図タグは単独で出現することを前提とする。即ち、同一行中に他の
+                        テキストを持たない。
+                        描画はキャプションの出現まで保留される。
                     """
                     matchFig = self.reFig.match(tmp.group())
                     if matchFig:
+                        if figstack:
+                            # 挿図が連続する場合等、未出力の挿図がある場合はここで描画する
+                            a = figstack.pop()
+                            __insertfig(a[0], a[1])
+                            figcapcount = 0
+
                         try:
                             fname = matchFig.group(u'filename')
                             tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
@@ -1575,30 +1586,24 @@ class Aozora(ReaderSetting, AozoraScale):
                                         float(self.currentText.get_value(u'leftmargin'))
 
                         # 表示領域に収まるような倍率を求める
-                        # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を考慮して0.9程度の
-                        # 定数を乗じている。
-                        tmpRasio = min(min((tmpH / figheight)*0.8, (tmpW / figwidth)*0.9), 1.0)
-
+                        # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
+                        # 考慮して0.9程度の定数を乗じている。
+                        tmpRasio = min(
+                                    min((tmpH / figheight)*0.8, (tmpW / figwidth)*0.9),
+                                    1.0)
                         # 画像幅をピクセルから行数に換算する
-                        figspan = int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth)))
-
-                        if self.linecounter + figspan >= self.currentText.pagelines:
-                            # 画像がはみ出すようなら改ページする
-                            while not self.__write2file(dfile, '\n'):
-                                pass
-                        while figspan > 0:
-                            self.__write2file(dfile, '\n')
-                            figspan -= 1
-
-                        self.__write2file(dfile,
-                            (u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\n' % (fname, figwidth, figheight, tmpRasio)) )
-                        figstack.append((fname, figwidth, figheight, tmpRasio))
+                        # ここで改行しないことに注意。改行はキャプションで行う。
+                        figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
+                                        fname, figwidth, figheight, tmpRasio),
+                                        int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth)))) )
+                        figcapcount = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
                     """ キャプション
-                        挿図の直下に横書きで表示する。キャプション出現中は行の分割は抑止される。
+                        挿図の直下に横書きで表示する。キャプション出現中は行の分割及び
+                        ページカウントは抑止される。
                     """
                     tmp2 = self.reCaption.match(tmp.group())
                     if tmp2:
@@ -1607,18 +1612,22 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 直前に挿図があるかチェックする。もし、挿図が無ければこのキャプションは
                         # 無視される。
                         if figstack:
-                            print u'ほげほげはキャプション %s' % self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd])
+                            a = figstack.pop()
+                            __insertfig(a[0], a[1])
+                            self.countpage = False
                             self.__write2file(dfile,
-                                    u'<aozora caption="dmy">%s</aozora>\n' % self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]))
-
+                                    u'<aozora caption="dmy">%s</aozora>\n' %
+                                        self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]))
+                            self.countpage = True
                         lnbuf = u'%s%s' % (lnbuf[:tmpStart], lnbuf[tmp.end():])
-
+                        figcapcount = 0
                         tmp = self.reCTRL2.search(lnbuf,tmpStart)
                         continue
 
                     """ キャプション（開始/終了型）
                         同一行中に閉じられることを期待して
-                        挿図の直下に横書きで表示する。キャプション出現中は行の分割は抑止される。
+                        挿図の直下に横書きで表示する。キャプション出現中は行の分割及び
+                        ページカウントは抑止される。
                     """
                     if tmp.group() == u'［＃キャプション］':
                         tmp = self.reCaption2.search(lnbuf)
@@ -1626,26 +1635,38 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 直前に挿図があるかチェックする。もし、挿図が無ければこのキャプションは
                             # 無視される。
                             if figstack:
-                                print u'キャプション（開始終了型) %s' % self.reAozoraTagRemove.sub(u'',tmp.group(u'name'))
                                 # 行の分割を回避するため、結果を直接書き出す。
+                                a = figstack.pop()
+                                __insertfig(a[0], a[1])
+                                self.countpage = False
                                 self.__write2file(dfile,
-                                    u'<aozora caption="dmy">%s</aozora>\n' % self.reAozoraTagRemove.sub(u'',tmp.group(u'name')))
-
+                                    u'<aozora caption="dmy">%s</aozora>\n' %
+                                        self.reAozoraTagRemove.sub(u'',tmp.group(u'name')))
+                                self.countpage = True
                             lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
                         else:
                             # [＃キャプション終わり]で閉じていなければ、捨てて終わる
+                            if figstack:
+                                figstack.pop()
                             lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
+                        figcapcount = 0
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
                     """ 複数行に及ぶキャプション
                         行の整形を抑止し、出力先を一時ファイルに
                         切り替える。
-                        挿図の直下に横書きで表示する。キャプション出現中は行の分割は抑止される。
+                        挿図の直下に横書きで表示する。キャプション出現中は行の分割及び
+                        ページカウントは抑止される。
                     """
                     if tmp.group() == u'［＃ここからキャプション］':
-                        # カレントハンドルを退避して、一時ファイルを
-                        # 作成して出力先を切り替える。
+                        # キャプションの完成を待たないで取り敢えず挿図を行う
+                        if figstack:
+                            a = figstack.pop()
+                            __insertfig(a[0], a[1])
+                            figcapcount = 0
+
+                        # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える。
                         workfilestack.append(dfile)
                         dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
                         # 一時ファイル使用中はページカウントしない
@@ -1661,14 +1682,12 @@ class Aozora(ReaderSetting, AozoraScale):
                         sTmp = u''
                         dfile.seek(0)
                         for sCenter in dfile:
-                            #sTmp += sCenter.rstrip(u'\n')+u'\\n'
-                            sTmp += sCenter.rstrip(u'\n')
+                            sTmp += sCenter.rstrip(u'\n') # +u'\\n'
                         if tmp.start() > 0:
                             # 青空文庫の揺らぎへの対策
                             # このタグは本来行頭に置かれる（単独で出現する）べきものだが、
                             # キャプションの行末に置かれているテキストがあり、その場合は
                             # レイアウトが崩れるため、それをここで回避する。
-                            # 上付き文字等、Pangoで処理できるタグは付されない。
                             sTmp += lnbuf[:tmp.start()]
 
                         # 出力先を復元
@@ -1677,17 +1696,19 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 行の整形を再開
                         isNoForming = False
                         # キャプション
-                        if figstack:
-                            print u'複数行からなるキャプション %s' % self.reAozoraTagRemove.sub(u'',sTmp)
-                            self.__write2file(dfile,
-                                    u'<aozora caption="dmy">%s</aozora>\n' % self.reAozoraTagRemove.sub(u'',sTmp))
+                        self.__write2file(dfile,
+                                u'<aozora caption="dmy">%s</aozora>\n' % self.reAozoraTagRemove.sub(u'',sTmp))
 
-                            #lnbuf = lnbuf[tmp.end():]
                         lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
                         tmp = self.reCTRL2.search(lnbuf)
                         # ページカウントを再開
                         self.countpage = True
                         continue
+
+                    #
+                    if figstack:
+                        a = figstack.pop()
+                        __insertfig(a[0]+'\n', a[1])
 
                     """ ページの左右中央
                     """
@@ -1704,7 +1725,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
-                    """ 改ページ・改訂・改段
+                    """ 改ページ・改丁・改段
                     """
                     if self.reKaipage.match(tmp.group()):
                         if self.pagecenterflag:
@@ -1934,11 +1955,21 @@ class Aozora(ReaderSetting, AozoraScale):
                         lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
 
+
                 if isNoForming:
                     """ 行の折り返し・分割処理を無視してファイルに出力する
                     """
+                    # 未出力の挿図があればバッファへ出力する
+                    if figcapcount:
+                        if figstack:
+                            a = figstack.pop()
+                            __insertfig(a[0]+'\n', a[1])
+                            figcapcount = 0
+
                     self.__write2file(dfile, "%s\n" % lnbuf)
                     continue
+
+
 
                 """ インデント一式 (字下げ、字詰、字上げ、地付き)
                             |<---------- self.chars ------------>|
@@ -2020,6 +2051,14 @@ class Aozora(ReaderSetting, AozoraScale):
 
                     #   画面上の1行で収まらなければ分割して次行を得る
                     self.ls, lnbuf = self.__linesplit(lnbuf, currchars)
+
+                    """ 未出力の挿図があればバッファへ出力する
+                    """
+                    if figcapcount:
+                        if figstack:
+                            a = figstack.pop()
+                            __insertfig(a[0]+'\n', a[1])
+                            figcapcount = 0
 
                     """ 行をバッファ(中間ファイル)へ掃き出す
                     """

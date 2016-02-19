@@ -688,6 +688,11 @@ class Aozora(ReaderSetting, AozoraScale):
                 retline.append(lnbuf[anchor:pos])
                 lnbuf = u''.join(retline)
 
+                """ 二重山括弧の代替に算術記号を使っているテキストが
+                    あるので、その対策
+                """
+                lnbuf = lnbuf.replace(u'≫', u'》').replace(u'≪', u'《')
+
                 """ 連続して出現する括弧類の送り量の調整
                 """
                 retline = []
@@ -1469,7 +1474,6 @@ class Aozora(ReaderSetting, AozoraScale):
                 図の挿入に際しては、事前に改行を送り込んで表示領域を取得する必要が
                 あるため、ここにまとめる。
             """
-            print tag, lines
             if self.linecounter + lines >= self.currentText.pagelines:
                 # 画像がはみ出すようなら改ページする
                 while not self.__write2file(dfile, '\n'):

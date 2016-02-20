@@ -605,6 +605,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # ルビ、傍点、傍線類の表示位置を設定
                     honbunxpos = xposoffset + int(math.ceil(y/2.))
 
+<<<<<<< HEAD
                 elif u'mado' in dicArg:
                     print u'debug cairocanvas %s' % sTmp
                     pc = layout.get_context() # Pango を得る
@@ -627,6 +628,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     pangoctx.show_layout(layout)
                     del pc
 
+=======
+>>>>>>> 65a04b6be5c7ce52dfdd9ce2c6feaeac7bbe4055
                 else:
                     # 本文表示本体
                     # ※少しでも処理速度を稼ぐため上にも似たルーチンがあります

@@ -1772,17 +1772,13 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     matchMidashi = self.reMidashi3.match(tmp.group())
                     if matchMidashi:
-<<<<<<< HEAD
                         print u'Debug %s' % matchMidashi.group('type')
-=======
->>>>>>> 65a04b6be5c7ce52dfdd9ce2c6feaeac7bbe4055
                         # ［＃ここから見出し］
                         self.sMidashiSize = matchMidashi.group('midashisize')
                         self.inMidashi = True
                         self.inFukusuMidashi = True
                         self.midashi = u''
 
-<<<<<<< HEAD
                         if matchMidashi.group('type') == u'窓':
                             lnbuf = u'%s<aozora mado="dmy" font="%s" size="%s">%s' % (
                                 lnbuf[:tmp.start()],
@@ -1797,13 +1793,6 @@ class Aozora(ReaderSetting, AozoraScale):
                                 u' size="larger"' if self.sMidashiSize == u'大' else u'',
                                 lnbuf[tmp.end():] )
 
-=======
-                        lnbuf = u'%s<span face="%s"%s>%s' % (
-                            lnbuf[:tmp.start()],
-                            self.get_value("boldfontname"),
-                            u' size="larger"' if self.sMidashiSize == u'大' else u'',
-                            lnbuf[tmp.end():] )
->>>>>>> 65a04b6be5c7ce52dfdd9ce2c6feaeac7bbe4055
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
@@ -1812,7 +1801,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         # ［＃ここで見出し終わり］
                         self.FukusuMidashiOwari = True
                         self.sMidashiSize = matchMidashi.group('midashisize')
-<<<<<<< HEAD
 
                         if matchMidashi.group('type') == u'窓':
                             lnbuf = u'%s</aozora>%s' % (
@@ -1820,10 +1808,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         else:
                             lnbuf = u'%s</span>%s' % (
                                 lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-=======
-                        lnbuf = u'%s</span>%s' % (
-                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
->>>>>>> 65a04b6be5c7ce52dfdd9ce2c6feaeac7bbe4055
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 

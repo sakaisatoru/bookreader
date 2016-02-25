@@ -1792,19 +1792,11 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.inFukusuMidashi = True
                         self.midashi = u''
 
-                        if matchMidashi.group('type') == u'窓':
-                            lnbuf = u'%s<aozora mado="dmy" font="%s" size="%s">%s' % (
-                                lnbuf[:tmp.start()],
-                                self.get_value("boldfontname"),
-                                u' size="larger"' if self.sMidashiSize == u'大' else u'',
-                                lnbuf[tmp.end():] )
-
-                        else:
-                            lnbuf = u'%s<span face="%s"%s>%s' % (
-                                lnbuf[:tmp.start()],
-                                self.get_value("boldfontname"),
-                                u' size="larger"' if self.sMidashiSize == u'大' else u'',
-                                lnbuf[tmp.end():] )
+                        lnbuf = u'%s<span face="%s"%s>%s' % (
+                            lnbuf[:tmp.start()],
+                            self.get_value("boldfontname"),
+                            u' size="larger"' if self.sMidashiSize == u'大' else u'',
+                            lnbuf[tmp.end():] )
 
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -1815,11 +1807,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.FukusuMidashiOwari = True
                         self.sMidashiSize = matchMidashi.group('midashisize')
 
-                        if matchMidashi.group('type') == u'窓':
-                            lnbuf = u'%s</aozora>%s' % (
-                                lnbuf[:tmp.start()], lnbuf[tmp.end():] )
-                        else:
-                            lnbuf = u'%s</span>%s' % (
+                        lnbuf = u'%s</span>%s' % (
                                 lnbuf[:tmp.start()], lnbuf[tmp.end():] )
                         tmp = self.reCTRL2.search(lnbuf)
                         continue

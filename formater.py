@@ -107,6 +107,7 @@ class AozoraTag(object):
                     pos += 1
         except IndexError:
             index = -1
+
         return index
 
     def search(self, s, pos=0):
@@ -1110,9 +1111,15 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp2 = self.reGyomigikogaki.match(tmp.group())
                         if tmp2:
                             sNameTmp = tmp2.group(u'name')
-                            reTmp = re.compile( ur'%s$' % sNameTmp )
+                            #reTmp = re.compile( ur'%s$' % sNameTmp )
+                            # lnbuf[:tmp.start()] の終わりにある修飾対象文字を
+                            # 取り除くのに正規表現を使いたいのだが、()[]等が
+                            # 含まれているとエラーになるので、文字列置換で代替
+                            # している。終わり部分だけ取り除けば良いので、
+                            # [::-1]で一度ひっくり返して一回だけ''に置換している。
                             lnbuf = u'%s%s%s' % (
-                                reTmp.sub( u'', lnbuf[:tmp.start()] ),
+                                #reTmp.sub( u'', lnbuf[:tmp.start()] ),
+                                lnbuf[:tmp.start()][::-1].replace( sNameTmp[::-1], u'',1)[::-1],
                                 u'<sup>%s</sup>' % tmp2.group(u'name') if tmp2.group(u'type') == u'行右小書き' or \
                                     tmp2.group('type') == u'上付き小文字' else u'<sub>%s</sub>' % tmp2.group(u'name'),
                                 lnbuf[tmp.end():] )
@@ -1179,13 +1186,18 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp2 = self.reMama.match(tmp.group())
                         if tmp2:
                             sNameTmp = tmp2.group(u'name')
-                            reTmp = re.compile( ur'%s$' % sNameTmp )
+                            #reTmp = re.compile( ur'%s$' % sNameTmp )
                             tmprubipos = sNameTmp.find(u'rubi="')
                             if tmprubipos != -1:
                                 # 親文字にルビタグが含まれる場合は結合する
+                                # 本文側の修飾対象を正規表現で削除しようと
+                                # すると、\によるエスケープが必要になる
+                                # 場合があるので、replaceに変更。末尾側から
+                                # 一つだけ削除するので [::-1]で反転している。
                                 tmprubipos2 = sNameTmp[tmprubipos+6:].find(u'"')
                                 lnbuf = u'%s%s%s%s%s' % (
-                                    reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                    #reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                    lnbuf[:tmp.start()][::-1].replace(sNameTmp[::-1],u'',1)[::-1],
                                     sNameTmp[:tmprubipos+6+tmprubipos2],
                                     u'〔ママ〕' if tmp2.group('type').find(u'ママ') != -1 else u'',
                                     sNameTmp[tmprubipos+6+tmprubipos2:],
@@ -1193,7 +1205,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             else:
                                 sNameTmp2 = tmp2.group('type') if not tmp2.group(u'mama') else tmp2.group(u'mama')
                                 lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
-                                    reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                    #reTmp.sub( u'', lnbuf[:tmp.start()]),
+                                    lnbuf[:tmp.start()][::-1].replace(sNameTmp[::-1],u'',1)[::-1],
                                     sNameTmp2.strip(u'（〔〕）'), len(sNameTmp),
                                     sNameTmp, lnbuf[tmp.end():] )
 
@@ -2172,6 +2185,12 @@ class Aozora(ReaderSetting, AozoraScale):
                 try:
                     """ ワードラップ
                     """
+                    # URL を検出した場合はラップしない
+                    sTest0 = u''.join(sTestCurrent)
+                    for a in [u'http:', u'https:', u'mailto:']:
+                        if a in sTest0:
+                            raise IndexError
+
                     # 前方参照してワードの区切りを探す
                     while sTestCurrent[-1][0] in self.charwidth_serif and \
                                                 sTestCurrent[-1][0].isalnum():

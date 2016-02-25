@@ -606,7 +606,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     honbunxpos = xposoffset + int(math.ceil(y/2.))
 
                 elif u'mado' in dicArg:
-                    print u'debug cairocanvas %s' % sTmp
                     pc = layout.get_context() # Pango を得る
                     # 正しいlengthを得るため、予め文字の向きを決める
                     pc.set_base_gravity('east')
@@ -614,8 +613,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 見出しを２行にする。但し５文字未満の場合はそのまま
                     l = int(round(len(sTmp)/2.))
                     if l >= 3:
-                        sTmp = sTmp[:l]+'\n'+sTmp[l:]
-
+                        sTmp = u'　%s\n　%s' % (sTmp[:l], sTmp[l:])
+                    sTmp = u'<span font="%s">%s　</span>' % (dicArg[u'font'], sTmp)
                     layout.set_markup(sTmp)
                     length, span = layout.get_pixel_size()
 

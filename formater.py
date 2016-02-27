@@ -263,11 +263,12 @@ class Aozora(ReaderSetting, AozoraScale):
     reDash = re.compile( ur'(?P<name>―{2,})' ) # 2文字以上のDASHの連結
 
     # 禁則
-    kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
-    kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
-    kinsoku4 = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»。、．，'
-    kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗、'
-
+    """
+        kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
+        kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
+        kinsoku4 = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»。、．，'
+        kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗、'
+    """
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
     hajimekakko = u'（［｛〔〈《「『【〘〖〝‘“｟«'
@@ -1785,7 +1786,6 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     matchMidashi = self.reMidashi3.match(tmp.group())
                     if matchMidashi:
-                        print u'Debug %s' % matchMidashi.group('type')
                         # ［＃ここから見出し］
                         self.sMidashiSize = matchMidashi.group('midashisize')
                         self.inMidashi = True

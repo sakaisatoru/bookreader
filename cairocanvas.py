@@ -410,6 +410,55 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     size = parentsize #
             return size
 
+        def __caption_sub_1(sTmp, width):
+            """ キャプション用の横書き整形
+                禁則処理無し
+            """
+            ch = float(self.get_value(u'fontheight')) * self.fontmagnification( u'size="smaller"' )
+            l = 0.
+            s0 = []
+            f = False
+            for s in sTmp:
+                # <tag> はカウントしない
+                if f:
+                    if s == u'>':
+                        f = False
+                    continue
+                if s == u'<':
+                    f = True
+                    continue
+
+                if s in self.kinsoku:
+                    # 行頭禁則
+                    if s0[-1] == '\n':
+                        # 直前が行末だった場合、非禁則文字に当たるまで遡って改行位置を変える
+                        pos = -2
+                        while s0[pos] in self.kinsoku:
+                            s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+                            pos -= 1
+                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+
+                    s0.append(s)
+                    l += self.charwidth(s) * ch
+                    if l >= width:
+                        s0.append('\n')
+                        l = 0.
+                    continue
+
+                l += self.charwidth(s) * ch
+                if l >= width:
+                    s0.append('\n')
+                    l = 0.
+                    pos = -2
+                    while s0[pos] in self.kinsoku2:
+                        # 行末禁則
+                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+                        pos -= 1
+
+                s0.append(s)
+
+            return u'<span size="smaller">%s</span>' % u''.join(s0)
+
         """------------------------------------------------------------------
         """
         # 初期化
@@ -543,16 +592,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 elif u'caption' in dicArg:
                     # 画像が表示されていればキャプションを横書きで表示する。
-                    #if self.oldwidth > 0:
                     if self.figstack:
                         (self.xpos, self.ypos, tmpwidth) = self.figstack.pop()
-                        ch = int(round(tmpwidth / (float(self.get_value(u'fontheight')) *
-                                self.fontmagnification( u'size="smaller"' )) ))
-                        s0 = sTmp[:ch-1]
-                        for i in range(ch-1, len(sTmp), ch):
-                            s0 = u'%s\n%s' % (s0, sTmp[i:i+ch])
 
-                        sTmp = u'<span size="smaller">%s</span>' % s0 #.rstrip(u'\n')
+                        sTmp = __caption_sub_1(sTmp, tmpwidth)
                         pc = layout.get_context() # Pango を得る
                         pc.set_base_gravity('south')
                         pc.set_gravity_hint('natural')

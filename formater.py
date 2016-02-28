@@ -293,6 +293,9 @@ class Aozora(ReaderSetting, AozoraScale):
         self.set_source()
         self.charsmax = self.currentText.chars - 1 # 最後の1文字は禁則処理用に確保
 
+        self.imgwidth_lines = 0     # 挿図回避用
+        self.imgheight_chars = 0    # 挿図回避用
+
         # 単純な置換
         # 設定ファイルから変数を拾うため、ここに移動。
         self.dicAozoraTag = {
@@ -916,8 +919,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             reFigで分離できないのでここでトラップする
                         """
                         if self.reFig2.match(tmp.group()):
-                        #tmp2 = self.reFig2.match(tmp.group())
-                        #if tmp2:
                             tmp = self.reCTRL2.search(lnbuf,tmp.end())
                             continue
 
@@ -934,11 +935,9 @@ class Aozora(ReaderSetting, AozoraScale):
                                 figwidth = tmpPixBuff.get_width()
                                 if figwidth > self.currentText.canvas_linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
-                                    #sNameTmp = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］' % (
                                     lnbuf = u'%s［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］%s' % (
                                             lnbuf[:tmp.start()], fname, figwidth, figheight, lnbuf[tmp.end():])
                                     del tmpPixBuff
-                                    #lnbuf = lnbuf[:tmp.start()] + sNameTmp + lnbuf[tmp.end():]
                                     tmp = self.reCTRL2.search(lnbuf)
                                     continue
 
@@ -955,10 +954,9 @@ class Aozora(ReaderSetting, AozoraScale):
                                 tmp = self.reCTRL2.search(lnbuf)
                                 continue
 
-                            lnbuf = lnbuf[:tmp.start()] + \
-                                    u'<aozora img="%s" width="%s" height="%s">%s</aozora>' % (
-                                            fname, figwidth, figheight, sPad) + \
-                                    lnbuf[tmp.end():]
+                            lnbuf = u'%s<aozora img="%s" width="%s" height="%s">%s</aozora>%s' % (
+                                            lnbuf[:tmp.start()], fname, figwidth, figheight, sPad, lnbuf[tmp.end():])
+
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -1483,7 +1481,7 @@ class Aozora(ReaderSetting, AozoraScale):
         """ フォーマッタ
         """
 
-        def __insertfig(tag, lines):
+        def __insertfig(tag, lines, mode=True):
             """ 挿図出力の下請け
                 図の挿入に際しては、事前に改行を送り込んで表示領域を取得する必要が
                 あるため、ここにまとめる。
@@ -1492,9 +1490,12 @@ class Aozora(ReaderSetting, AozoraScale):
                 # 画像がはみ出すようなら改ページする
                 while not self.__write2file(dfile, '\n'):
                     pass
-            while lines > 0:
-                self.__write2file(dfile, '\n')
-                lines -= 1
+            if mode:
+                # 画像表示部分を改行で確保する。
+                while lines > 0:
+                    self.__write2file(dfile, '\n')
+                    lines -= 1
+
             self.__write2file(dfile, tag)
 
         if output_file:
@@ -1548,7 +1549,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     if not lnbuf:
                         # 空行であれば挿図して終わる
                         a = figstack.pop()
-                        __insertfig(a[0]+'\n',a[1])
+                        __insertfig(a[0]+'\n',a[1], a[2])
                         figcapcount = 0
                         continue
 
@@ -1570,16 +1571,10 @@ class Aozora(ReaderSetting, AozoraScale):
                         ページからはみ出るようであれば挿図前に改ページする。
                         挿図タグは単独で出現することを前提とする。即ち、同一行中に他の
                         テキストを持たない。
-                        描画はキャプションの出現まで保留される。
+                        描画は原則としてキャプションの出現まで保留される。
                     """
                     matchFig = self.reFig.match(tmp.group())
                     if matchFig:
-                        if figstack:
-                            # 挿図が連続する場合等、未出力の挿図がある場合はここで描画する
-                            a = figstack.pop()
-                            __insertfig(a[0], a[1])
-                            figcapcount = 0
-
                         try:
                             fname = matchFig.group(u'filename')
                             tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
@@ -1609,11 +1604,34 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmpRasio = min(
                                     min((tmpH / figheight)*0.8, (tmpW / figwidth)*0.9),
                                     1.0)
-                        # 画像幅をピクセルから行数に換算する
-                        # ここで改行しないことに注意。改行はキャプションで行う。
-                        figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
+
+                        matchFig2 = self.reFig2.match(tmp.group())
+                        if matchFig2 and matchFig2.group(u'caption') == u'＃＃＃＃＃':
+                            # キャプションを調べて、キャプションなし画像（キャプションが＃＃＃＃＃）で
+                            # あれば、回り込み処理を指定する。
+
+                            # 直前の画像への衝突を回避する為の暫定措置
+                            while self.imgwidth_lines > 0:
+                                self.__write2file(dfile, '\n')
+                                self.imgwidth_lines -= 1
+
+                            __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\n' % (
                                         fname, figwidth, figheight, tmpRasio),
-                                        int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth)))) )
+                                        int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth))),
+                                        False )
+                            # 回りこむ行数を求める。画像タグ分（１行）を減じている。
+                            self.imgwidth_lines = int(math.ceil(
+                                float(figwidth)*float(tmpRasio)/float(self.currentText.get_value('linewidth')))) -1
+                            # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
+                            self.imgheight_chars = int(math.ceil(
+                                float(figheight)*float(tmpRasio)/float(self.currentText.get_value('fontheight')))) +1
+                        else:
+                            # 画像幅をピクセルから行数に換算する
+                            # ここで改行しないことに注意。改行はキャプションで行う。
+                            figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
+                                        fname, figwidth, figheight, tmpRasio),
+                                        int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth))),
+                                        True) )
                         figcapcount = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
@@ -1631,7 +1649,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 無視される。
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0], a[1])
+                            __insertfig(a[0], a[1], a[2])
                             self.countpage = False
                             self.__write2file(dfile,
                                     u'<aozora caption="dmy">%s</aozora>\n' %
@@ -1655,7 +1673,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             if figstack:
                                 # 行の分割を回避するため、結果を直接書き出す。
                                 a = figstack.pop()
-                                __insertfig(a[0], a[1])
+                                __insertfig(a[0], a[1], a[2])
                                 self.countpage = False
                                 self.__write2file(dfile,
                                     u'<aozora caption="dmy">%s</aozora>\n' %
@@ -1681,7 +1699,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         # キャプションの完成を待たないで取り敢えず挿図を行う
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0], a[1])
+                            __insertfig(a[0], a[1], a[2])
                             figcapcount = 0
 
                         # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える。
@@ -1723,10 +1741,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.countpage = True
                         continue
 
-                    #
-                    if figstack:
-                        a = figstack.pop()
-                        __insertfig(a[0]+'\n', a[1])
 
                     """ ページの左右中央
                     """
@@ -1776,6 +1790,10 @@ class Aozora(ReaderSetting, AozoraScale):
                             # ページ先頭に出現した場合は改ページしない
                             while not self.__write2file(dfile, '\n'):
                                 pass
+                            # 挿図に対するテキストの回りこみを解除
+                            self.imgwidth_lines = 0
+                            self.imgheight_chars = 0
+
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -1983,13 +2001,11 @@ class Aozora(ReaderSetting, AozoraScale):
                     if figcapcount:
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0]+'\n', a[1])
+                            __insertfig(a[0]+'\n', a[1], a[2])
                             figcapcount = 0
 
                     self.__write2file(dfile, "%s\n" % lnbuf)
                     continue
-
-
 
                 """ インデント一式 (字下げ、字詰、字上げ、地付き)
                             |<---------- self.chars ------------>|
@@ -2002,6 +2018,12 @@ class Aozora(ReaderSetting, AozoraScale):
                 """
                 jisage3 = jisage
                 while lnbuf != '':
+                    #   画像回り込みの処理
+                    #
+                    if self.imgwidth_lines > 0:
+                        lnbuf = u'　' * self.imgheight_chars  + lnbuf
+                        self.imgwidth_lines -= 1
+
                     #   1行の表示桁数の調整
                     #   優先順位
                     #       jiage > jisage > jizume
@@ -2077,7 +2099,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     if figcapcount:
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0]+'\n', a[1])
+                            __insertfig(a[0]+'\n', a[1], a[2])
                             figcapcount = 0
 
                     """ 行をバッファ(中間ファイル)へ掃き出す

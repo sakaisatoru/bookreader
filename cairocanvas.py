@@ -548,9 +548,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 del layout
             else:
                 if u'img' in dicArg:
+                    # 段落埋め込みの画像
                     sTmp = sTmp.replace(u'＃',u'　')
                     layout.set_markup(sTmp)
-                    # 段落埋め込みの画像
                     # 描画位置の調整
                     length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
                     imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
@@ -570,7 +570,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 elif u'img2' in dicArg:
                     # 画像
                     pangoctx.translate(self.xpos + xposoffset,
-                        self.ypos + int(self.get_value(u'fontheight'))*1)
+                        self.ypos + int(self.get_value(u'fontheight'))*0.5)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img2']))
@@ -590,6 +590,27 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
                     del img
 
+                elif u'img3' in dicArg:
+                    # 回りこみを伴う画像
+                    pangoctx.translate(self.xpos + xposoffset - int(float(dicArg[u'rasio'])*float(dicArg[u'width'])),
+                        self.ypos + int(self.get_value(u'fontheight'))*0.5)
+                    pangoctx.rotate(0)
+                    img = cairo.ImageSurface.create_from_png(
+                                os.path.join(self.aozoratextdir,dicArg[u'img3']))
+
+                    ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
+                    # scaleで画像を縮小すると座標系全てが影響を受ける為、
+                    # translate で指定したものを活かす
+                    sp = cairo.SurfacePattern(self.sf)
+                    sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
+                    ctx.set_source_surface(img,0,0)
+                    ctx.paint()
+                    length = float(self.get_value(u'fontheight'))*1 + \
+                        math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
+
+                    del img
+
+
                 elif u'caption' in dicArg:
                     # 画像が表示されていればキャプションを横書きで表示する。
                     if self.figstack:
@@ -602,7 +623,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         layout.set_markup(sTmp)
                         span, length = layout.get_pixel_size()
                         pangoctx.translate(
-                            self.xpos + xposoffset,
+                            self.xpos + xposoffset + max(0, (tmpwidth-span)/2),
                             self.ypos )
                         pangoctx.rotate(0)
                         pangoctx.update_layout(layout)

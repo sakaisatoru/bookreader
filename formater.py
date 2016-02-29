@@ -242,7 +242,7 @@ class Aozora(ReaderSetting, AozoraScale):
     reFig = re.compile(
         ur'(［＃(.+?)?（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
     reFig2 = re.compile(
-        ur'(［＃「(?P<caption>.+?)」のキャプション付きの(.+?)（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
+        ur'(［＃(「(?P<caption>.+?)」)?(の?)キャプション付きの(.+?)（(?P<filename>[\w\-]+?\.png)(、横\d+?×縦\d+?)??）入る］)')
 
     # 訓点・返り点
     reKuntenOkuri = re.compile(ur'(［＃（(?P<name>.+?)）］)')
@@ -1185,7 +1185,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp2 = self.reMama.match(tmp.group())
                         if tmp2:
                             sNameTmp = tmp2.group(u'name')
-                            #reTmp = re.compile( ur'%s$' % sNameTmp )
                             tmprubipos = sNameTmp.find(u'rubi="')
                             if tmprubipos != -1:
                                 # 親文字にルビタグが含まれる場合は結合する
@@ -1195,7 +1194,6 @@ class Aozora(ReaderSetting, AozoraScale):
                                 # 一つだけ削除するので [::-1]で反転している。
                                 tmprubipos2 = sNameTmp[tmprubipos+6:].find(u'"')
                                 lnbuf = u'%s%s%s%s%s' % (
-                                    #reTmp.sub( u'', lnbuf[:tmp.start()]),
                                     lnbuf[:tmp.start()][::-1].replace(sNameTmp[::-1],u'',1)[::-1],
                                     sNameTmp[:tmprubipos+6+tmprubipos2],
                                     u'〔ママ〕' if tmp2.group('type').find(u'ママ') != -1 else u'',
@@ -1204,7 +1202,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             else:
                                 sNameTmp2 = tmp2.group('type') if not tmp2.group(u'mama') else tmp2.group(u'mama')
                                 lnbuf = u'%s<aozora rubi="〔%s〕" length="%d">%s</aozora>%s' % (
-                                    #reTmp.sub( u'', lnbuf[:tmp.start()]),
                                     lnbuf[:tmp.start()][::-1].replace(sNameTmp[::-1],u'',1)[::-1],
                                     sNameTmp2.strip(u'（〔〕）'), len(sNameTmp),
                                     sNameTmp, lnbuf[tmp.end():] )
@@ -1591,6 +1588,11 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        # 直前の画像への衝突を回避する為の暫定措置
+                        while self.imgwidth_lines > 0:
+                            self.__write2file(dfile, '\n')
+                            self.imgwidth_lines -= 1
+
                         tmpH = float(self.currentText.get_value(u'scrnheight')) - \
                                 float(self.currentText.get_value(u'bottommargin')) - \
                                         float(self.currentText.get_value(u'topmargin'))
@@ -1601,36 +1603,32 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 表示領域に収まるような倍率を求める
                         # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
                         # 考慮して0.9程度の定数を乗じている。
-                        tmpRasio = min(
-                                    min((tmpH / figheight)*0.8, (tmpW / figwidth)*0.9),
-                                    1.0)
+                        tmpRasio = min( 1.0,
+                                        min( tmpH / figheight,
+                                             tmpW / figwidth  ) )
 
                         matchFig2 = self.reFig2.match(tmp.group())
                         if matchFig2 and matchFig2.group(u'caption') == u'＃＃＃＃＃':
                             # キャプションを調べて、キャプションなし画像（キャプションが＃＃＃＃＃）で
                             # あれば、回り込み処理を指定する。
 
-                            # 直前の画像への衝突を回避する為の暫定措置
-                            while self.imgwidth_lines > 0:
-                                self.__write2file(dfile, '\n')
-                                self.imgwidth_lines -= 1
-
-                            __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\n' % (
-                                        fname, figwidth, figheight, tmpRasio),
-                                        int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth))),
-                                        False )
-                            # 回りこむ行数を求める。画像タグ分（１行）を減じている。
+                            # 回りこむ行数を求める。
                             self.imgwidth_lines = int(math.ceil(
-                                float(figwidth)*float(tmpRasio)/float(self.currentText.get_value('linewidth')))) -1
+                                figwidth*tmpRasio/self.currentText.canvas_linewidth))
                             # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
                             self.imgheight_chars = int(math.ceil(
-                                float(figheight)*float(tmpRasio)/float(self.currentText.get_value('fontheight')))) +1
+                                figheight*tmpRasio/float(self.currentText.get_value('fontheight')))) +1
+                            # キャプションが続かないのでここで出力する。
+                            __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\r' % (
+                                        fname, figwidth, figheight, tmpRasio),
+                                        self.imgwidth_lines,
+                                        False )
                         else:
                             # 画像幅をピクセルから行数に換算する
                             # ここで改行しないことに注意。改行はキャプションで行う。
                             figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
                                         fname, figwidth, figheight, tmpRasio),
-                                        int(round(figwidth*tmpRasio / float(self.currentText.canvas_linewidth))),
+                                        int(math.ceil(figwidth*tmpRasio / self.currentText.canvas_linewidth)),
                                         True) )
                         figcapcount = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
@@ -1674,11 +1672,13 @@ class Aozora(ReaderSetting, AozoraScale):
                                 # 行の分割を回避するため、結果を直接書き出す。
                                 a = figstack.pop()
                                 __insertfig(a[0], a[1], a[2])
+
                                 self.countpage = False
                                 self.__write2file(dfile,
                                     u'<aozora caption="dmy">%s</aozora>\n' %
                                         self.reAozoraTagRemove.sub(u'',tmp.group(u'name')))
                                 self.countpage = True
+
                             lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
                         else:
                             # [＃キャプション終わり]で閉じていなければ、捨てて終わる

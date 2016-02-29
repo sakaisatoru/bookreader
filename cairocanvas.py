@@ -555,10 +555,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
                     imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
                     imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
-                    #length = int(dicArg[u'height'])
-                    #print length
                     pangoctx.translate(self.xpos + xposoffset - imgtmpx,
-                                            #self.ypos)
                                             self.ypos+imgtmpy)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
@@ -569,7 +566,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 elif u'img2' in dicArg:
                     # 画像
-                    pangoctx.translate(self.xpos + xposoffset,
+                    pangoctx.translate(self.xpos + xposoffset,# + self.canvas_linewidth,
                         self.ypos + int(self.get_value(u'fontheight'))*0.5)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
@@ -585,8 +582,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     length = float(self.get_value(u'fontheight'))*1 + \
                         math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
                     # キャプション用に退避
-                    self.figstack.append((self.xpos,
-                        self.ypos + int(self.get_value(u'fontheight'))*1 + length,
+                    self.figstack.append((self.xpos,# + self.canvas_linewidth,
+                        self.ypos + int(self.get_value(u'fontheight'))/2 + length,
                         round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
                     del img
 
@@ -607,9 +604,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     ctx.paint()
                     length = float(self.get_value(u'fontheight'))*1 + \
                         math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
-
                     del img
-
 
                 elif u'caption' in dicArg:
                     # 画像が表示されていればキャプションを横書きで表示する。
@@ -919,7 +914,13 @@ class CairoCanvas(ReaderSetting, AozoraScale):
 
                 self.drawstring.settext(s0, xpos, self.canvas_topmargin)
                 #self.drawstring.destroy()
-                xpos -= self.canvas_linewidth
+
+                # 行末が CR の場合は改行しないで終わる
+                if s0:
+                    if s0[-1] != '\r':
+                        xpos -= self.canvas_linewidth
+                else:
+                    xpos -= self.canvas_linewidth
 
         # ノンブル(ページ番号)
         if currentpage:

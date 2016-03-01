@@ -1604,8 +1604,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
                         # 考慮して0.9程度の定数を乗じている。
                         tmpRasio = min( 1.0,
-                                        min( tmpH / figheight,
-                                             tmpW / figwidth  ) )
+                                        min( tmpH / figheight * 0.8,
+                                             tmpW / figwidth  * 0.9) )
 
                         matchFig2 = self.reFig2.match(tmp.group())
                         if matchFig2 and matchFig2.group(u'caption') == u'＃＃＃＃＃':

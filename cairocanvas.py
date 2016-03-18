@@ -589,7 +589,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 elif u'img3' in dicArg:
                     # 回りこみを伴う画像
-                    pangoctx.translate(self.xpos + xposoffset - int(float(dicArg[u'rasio'])*float(dicArg[u'width'])),
+                    pangoctx.translate(self.xpos + xposoffset - int(
+                            float(dicArg[u'rasio'])*float(dicArg[u'width'])),
                         self.ypos + int(self.get_value(u'fontheight'))*0.5)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
@@ -721,8 +722,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             dashctx.new_path()
                             dashctx.set_line_width(1)
                             dashctx.move_to(self.xpos + xposoffset + honbunxpos,
-                                                    self.ypos+1)
-                            dashctx.rel_line_to(0, length-3)
+                                                    self.ypos)
+                            dashctx.rel_line_to(0, length)
                             dashctx.close_path()
                             dashctx.stroke()
                     else:
@@ -865,7 +866,8 @@ class CairoCanvas(ReaderSetting, AozoraScale):
 
         with codecs.open(buffname, 'r', 'UTF-8') as f0:
             f0.seek(pageposition)
-            for i in xrange(self.pagelines):
+            i = self.pagelines #+ 1
+            while i:
                 s0 = f0.readline().rstrip('\n')
 
                 tmpxpos = s0.find(u'<aozora keikakomi="start"></aozora>')
@@ -919,8 +921,10 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                 if s0:
                     if s0[-1] != '\r':
                         xpos -= self.canvas_linewidth
+                        i -= 1
                 else:
                     xpos -= self.canvas_linewidth
+                    i -= 1
 
         # ノンブル(ページ番号)
         if currentpage:

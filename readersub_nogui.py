@@ -121,6 +121,7 @@ class AozoraScale(object):
         """
         l = 0.0
         inTag = False
+        inTatenakayoko = False
         tagname = u''
         tagstack = []
         fontsizename = u'normal'
@@ -140,6 +141,8 @@ class AozoraScale(object):
                             if tmp:
                                 if tmp.group('name') in self.fontsizefactor:
                                     fontsizename = u'normal' # 文字サイズの復旧
+                            elif u'tatenakayoko' in tagname:
+                                inTatenakayoko = False
                             elif self.reAozoraHalf.search(tagstack.pop()):
                                 adj = 1.0 # 送り量の復旧
                     else:
@@ -147,6 +150,9 @@ class AozoraScale(object):
                         if tmp:
                             if tmp.group('name') in self.fontsizefactor:
                                 fontsizename = tmp.group('name') # 文字サイズ変更
+                        elif u'tatenakayoko' in tagname:
+                            inTatenakayoko = True
+                            l += 1.0 # 縦中横の高さは常に１、ここで加算する
                         else:
                             # 連続して出現する括弧
                             tmp = self.reAozoraHalf.search(tagname)
@@ -158,6 +164,11 @@ class AozoraScale(object):
             elif s == u'<':
                 inTag = True
                 tagname = s
+
+            elif inTatenakayoko:
+                # 縦中横の中身の高さは常に１なので、ここでは計算しない
+                pass
+
             else:
                 # 画面上における全長を計算
                 l += self.charwidth(s) * self.fontsizefactor[fontsizename] * adj

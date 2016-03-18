@@ -729,8 +729,10 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
             self.__reloadindexfile()
         if worksID in self.db.idxWorksAuthor:
             for i in self.db.idxWorksAuthor[worksID]:
+                # 引数に空白が含まれると名前が分断されて検索されることがあるので、
+                # 空白を%20に置換してから検索する。
                 subprocess.Popen(['xdg-open',
-                    'https://www.google.co.jp/search?q="%s"' % self.db.author[i].split('|')[1]])
+                    'https://www.google.co.jp/search?q="%s"' % self.db.author[i].split('|')[1].replace(u' ', u'%20').replace(u'　', u'%20')])
 
     def __ZipFile(self, fn, mode):
         """ zipfile.ZipFile の差し替え

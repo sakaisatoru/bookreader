@@ -498,7 +498,7 @@ class Aozora(ReaderSetting, AozoraScale):
             """ ２文字以上のDASHの連結の下請け
             """
             if a.group('name'):
-                return u'<aozora dash="dmy">%s</aozora>' % a.group('name')
+                return u'<aozora dash="dmy">%s</aozora>' % u'　' * len(a.group('name'))
             return u''
 
         def __aozoratag_replace(a):
@@ -2825,7 +2825,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.currentText.pagecounter))
                     self.inMidashi = False
 
-            self.linecounter += 1
+            if s[-1] == '\n':
+                self.linecounter += 1
             if self.linecounter >= self.currentText.pagelines:
                 # 1頁出力し終えたらその位置を記録する
                 self.currentText.pagecounter += 1

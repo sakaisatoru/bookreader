@@ -1085,7 +1085,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］非安定版　2016［＃「2016」は縦中横］年2［＃「2」は縦中横］月29［＃「29」は縦中横］日\n'+
+                u'［＃１字下げ］非安定版　2016［＃「2016」は縦中横］年3［＃「3」は縦中横］月20［＃「20」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
@@ -1115,7 +1115,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'［＃改ページ］\n'+
                 u'\nライセンス［＃「ライセンス」は大見出し］\n'+
                 u'［＃ここから１字下げ］\n' +
-                u'Copyright 2015 sakaisatoru  endeavor2wako@gmail.com\n'+
+                u'Copyright 2016 sakaisatoru  endeavor2wako@gmail.com\n'+
                 u'\n'+
                 u'This program is free software; you can redistribute it and/or modify '+
                 u'it under the terms of the GNU General Public License as published by '+

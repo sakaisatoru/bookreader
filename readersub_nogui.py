@@ -391,6 +391,7 @@ class ReaderSetting(object):
         self.canvas_topmargin   = int(self.get_value(u'topmargin'))
         self.canvas_rightmargin = int(self.get_value(u'rightmargin'))
         self.canvas_fontsize    = float(self.get_value( u'fontsize'))
+        self.canvas_fontheight  = float(self.get_value(u'fontheight'))
         self.canvas_rubifontsize= float(self.get_value( u'rubifontsize'))
         self.canvas_linewidth   = int(self.get_value(u'linewidth'))
         self.canvas_rubispan    = int(self.get_value(u'rubiwidth'))#

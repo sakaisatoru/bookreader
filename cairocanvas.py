@@ -414,7 +414,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             """ キャプション用の横書き整形
                 禁則処理無し
             """
-            ch = float(self.get_value(u'fontheight')) * self.fontmagnification( u'size="smaller"' )
+            ch = self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )
             l = 0.
             s0 = []
             f = False
@@ -567,7 +567,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 elif u'img2' in dicArg:
                     # 画像
                     pangoctx.translate(self.xpos + xposoffset,# + self.canvas_linewidth,
-                        self.ypos + int(self.get_value(u'fontheight'))*0.5)
+                        self.ypos + self.canvas_fontheight*0.5)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img2']))
@@ -579,11 +579,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = float(self.get_value(u'fontheight'))*1 + \
+                    length = self.canvas_fontheight + \
                         math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
                     # キャプション用に退避
                     self.figstack.append((self.xpos,# + self.canvas_linewidth,
-                        self.ypos + int(self.get_value(u'fontheight'))/2 + length,
+                        self.ypos + int(self.canvas_fontheight)/2 + length,
                         round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
                     del img
 
@@ -591,7 +591,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 回りこみを伴う画像
                     pangoctx.translate(self.xpos + xposoffset - int(
                             float(dicArg[u'rasio'])*float(dicArg[u'width'])),
-                        self.ypos + int(self.get_value(u'fontheight'))*0.5)
+                        self.ypos + self.canvas_fontheight*0.5)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img3']))
@@ -603,8 +603,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = float(self.get_value(u'fontheight'))*1 + \
+                    length = self.canvas_fontheight + \
                         math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
+                    # キャプション用に退避
+                    # ただし、キャプションが続かない場合、スタックに取り残される。
+                    self.figstack.append((self.xpos - int(self.canvas_fontheight - self.canvas_linewidth*0.25 + \
+                        math.ceil(float(dicArg[u'width'])*float(dicArg[u'rasio']))),
+                        self.ypos + int(self.canvas_fontheight)/2 + length,
+                        round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
                     del img
 
                 elif u'caption' in dicArg:
@@ -643,7 +649,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     layout.set_markup(u'<span size="x-small">%s</span>' % ''.join(sTmp))
                     x0,y = layout.get_pixel_size()
                     pangoctx.translate(self.xpos + y//2,
-                                    self.ypos + int(round(float(length-x0)/2.)))
+                                    self.ypos + int(round((length-x0)/2.)))
                     pangoctx.rotate(1.57075)
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)
@@ -823,7 +829,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         offset_y = 0            # 文字列の書き出し位置
         tmpwidth = 0
         tmpheight = 0
-        fontheight = int(self.get_value(u'fontheight'))
+        fontheight = int(self.canvas_fontheight)
         fontwidth = fontheight # 暫定
 
         xpos = self.canvas_width - self.canvas_rightmargin - int(math.ceil(self.canvas_linewidth/2.))
@@ -868,7 +874,8 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             f0.seek(pageposition)
             i = self.pagelines #+ 1
             while i:
-                s0 = f0.readline().rstrip('\n')
+                #s0 = f0.readline().rstrip('\n')
+                s0 = f0.readline()
 
                 tmpxpos = s0.find(u'<aozora keikakomi="start"></aozora>')
                 if tmpxpos != -1:
@@ -876,14 +883,14 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                     inKeikakomi = True
                     offset_y = self.chars
                     maxchars = 0
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+35:]
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+35:] # tagを抜去
                     KeikakomiXendpos = xpos# + int(round(self.canvas_linewidth/2.))
 
                 tmpxpos = s0.find(u'<aozora keikakomi="end"></aozora>')
                 if tmpxpos != -1:
                     # 罫囲み終わり
                     inKeikakomi = False
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+33:]
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+33:] # tagを抜去
                     if offset_y > 0:
                         offset_y -= 1
                     maxchars -= offset_y
@@ -914,7 +921,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                         if tmpheight < offset_y:
                             offset_y = tmpheight
 
-                self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                self.drawstring.settext(s0.rstrip('\n'), xpos, self.canvas_topmargin)
                 #self.drawstring.destroy()
 
                 # 行末が CR の場合は改行しないで終わる

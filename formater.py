@@ -260,7 +260,8 @@ class Aozora(ReaderSetting, AozoraScale):
         ur'((?P<suri>\d+?)刷)')
 
     # 描画対策
-    reDash = re.compile( ur'(?P<name>―{2,})' ) # 2文字以上のDASHの連結
+    #reDash = re.compile( ur'(?P<name>―{2,})' ) # 2文字以上のDASHの連結
+    reDash = re.compile( ur'(―{2,})' ) # 2文字以上のDASHの連結
 
     # 禁則
     """
@@ -497,9 +498,7 @@ class Aozora(ReaderSetting, AozoraScale):
         def __dashsub(a):
             """ ２文字以上のDASHの連結の下請け
             """
-            if a.group('name'):
-                return u'<aozora dash="dmy">%s</aozora>' % u'　' * len(a.group('name'))
-            return u''
+            return u'<aozora dash="dmy">%s</aozora>' % (u'＃' * len(a.group()))
 
         def __aozoratag_replace(a):
             """ 単純なPangoタグへの置換の下請け
@@ -1614,7 +1613,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                             # 回りこむ行数を求める。
                             self.imgwidth_lines = int(math.ceil(
-                                figwidth*tmpRasio/self.currentText.canvas_linewidth))
+                                (figwidth*tmpRasio+self.currentText.canvas_linewidth/2.)/self.currentText.canvas_linewidth))
                             # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
                             self.imgheight_chars = int(math.ceil(
                                 figheight*tmpRasio/float(self.currentText.get_value('fontheight')))) +1

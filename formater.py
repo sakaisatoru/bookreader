@@ -497,7 +497,6 @@ class Aozora(ReaderSetting, AozoraScale):
         def __dashsub(a):
             """ ２文字以上のDASHの連結の下請け
             """
-            #return u'<aozora dash="dmy">%s</aozora>' % (u'＃' * len(a.group()))
             return u'<aozora dash="dmy">%s</aozora>' % a.group()
 
         def __aozoratag_replace(a):

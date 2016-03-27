@@ -103,7 +103,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         pos_end = 0
         while pos_start < end:
             if data[pos_start:pos_start+2] == u'</':
-                # 既存の閉じタグ
+                # 既存の閉じタグを検出
                 if localtagstack and localtagstack[-1] == u'<aozora yokogumi2':
                     # このルーチンで挿入したタグがあれば先に閉じる
                     localtagstack.pop()
@@ -118,9 +118,13 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     continue
 
             elif data[pos_start] == u'<':
-                # タグ
+                # 既存のタグを検出
                 pos_end = data.find( u'>', pos_start)
                 if pos_end != -1:
+                    if localtagstack and localtagstack[-1] == u'<aozora yokogumi2':
+                        # このルーチンで挿入したタグがあれば先に閉じる
+                        localtagstack.pop()
+                        sTmp.append( u'</aozora>' )
                     pos_end += 1
                     localtagstack.append(data[pos_start:pos_end])
                     sTmp.append(data[pos_start:pos_end])
@@ -146,18 +150,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # 縦書き文字検出
                 # このルーチンでの横組みが指定されていれば閉じる
                 localtagstack.pop()
-                postmp = -1
-                try:
-                    while sTmp[postmp][0:2] != u'</' and sTmp[postmp][0] == u'<':
-                        # この文字にタグが掛かっている場合、遡って閉じる
-                        postmp -= 1
-                    postmp += 1
-                    if postmp == 0:
-                        sTmp.append( u'</aozora>' )
-                    else:
-                        sTmp.insert(postmp,u'</aozora>' )
-                except IndexError:
-                    sTmp.append( u'</aozora>' )
+                sTmp.append( u'</aozora>' )
 
             sTmp.append(data[pos_start])
             pos_start += 1

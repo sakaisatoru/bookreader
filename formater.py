@@ -260,7 +260,6 @@ class Aozora(ReaderSetting, AozoraScale):
         ur'((?P<suri>\d+?)刷)')
 
     # 描画対策
-    #reDash = re.compile( ur'(?P<name>―{2,})' ) # 2文字以上のDASHの連結
     reDash = re.compile( ur'(―{2,})' ) # 2文字以上のDASHの連結
 
     # 禁則
@@ -498,7 +497,8 @@ class Aozora(ReaderSetting, AozoraScale):
         def __dashsub(a):
             """ ２文字以上のDASHの連結の下請け
             """
-            return u'<aozora dash="dmy">%s</aozora>' % (u'＃' * len(a.group()))
+            #return u'<aozora dash="dmy">%s</aozora>' % (u'＃' * len(a.group()))
+            return u'<aozora dash="dmy">%s</aozora>' % a.group()
 
         def __aozoratag_replace(a):
             """ 単純なPangoタグへの置換の下請け

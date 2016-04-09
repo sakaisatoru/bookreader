@@ -867,8 +867,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             f0.seek(pageposition)
             i = self.pagelines #+ 1
             while i:
-                #s0 = f0.readline().rstrip('\n')
-                s0 = f0.readline()
+                s0 = f0.readline().rstrip('\n')
 
                 tmpxpos = s0.find(u'<aozora keikakomi="start"></aozora>')
                 if tmpxpos != -1:
@@ -914,15 +913,14 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                         if tmpheight < offset_y:
                             offset_y = tmpheight
 
-                self.drawstring.settext(s0.rstrip('\n'), xpos, self.canvas_topmargin)
-                #self.drawstring.destroy()
-
-                # 行末が CR の場合は改行しないで終わる
                 if s0:
+                    self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                    # 行末が CR の場合は改行しないで終わる
                     if s0[-1] != '\r':
                         xpos -= self.canvas_linewidth
                         i -= 1
                 else:
+                    # 文字列が空なら改行のみで終わる
                     xpos -= self.canvas_linewidth
                     i -= 1
 
@@ -948,7 +946,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                     del layout
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
-                                                            'thisistest.png'))
+                                    'thisistest.png'))
         self.sf.finish()
         del self.drawstring
         del self.sf

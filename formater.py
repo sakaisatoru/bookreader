@@ -1655,6 +1655,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.__write2file(dfile,
                                     u'<aozora caption="dmy">%s</aozora>\r' %
                                         self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]))
+                            # 画像の直後に１行空ける。表示処理の都合で別行にすること。
+                            self.__write2file(dfile,'\n')
                             self.countpage = True
                         lnbuf = u'%s%s' % (lnbuf[:tmpStart], lnbuf[tmp.end():])
                         tmp = self.reCTRL2.search(lnbuf,tmpStart)
@@ -1683,6 +1685,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.__write2file(dfile,
                                 u'<aozora caption="dmy">%s</aozora>\r' %
                                     self.reAozoraTagRemove.sub(u'',tmp.group(u'name')))
+                            # 画像の直後に１行空ける。表示処理の都合で別行にすること。
+                            self.__write2file(dfile,'\n')
                             self.countpage = True
 
                         lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])
@@ -1737,6 +1741,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         # キャプション
                         self.__write2file(dfile,
                                 u'<aozora caption="dmy">%s</aozora>\r' % self.reAozoraTagRemove.sub(u'',sTmp))
+                        # 画像の直後に１行空ける。表示処理の都合で別行にすること。
+                        self.__write2file(dfile,'\n')
                         self.countpage = True       # ページカウントを再開
 
                         lnbuf = u'%s%s' % (lnbuf[:tmp.start()], lnbuf[tmp.end():])

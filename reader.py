@@ -886,8 +886,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         dlg = gtk.AboutDialog()
         dlg.set_program_name(u'青空文庫リーダー')
-        dlg.set_version(u'unstable version')
-        dlg.set_copyright(u'by sakai satoru 2015')
+        dlg.set_version(u'nightly build')
+        dlg.set_copyright(u'by sakai satoru 2016')
         dlg.run()
         dlg.destroy()
 

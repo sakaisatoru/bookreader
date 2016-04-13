@@ -204,6 +204,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     f = True # リガチャ狙い
         return f
 
+    def handle_entityref(self, name):
+        """ &amp; 等があるとトラップされる。そのままだと & < > は表示できないので
+            ここで改めて送出する。
+            尚、feedされた文字列は entity の前後で分割されてしまう。本文表示では問題
+            ないが、キャプションに含まれた場合は entity 以降が表示できない。
+        """
+        self.handle_data(u'&%s;' % name)
+
     def handle_starttag(self, tag, attr):
         self.tagstack.append(tag)
         self.attrstack.append(attr)
@@ -610,7 +618,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 画像が表示されていればキャプションを横書きで表示する。
                     if self.figstack:
                         (self.xpos, self.ypos, tmpwidth) = self.figstack.pop()
-
                         sTmp = __caption_sub_1(sTmp, tmpwidth)
                         pc = layout.get_context() # Pango を得る
                         pc.set_base_gravity('south')

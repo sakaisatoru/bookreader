@@ -134,8 +134,6 @@ class Aozora(ReaderSetting, AozoraScale):
         u'「IIII」':u'<aozora tatenakayoko="IIII">IIII</aozora>'   # 例）ランボオ詩集、中原中也訳
         }
     # 役物置換
-    reKunoji = re.compile(ur'(／＼)')
-    reGunoji = re.compile(ur'(／″＼)')
     reNonokagi = re.compile(ur'((“)(?P<name>.+?)(”))')
     # 青空文庫タグ抽出
     reCTRL = re.compile(ur'(?P<aozoratag>［＃.*?］)')
@@ -607,8 +605,8 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 """ くの字の置換
                 """
-                lnbuf = self.reKunoji.sub( u'〳〵', lnbuf )
-                lnbuf = self.reGunoji.sub( u'〴〵', lnbuf )
+                lnbuf = lnbuf.replace( u'／＼', u'〳〵' )
+                lnbuf = lnbuf.replace( u'／″＼', u'〴〵' )
 
                 """ 描画対策
                     dash の途切れ及び縦書きフォント無しを回避
@@ -917,6 +915,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             reFigで分離できないのでここでトラップする
                         """
                         if self.reFig2.match(tmp.group()):
+                            print tmp.group()
                             tmp = self.reCTRL2.search(lnbuf,tmp.end())
                             continue
 
@@ -933,10 +932,11 @@ class Aozora(ReaderSetting, AozoraScale):
                                 figwidth = tmpPixBuff.get_width()
                                 if figwidth > self.currentText.canvas_linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
-                                    lnbuf = u'%s［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］%s' % (
-                                            lnbuf[:tmp.start()], fname, figwidth, figheight, lnbuf[tmp.end():])
+                                    s = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］\n' % (fname, figwidth, figheight)
+                                    lnbuf = u'%s%s%s' % (
+                                            lnbuf[:tmp.start()], s, lnbuf[tmp.end():])
                                     del tmpPixBuff
-                                    tmp = self.reCTRL2.search(lnbuf)
+                                    tmp = self.reCTRL2.search(lnbuf, tmp.start()+len(s))
                                     continue
 
                                 # 図の高さに相当する文字列を得る

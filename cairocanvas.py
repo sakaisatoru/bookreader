@@ -78,6 +78,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.rubilastXofset = 0     # 直前のルビが左右いずれかを保持
         self.figstack = []          # キャプション表示位置を保持する
 
+        self.captionwidth = 0
+        self.captiondata = u''
+
     def destroy(self):
         del self.tagstack
         del self.attrstack
@@ -207,8 +210,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     def handle_entityref(self, name):
         """ &amp; 等があるとトラップされる。そのままだと & < > は表示できないので
             ここで改めて送出する。
-            尚、feedされた文字列は entity の前後で分割されてしまう。本文表示では問題
-            ないが、キャプションに含まれた場合は entity 以降が表示できない。
         """
         self.handle_data(u'&%s;' % name)
 
@@ -217,6 +218,55 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.attrstack.append(attr)
 
     def handle_endtag(self, tag):
+        def __caption_sub_1(sTmp, width):
+            """ キャプション用の横書き整形
+                禁則処理無し
+            """
+            ch = self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )
+            l = 0.
+            s0 = []
+            f = False
+            for s in sTmp:
+                # <tag> はカウントしない
+                if f:
+                    if s == u'>':
+                        f = False
+                    continue
+                if s == u'<':
+                    f = True
+                    continue
+
+                if s in self.kinsoku:
+                    # 行頭禁則
+                    if s0[-1] == '\n':
+                        # 直前が行末だった場合、非禁則文字に当たるまで遡って改行位置を変える
+                        pos = -2
+                        while s0[pos] in self.kinsoku:
+                            s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+                            pos -= 1
+                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+
+                    s0.append(s)
+                    l += self.charwidth(s) * ch
+                    if l >= width:
+                        s0.append('\n')
+                        l = 0.
+                    continue
+
+                l += self.charwidth(s) * ch
+                if l >= width:
+                    s0.append('\n')
+                    l = 0.
+                    pos = -2
+                    while s0[pos] in self.kinsoku2:
+                        # 行末禁則
+                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+                        pos -= 1
+
+                s0.append(s)
+
+            return u'<span size="smaller">%s</span>' % u''.join(s0)
+
         if self.tagstack != []:
             if self.tagstack[-1] == tag:
                 try:
@@ -232,6 +282,32 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                                 ctx00.rel_line_to(self.keisenxpos*2, 0)
                                 ctx00.stroke()
                                 self.inKeikakomigyou = False
+
+                    elif self.attrstack[-1][0][0] == u'caption':
+                        # 画像が表示されていればキャプションを横書きで表示する。
+                        if self.figstack:
+                            (self.xpos, self.ypos, self.captionwidth) = self.figstack.pop()
+
+                            with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                                ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                                ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
+                                layout = pangoctx.create_layout()
+                                layout.set_font_description(self.font)
+
+                                pc = layout.get_context() # Pango を得る
+                                pc.set_base_gravity('south')
+                                pc.set_gravity_hint('natural')
+                                layout.set_markup(__caption_sub_1(self.captiondata, self.captionwidth))
+                                span, length = layout.get_pixel_size()
+                                pangoctx.translate(
+                                    self.xpos + max(0, (self.captionwidth-span)/2),
+                                    self.ypos )
+                                pangoctx.rotate(0)
+                                pangoctx.update_layout(layout)
+                                pangoctx.show_layout(layout)
+                                del pc
+                            self.captiondata = u''
+
                 except IndexError:
                     pass
                 self.tagstack.pop()
@@ -411,54 +487,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     size = parentsize #
             return size
 
-        def __caption_sub_1(sTmp, width):
-            """ キャプション用の横書き整形
-                禁則処理無し
-            """
-            ch = self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )
-            l = 0.
-            s0 = []
-            f = False
-            for s in sTmp:
-                # <tag> はカウントしない
-                if f:
-                    if s == u'>':
-                        f = False
-                    continue
-                if s == u'<':
-                    f = True
-                    continue
-
-                if s in self.kinsoku:
-                    # 行頭禁則
-                    if s0[-1] == '\n':
-                        # 直前が行末だった場合、非禁則文字に当たるまで遡って改行位置を変える
-                        pos = -2
-                        while s0[pos] in self.kinsoku:
-                            s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-                            pos -= 1
-                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-
-                    s0.append(s)
-                    l += self.charwidth(s) * ch
-                    if l >= width:
-                        s0.append('\n')
-                        l = 0.
-                    continue
-
-                l += self.charwidth(s) * ch
-                if l >= width:
-                    s0.append('\n')
-                    l = 0.
-                    pos = -2
-                    while s0[pos] in self.kinsoku2:
-                        # 行末禁則
-                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-                        pos -= 1
-
-                s0.append(s)
-
-            return u'<span size="smaller">%s</span>' % u''.join(s0)
 
         """------------------------------------------------------------------
         """
@@ -470,6 +498,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         dicArg = {}
         sTmp = data
         fontsizename = u''
+        length = 0.
 
         try:
             # タグスタックに積まれている書式指定を全て付す
@@ -615,24 +644,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     del img
 
                 elif u'caption' in dicArg:
-                    # 画像が表示されていればキャプションを横書きで表示する。
+                    # 画像が表示されていればキャプションを連結する。
                     if self.figstack:
-                        (self.xpos, self.ypos, tmpwidth) = self.figstack.pop()
-                        sTmp = __caption_sub_1(sTmp, tmpwidth)
-                        pc = layout.get_context() # Pango を得る
-                        pc.set_base_gravity('south')
-                        pc.set_gravity_hint('natural')
-                        layout.set_markup(sTmp)
-                        span, length = layout.get_pixel_size()
-                        pangoctx.translate(
-                            self.xpos + xposoffset + max(0, (tmpwidth-span)/2),
-                            self.ypos )
-                        pangoctx.rotate(0)
-                        pangoctx.update_layout(layout)
-                        pangoctx.show_layout(layout)
-                        del pc
+                        self.captiondata += sTmp
                     else:
-                        length = 0.
+                        pass
+                        #length = 0.
 
                 elif u'warichu' in dicArg:
                     # 割り注

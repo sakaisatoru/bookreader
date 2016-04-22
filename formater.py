@@ -261,12 +261,8 @@ class Aozora(ReaderSetting, AozoraScale):
     reDash = re.compile( ur'(―{2,})' ) # 2文字以上のDASHの連結
 
     # 禁則
-    """
-        kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
-        kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
-        kinsoku4 = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»。、．，'
-        kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗、'
-    """
+    # readersub_noguiへ移動
+
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
     hajimekakko = u'（［｛〔〈《「『【〘〖〝‘“｟«'
@@ -915,7 +911,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             reFigで分離できないのでここでトラップする
                         """
                         if self.reFig2.match(tmp.group()):
-                            print tmp.group()
                             tmp = self.reCTRL2.search(lnbuf,tmp.end())
                             continue
 
@@ -932,11 +927,12 @@ class Aozora(ReaderSetting, AozoraScale):
                                 figwidth = tmpPixBuff.get_width()
                                 if figwidth > self.currentText.canvas_linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
-                                    s = u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］\n' % (fname, figwidth, figheight)
                                     lnbuf = u'%s%s%s' % (
-                                            lnbuf[:tmp.start()], s, lnbuf[tmp.end():])
+                                            lnbuf[:tmp.start()],
+                                            u'［＃「＃＃＃＃＃」のキャプション付きの図（%s、横%d×縦%d）入る］' % (fname, figwidth, figheight),
+                                            lnbuf[tmp.end():])
                                     del tmpPixBuff
-                                    tmp = self.reCTRL2.search(lnbuf, tmp.start()+len(s))
+                                    tmp = self.reCTRL2.search(lnbuf)
                                     continue
 
                                 # 図の高さに相当する文字列を得る
@@ -1493,6 +1489,13 @@ class Aozora(ReaderSetting, AozoraScale):
 
             self.__write2file(dfile, tag)
 
+        def __cancelfiglayout():
+            """ 挿図周辺のテキスト回り込みをキャンセルする
+            """
+            while self.imgwidth_lines > 0:
+                self.__write2file(dfile, u'\n')
+                self.imgwidth_lines -= 1
+
         if output_file:
             self.destfile = output_file
         if mokuji_file:
@@ -1587,9 +1590,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             continue
 
                         # 直前の画像への衝突を回避する為の暫定措置
-                        while self.imgwidth_lines > 0:
-                            self.__write2file(dfile, '\n')
-                            self.imgwidth_lines -= 1
+                        __cancelfiglayout()
 
                         tmpH = float(self.currentText.get_value(u'scrnheight')) - \
                                 float(self.currentText.get_value(u'bottommargin')) - \
@@ -1641,16 +1642,15 @@ class Aozora(ReaderSetting, AozoraScale):
                     if tmp2:
                         tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        # 直前に挿図があるかチェックする。もし、挿図が無ければこのキャプションは
+                        # 未出力の挿図があるかチェックする。もし無ければこのキャプションは
                         # 無視される。
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0], a[1], a[2])
+                            __insertfig(a[0], a[1])
                             figcapcount = 0
                             # 回り込み処理のキャンセル
-                            while self.imgwidth_lines > 0:
-                                self.__write2file(dfile, u'\n')
-                                self.imgwidth_lines -= 1
+                            __cancelfiglayout()
+
                             self.countpage = False
                             self.__write2file(dfile,
                                     u'<aozora caption="dmy">%s</aozora>\r' %
@@ -1669,23 +1669,27 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     if tmp.group() == u'［＃キャプション］':
                         # 直前に挿図があれば出力する。
+                        figflag = True # 挿図がここで出力されているか
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0], a[1], a[2])
+                            __insertfig(a[0], a[1]) #, a[2])
                             figcapcount = 0
+                            figflag = False
+
                         tmp = self.reCaption2.search(lnbuf,tmp.start())
                         if tmp:
-                            # 回り込み処理のキャンセル
-                            while self.imgwidth_lines > 0:
-                                self.__write2file(dfile, u'\n')
-                                self.imgwidth_lines -= 1
-
                             # [＃キャプション終わり]で閉じていれば、キャプションとして出力する
+
+                            # 回り込み処理のキャンセル
+                            __cancelfiglayout()
+
                             self.countpage = False
                             self.__write2file(dfile,
                                 u'<aozora caption="dmy">%s</aozora>\r' %
                                     self.reAozoraTagRemove.sub(u'',tmp.group(u'name')))
-                            # 画像の直後に１行空ける。表示処理の都合で別行にすること。
+                            # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
+                            if figflag:
+                                self.__write2file(dfile,'\n')
                             self.__write2file(dfile,'\n')
                             self.countpage = True
 
@@ -1701,9 +1705,11 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     if tmp.group() == u'［＃ここからキャプション］':
                         # キャプションの完成を待たないで取り敢えず挿図を行う
+                        figflag = True
                         if figstack:
                             a = figstack.pop()
-                            __insertfig(a[0], a[1], a[2])
+                            __insertfig(a[0], a[1]) #, a[2])
+                            figflag = False
                             figcapcount = 0
 
                         # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える。
@@ -1720,7 +1726,9 @@ class Aozora(ReaderSetting, AozoraScale):
                         sTmp = u''
                         dfile.seek(0)
                         for sCenter in dfile:
-                            sTmp += sCenter.rstrip(u'\n') # +u'\\n'
+                            sTmp += sCenter.rstrip(u'\n')#+u'\\n'
+                        #sTmp = sTmp.replace( u'\n', u'\\n' )
+
                         if tmp.start() > 0:
                             # 青空文庫の揺らぎへの対策
                             # このタグは本来行頭に置かれる（単独で出現する）べきものだが、
@@ -1732,16 +1740,16 @@ class Aozora(ReaderSetting, AozoraScale):
                         dfile = workfilestack.pop() # 出力先を復元
                         isNoForming = False         # 行の整形を再開
                         self.countpage = True       # ページカウントを再開
-                        # 回り込み処理のキャンセル
-                        while self.imgwidth_lines > 0:
-                            self.__write2file(dfile, u'\n')
-                            self.imgwidth_lines -= 1
+
+                        __cancelfiglayout()         # 回り込み処理のキャンセル
 
                         self.countpage = False      # ページカウントを抑止
                         # キャプション
                         self.__write2file(dfile,
                                 u'<aozora caption="dmy">%s</aozora>\r' % self.reAozoraTagRemove.sub(u'',sTmp))
-                        # 画像の直後に１行空ける。表示処理の都合で別行にすること。
+                        # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
+                        if figflag:
+                            self.__write2file(dfile,'\n')
                         self.__write2file(dfile,'\n')
                         self.countpage = True       # ページカウントを再開
 
@@ -2713,8 +2721,6 @@ class Aozora(ReaderSetting, AozoraScale):
                 else:
                     pass
             except IndexError:
-                #print sTest, currpos, len(sTestCurrent)
-                #print u''.join(sTestCurrent)
                 pass
 
         while substack:

@@ -1537,7 +1537,6 @@ class Aozora(ReaderSetting, AozoraScale):
             figcapcount = 0                     # 挿図からキャプションまでの行数を保持
 
             for lnbuf in self.__formater_pass1():
-                #lnbuf = lnbuf.rstrip('\n')
                 yield
 
                 """ 挿図が出現中
@@ -1547,7 +1546,9 @@ class Aozora(ReaderSetting, AozoraScale):
                     if not lnbuf:
                         # 空行であれば挿図して終わる
                         a = figstack.pop()
-                        __insertfig(a[0]+'\n',a[1], a[2])
+                        #__insertfig(a[0]+'\n',a[1], a[2])
+                        __insertfig(a[0],a[1], a[2])
+                        __write2file(dfile, '\n')
                         figcapcount = 0
                         continue
 

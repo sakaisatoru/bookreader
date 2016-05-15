@@ -430,12 +430,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pc.set_gravity_hint('natural')   # markup 前に実行
                 layout.set_font_description(self.font_rubi)
 
-                # ルビにママをつける場合の処理
-                # ２行表示とする
+                # ママ表示　ルビにママをつける場合は２行表示とする
                 rubipos = dicArg[key].rfind(u'〔ルビママ〕')
                 if rubipos == -1:
                     rubipos = dicArg[key].rfind(u'〔ママ〕')
-                if rubipos != -1:
+                if rubipos > 0:
                     if rubipos <= len(dicArg[key])/2.:
                         # ルビが短い
                         rubitmp = u'%s\n%s' % (dicArg[key][rubipos:],

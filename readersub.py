@@ -101,16 +101,22 @@ class Download(object):
 
                     try:
                         a = zipfile.ZipFile( sLocalfilename, u'r' )
-                        a.extractall( self.get_value(u'aozoracurrent'))
+                        #a.extractall( self.get_value(u'aozoracurrent'))
                         for b in a.namelist():
                             if os.path.split(b)[1][-4:] == '.txt':
+                                a.extractall( self.get_value(u'aozoracurrent'))
                                 lastselectfile = os.path.join(
                                     self.get_value(u'aozoracurrent'), b )
-                                break
+                                raise StopIteration
+                                #break
                         else:
+                            print a.namelist()
                             return (False, u'アーカイブを' + \
                                             u'展開しましたがテキスト' + \
                                             u'ファイルが含まれていません。','')
+                    except StopIteration:
+                        break
+
                     except RuntimeError:
                         return (False, u'ファイルの展開時にエラーが発生' + \
                                         u'しました。ディスク容量等を確認' + \

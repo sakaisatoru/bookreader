@@ -513,9 +513,17 @@ class Aozora(ReaderSetting, AozoraScale):
                 return k
 
             a2 = self.reGaiji4.match(a.group())
+            logging.debug(a.group())
+            logging.debug(a2.group())
             if a2:
                 # 外字置換（Unicode文字）
-                return unichr(int(a2.group('number'),16))
+                # Python の実装によっては unichr が 0xffffまでしか引数をとらないので、
+                # その場合は変換不能としてそのまま返す。
+                try:
+                    k = unichr(int(a2.group('number'),16))
+                except ValueError:
+                    k = a.group()[2:]
+                return k
 
             a2 = self.reKogakiKatakana.match(a.group())
             if a2:

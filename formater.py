@@ -513,8 +513,11 @@ class Aozora(ReaderSetting, AozoraScale):
                 return k
 
             a2 = self.reGaiji4.match(a.group())
-            logging.debug(a.group())
-            logging.debug(a2.group())
+            try:
+                logging.debug(a.group())
+                logging.debug(a2.group())
+            except:
+                pass
             if a2:
                 # 外字置換（Unicode文字）
                 # Python の実装によっては unichr が 0xffffまでしか引数をとらないので、

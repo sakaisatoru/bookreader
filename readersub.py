@@ -49,10 +49,11 @@ class Download(object):
     def __init__(self):
         pass
 
-    def selected_book(self, url, chklocal=True):
+    def selected_book(self, url, textname, chklocal=True):
         """ 指定したURLにアクセスしてダウンロードを試みる。
             (True,最後に展開したファイル名,ローカルファイル名) を返す。
             エラーの場合は (False, エラーメッセージ,'')を返す。
+            2016/10/26 引数 textnameを追加
         """
         readcodecs = 'UTF-8'
         reTarget = re.compile( ur'.+?<td><a href="(?P<TARGETFILE>.+?.zip)">.+?.zip</a></td>' )
@@ -87,7 +88,7 @@ class Download(object):
                             問い合わせる。
                         """
                         isDownload = aozoradialog.msgyesnocancel(
-                            u'既にダウンロードされています。上書きしますか？',
+                            u'"%s" は既にダウンロードされています。上書きしますか？' % textname,
                             self)
                     if isDownload == gtk.RESPONSE_CANCEL:
                         # ひとつのダウンロードをキャンセルする

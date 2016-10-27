@@ -163,7 +163,7 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
         aozoradialog.ao_dialog.__init__(self, *args, **kwargs)
         ReaderSetting.__init__(self)
 
-        self.AOZORA_URL = u'http://www.aozora.gr.jp/index_pages' # whatsnew1.html'
+
 
         # 作品リスト
         self.bl_data = BookListData(model=gtk.ListStore(
@@ -172,7 +172,7 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
                                                         gobject.TYPE_STRING,
                                                         gobject.TYPE_STRING ))
         self.bl_data.set_rules_hint(True)
-        self.bl_data.get_selection().set_mode(gtk.SELECTION_SINGLE)
+        self.bl_data.get_selection().set_mode(gtk.SELECTION_MULTIPLE) # gtk.SELECTION_SINGLE
         self.bl_data.connect("row-activated", self.row_activated_treeview_cb)
 
         self.sw2 = gtk.ScrolledWindow()
@@ -214,8 +214,9 @@ class WhatsNewUI(aozoradialog.ao_dialog, ReaderSetting, Download):
         iters = [c.get_iter(p) for p in d]
         for i in iters:
             (f, sMes, z) = self.selected_book( u'%s/%s' % (
-                            self.AOZORA_URL, c.get_value(i, 3)) )
+                            self.AOZORA_URL, c.get_value(i, 3)), c.get_value(i, 1) )
             worksid = c.get_value(i, 3).split(u'/')[-1].split(u'.')[0].lstrip(u'card')
+
             if not f:
                 aozoradialog.msgerrinfo(sMes, self)
             else:

@@ -886,7 +886,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         dlg = gtk.AboutDialog()
         dlg.set_program_name(u'青空文庫リーダー')
-        dlg.set_version(u'nightly build')
+        dlg.set_version(u'nightly build \n(setting file version %s)' % self.currentversion)
         dlg.set_copyright(u'by sakai satoru 2016')
         dlg.run()
         dlg.destroy()
@@ -1085,7 +1085,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版　2016［＃「2016」は縦中横］年10［＃「10」は縦中横］月15［＃「15」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版　2016［＃「2016」は縦中横］年10［＃「10」は縦中横］月27［＃「27」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+

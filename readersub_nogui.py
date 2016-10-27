@@ -305,7 +305,7 @@ class ReaderSetting(object):
         #   スクリーンサイズ
         #             XGA   WXGA    WSVGA   SVGA
         screendata = [(996 , 672) , (1240 , 752) , (996 , 560) , (740 , 460)]
-        self.currentversion = u'0.33' # 設定ファイルのバージョン
+        self.currentversion = u'0.34' # 設定ファイルのバージョン
         self.dicScreen = {}
         for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
             self.dicScreen[k] = screendata.pop()
@@ -373,7 +373,8 @@ class ReaderSetting(object):
                 u'topmargin':u'32',
                 u'workingdir':cachedir,
                 u'idxfileURL':u'http://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip',
-                u'idxfile':u'list_person_all_extended_utf8.csv'
+                u'idxfile':u'list_person_all_extended_utf8.csv',
+                u'aozoraurl':u'http://www.aozora.gr.jp/index_pages' # whatsnew1.html 0.34で追加'
                 }
             self.update()
 
@@ -396,6 +397,7 @@ class ReaderSetting(object):
         self.canvas_linewidth   = int(self.get_value(u'linewidth'))
         self.canvas_rubispan    = int(self.get_value(u'rubiwidth'))#
         self.canvas_fontname    = self.get_value(u'fontname')#
+        self.AOZORA_URL         = self.get_value(u'aozoraurl') # whatnew.WhatsNewUIより移動
 
     def get_linedata(self, fsize, linestep):
         """ フォントサイズから行幅(ピクセル)を得る

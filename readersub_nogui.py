@@ -26,6 +26,7 @@ import logging
 import math
 import errno
 import unicodedata
+import subprocess
 
 class AozoraScale(object):
     """ 描画時のピクセル長の計算等
@@ -462,4 +463,20 @@ class ReaderSetting(object):
             float(int(s[1+p:1+p+p],16)/f),
             float(int(s[1+p+p:1+p+p+p],16)/f) )
 
+""" 雑関数
+"""
+def linux_get_active_interfaces():
+    """ 外部コマンド 'ip link'　を使ってネットワークインターフェースを検出する。
+        ループバックは含まない。
+        ip コマンドがシステムに用意されているかどうかはチェックしない。
+    """
+    process = subprocess.Popen(['ip', 'link'], stdout=subprocess.PIPE)
+    data, _ = process.communicate()
+    for interface, _ in re.findall(r'\d+: ([^:]+):.*state (UP|UNKNOWN)', data):
+        if interface != 'lo':
+            yield interface
+
+def interface_is_active():
+    a = [i for i in linux_get_active_interfaces()]
+    return True if a != [] else False
 

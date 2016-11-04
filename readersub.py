@@ -35,7 +35,7 @@ import errno
 import gtk
 import gobject
 
-from readersub_nogui import ReaderSetting
+from readersub_nogui import ReaderSetting, interface_is_active
 import aozoradialog
 
 
@@ -164,6 +164,9 @@ class DownloadUI(aozoradialog.ao_dialog, ReaderSetting):
             ow = not os.path.isfile(self.targetlocal)
 
         if ow:
+            if not interface_is_active():
+                return False
+
             try:
                 self.targethandle = urllib2.urlopen(self.target)
                 self.targetsize = long(

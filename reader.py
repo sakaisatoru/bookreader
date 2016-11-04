@@ -24,7 +24,7 @@
 """
 
 import aozoradialog
-from readersub_nogui import ReaderSetting, History
+from readersub_nogui import ReaderSetting, History, interface_is_active
 from formater       import Aozora, AozoraCurrentTextinfo
 from whatsnew       import WhatsNewUI
 from logview        import Logviewer
@@ -776,6 +776,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def whatsnew_cb(self, widget):
         """ 青空文庫新着情報
         """
+        if not interface_is_active():
+            aozoradialog.msginfo(u'ネットワークへの接続状況を確認してください。')
+            return
+
         dlg = WhatsNewUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL,
                                 gtk.STOCK_OPEN,     gtk.RESPONSE_OK))
@@ -902,6 +906,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
     def menu_websearch_cb(self, widget):
         """ ブラウザを呼び出して関連人物の検索を行う
         """
+        if not interface_is_active():
+            aozoradialog.msginfo(u'ネットワークへの接続状況を確認してください。')
+            return
+
         if self.dlgBookopen == None:
             self.dlgBookopen = BunkoUI(parent=self,
                                         flags=gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -954,11 +962,19 @@ class ReaderUI(gtk.Window, ReaderSetting):
             self.savecurrenttexthistory() # 履歴に保存
             self.miHistory.update(self.bookhistory.iter())
             self.isNowFormatting = True
+
+            try:
+                # 新規読み込み
+                a = zipfile.ZipFile(zipname, u'r' )
+                a.extractall(self.aozoratextdir)
+            except IOError:
+                aozoradialog.msgerrinfo(u'ファイルが見当たりません。' )
+                self.isNowFormatting = False
+                return
+
+
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
-            # 新規読み込み
-            a = zipfile.ZipFile(zipname, u'r' )
-            a.extractall(self.aozoratextdir)
             zipname = a.filename
             pb.touchup(fn, zipname, works)
             c = pb.run()
@@ -1085,7 +1101,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版　2016［＃「2016」は縦中横］年10［＃「10」は縦中横］月27［＃「27」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版　2016［＃「2016」は縦中横］年11［＃「11」は縦中横］月5［＃「5」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+

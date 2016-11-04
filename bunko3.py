@@ -674,7 +674,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
                 localfile = dlg.get_localfilename()
                 dlg.destroy()
                 if not rv:
-                    aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。',self)
+                    aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。ネットワークの接続を確認してください。',self)
                     return None
             a = self.__ZipFile( localfile, u'r' )
             a.extractall(self.aozoradir)
@@ -714,7 +714,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
                 if rv == gtk.RESPONSE_YES:
                     subprocess.Popen(['xdg-open', localfile])
         else:
-            aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。', self)
+            aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。ネットワークの接続を確認してください。', self)
             self.selectfile = u''
             self.selectzip = u''
             self.selectworksid = 0

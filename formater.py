@@ -2257,38 +2257,32 @@ class Aozora(ReaderSetting, AozoraScale):
                     sTestCurrent += sTestTmp
                     fLenCurrent += fLenTmp
 
-                if sTestCurrent[-1][0] in self.kinsoku2 or \
-                    (sTestCurrent[-1][:2] == u'</' and (sTestCurrent[-2][0] in self.kinsoku2)):
-                    """ 行末禁則処理
-                        禁則文字が続く場合は全て次行先頭へ追い出す
-                    """
-                    try:
-                        while True:
-                            if sTestCurrent[-1][:2] == u'</' and (sTestCurrent[-2][0] in self.kinsoku2):
-                                # タグ付きの場合の処理
-                                # 閉じタグを移動
-                                sTestNext.insert(0, sTestCurrent.pop())
-                                pixellcc -= fLenCurrent.pop()
-                                # 禁則文字を移動
-                                sTestNext.insert(0, sTestCurrent.pop())
-                                pixellcc -= fLenCurrent.pop()
-                                # タグを移動
-                                sTestNext.insert(0, sTestCurrent.pop())
-                                pixellcc -= fLenCurrent.pop()
-                                continue
+                """ 行末禁則処理
+                    禁則文字が続く場合は全て次行先頭へ追い出す
+                """
+                try:
+                    t_count = -1
+                    # 行末にタグがあればスキップ
+                    while fLenCurrent[t_count] == 0:
+                        t_count -= 1
 
-                            if sTestCurrent[-1][0] in self.kinsoku2:
-                                sTestNext.insert(0, sTestCurrent.pop())
-                                pixellcc -= fLenCurrent.pop()
-                                continue
+                    while sTestCurrent[t_count][0] in self.kinsoku2:
+                        while t_count < 0:
+                            # スキップしたタグも含めて次行へ送る
+                            sTestNext.insert(0, sTestCurrent.pop())
+                            pixellcc -= fLenCurrent.pop()
+                            t_count += 1
 
-                            break
+                        t_count = -1
+                        while fLenCurrent[t_count] == 0:
+                            t_count -= 1
 
-                    except IndexError:
-                        print u'行末禁則処理IndexErrro'
-                        pass
+                except IndexError:
+                    pass
 
-                elif not sTestNext: # 次行先頭への送り込みがなければ
+
+
+                if not sTestNext: # 次行先頭への送り込みがなければ
                     """ 行頭禁則処理
                         調整可能な範囲で前行末へ追い出す。
                         追い出しきれない場合は、前行末から行頭へ移す。

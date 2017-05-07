@@ -80,6 +80,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
         self.captionwidth = 0
         self.captiondata = u''
+        #print self.canvas_rubioffset
 
     def destroy(self):
         del self.tagstack
@@ -405,7 +406,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 d = self.fontwidth /4.          # 表示幅、例えば白丸の直径
                 r = d / 2.                      # 表示幅の半分、例えば白丸の半径
                 # 表示領域左上座標
-                tmpx = self.xpos + xofset + r * (-2 if xofset < 0 else 1)
+                tmpx = self.xpos + \
+                        xofset * self.canvas_rubioffset + \
+                        r * (-2 if xofset < 0 else 1)
                 tmpy = self.ypos + d + r
                 ctx00.new_path()
                 ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT) # cairo.ANTIALIAS_NONE
@@ -459,7 +462,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 if key == u'leftrubi':
                     rubispan = 0
                 #"""
-                pangoctx00.translate(self.xpos + xofset + rubispan + \
+                pangoctx00.translate(self.xpos + rubispan + \
+                                           xofset * self.canvas_rubioffset + \
                                             self.boutenofset, y)
 
                 pangoctx00.rotate(1.57075)
@@ -567,6 +571,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 length, span = layout.get_pixel_size()
 
                 honbunxpos = int(math.ceil(span/2.))
+                print span
                 pangoctx.translate(self.xpos + xposoffset + honbunxpos,
                                                     self.ypos)  # 描画位置
                 pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
@@ -951,6 +956,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
         if currentpage:
             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                 layout = pangoctx.create_layout()
+                layout.set_font_description(self.drawstring.font)
                 layout.set_markup( u'<span size="x-small">%d (全%d頁)</span>' % (currentpage, maxpage))
                 wx,wy = layout.get_pixel_size() # 左下時必要
                 pangoctx.translate(int(self.get_value('leftmargin')), self.canvas_height - wy -4) # 左下時のY位置
@@ -962,6 +968,7 @@ class CairoCanvas(ReaderSetting, AozoraScale):
             if title:
                 with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                     layout = pangoctx.create_layout()
+                    layout.set_font_description(self.drawstring.font)
                     layout.set_markup( u'<span size="x-small">%s</span>' % title.strip(u' ').strip(u'　'))
                     pangoctx.translate(int(self.get_value('leftmargin')), 4) # 表示位置 (左上)
                     pangoctx.update_layout(layout)

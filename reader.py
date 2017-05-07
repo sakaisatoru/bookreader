@@ -369,10 +369,21 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.hbox4.pack_start(self.linesteplabel)
         self.hbox4.pack_end(self.linestep)
 
+        # ルビ表示位置補正値
+        self.rubiadjlabel = gtk.Label( u'ルビ位置調整' )
+        rubiadj = gtk.Adjustment(value=float(self.get_value(u'rubioffset')),
+                                lower=0.1,upper=1.0,step_incr=0.1,page_incr=0.1)
+        self.rubiadjspin = gtk.SpinButton(adjustment = rubiadj,
+                                            climb_rate = 0.1, digits = 1)
+        self.hbox41 = gtk.HBox()
+        self.hbox41.pack_start(self.rubiadjlabel)
+        self.hbox41.pack_end(self.rubiadjspin)
+
         # 3行目
         self.vbox2 = gtk.VBox()
         self.vbox2.pack_start(self.hbox3)
-        self.vbox2.pack_end(self.hbox4)
+        self.vbox2.pack_start(self.hbox4)
+        self.vbox2.pack_end(self.hbox41)
         self.hbox5 = gtk.HBox()
         self.hbox5.pack_start(self.sizelabel)
         self.hbox5.pack_start(self.vbuttonbox)
@@ -386,7 +397,7 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.vbox.pack_start(self.hbox5)
         self.vbox.show_all()
 
-        self.set_size_request(384, 320)
+        self.set_size_request(384, 360)
 
     def fontsel_cb(self, widget):
         """ 本文とルビのフォント名の同期をとる
@@ -436,6 +447,8 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.set_value(u'leftmargin',   str(int(self.leftmargin.get_value())))
         self.set_value(u'rightmargin',  str(int(self.rightmargin.get_value())))
         self.set_value(u'linestep',     str(self.linestep.get_value()))
+
+        self.set_value(u'rubioffset',   str(float(self.rubiadjspin.get_value())))
 
         self.set_value(u'fontcolor',    self.btFontcolor.get_color() )
         self.set_value(u'backcolor',    self.btBackcolor.get_color() )
@@ -1067,7 +1080,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         bookname,author = self.cc.get_booktitle()
         if bookname and self.cc.zipfilename:
-            self.bookhistory.update( u'%s,%d,%s,%s,%s' %
+            self.bookhistory.update( '%s,%d,%s,%s,%s' %
                         (bookname, self.currentpage, self.cc.sourcefile,
                          self.cc.zipfilename, self.cc.worksid))
             self.isBookopened = True # テキストを開いていた、というフラグ
@@ -1101,22 +1114,22 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版　2016［＃「2016」は縦中横］年11［＃「11」は縦中横］月6［＃「6」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年5［＃「5」は縦中横］月7［＃「7」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
-                u'青空文庫《あおぞらぶんこ》 http://www.aozora.gr.jp/ のテキストファイル［＃「テキストファイル」に丸傍点］を Pango と GTK+2 と Python2 を使って縦書きで読もう、というものです。\n'+
+                u'青空文庫《あおぞらぶんこ》［＃「青空文庫」に傍点］ http://www.aozora.gr.jp/ のテキストファイル［＃「テキストファイル」に丸傍点］を Pango と GTK+2 と Python2 を使って縦書きで読もう、というものです。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'\n'+
-                u'実装されていない機能［＃「実装されていない機能」は中見出し］（……以下に代替）\n'+
+                u'［＃波線］実装されていない機能［＃波線終わり］［＃「実装されていない機能」は中見出し］（……以下に代替）\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
-                u'・窓見出し……同行見出し\n'+
+                u'・窓見出し［＃「窓見出し」の左に「まどみだし」のルビ］……同行見出し\n'+
                 u'［＃字下げ終わり］\n'+
                 u'仕様［＃「仕様」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
                 u'・注記には〔〕を付すことでルビと区別しています。\n'+
-                u'・以下は括弧類の送り量の調整の例です。「」・「『』」「ほげ。」\n'+
-                u'・括弧類及び句読点類にルビや注記を表示しません。\n'+
+                u'・以下は括弧類［＃「以下は括弧類」の左に二重傍線］の送り量の調整の例です。「」・「『』」「ほげ。」\n'+
+                u'・［＃傍線］括弧類及び句読点類にルビや注記を表示しません。［＃傍線終わり］\n'+
                 u'［＃字下げ終わり］\n'+
                 u'\n'+
                 u' 既知の問題点 ［＃「 既知の問題点 」は罫囲み］［＃「既知の問題点」は中見出し］\n'+

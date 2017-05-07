@@ -1513,7 +1513,7 @@ class Aozora(ReaderSetting, AozoraScale):
             self.mokujifile = mokuji_file
 
         (self.currentText.booktitle, self.currentText.bookauthor) = self.__get_booktitle_sub()
-        logging.info( u'****** %s ******' % self.currentText.sourcefile)
+        logging.info( '****** %s ******' % self.currentText.sourcefile)
 
         with file(self.currentText.destfile, 'wb') as fpMain, file(self.currentText.mokujifile, 'w') as self.mokuji_f:
             dfile = fpMain                      # フォーマット済出力先

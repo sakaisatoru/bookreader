@@ -10,8 +10,9 @@
 
     開発及び動作確認環境
         LinuxMint 17.3
-            devx.sfs, pygtk及び関連ライブラリ一式
+            pygtk及び関連ライブラリ一式
             TakaoEx明朝
+            TakaoExゴシック
             花園明朝A,B
         以前はPuppyLinux(precise puppy 571JP)で開発していました。ubuntu系の
         派生ディストリビューションであればだいたい動作すると思います。

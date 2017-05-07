@@ -1014,13 +1014,21 @@ class Aozora(ReaderSetting, AozoraScale):
                                 tmp = self.reCTRL2.search(lnbuf)
                             else:
                                 # <>による修飾は抜去される
-                                lnbuf = u'%s<aozora leftrubi="〔底本では%s〕" length="%d">%s</aozora>%s%s' % (
+
+                                # 青空文庫側の入力ミスで前方に修飾されるべき文字列が
+                                # 存在しないと無限ループに陥る事への仮対策。
+                                # 有無を事前にチェックして、無ければタグ挿入を行わない。
+                                # 現在、芥川龍之介「羅生門」旧字旧仮名にこの問題がある。
+                                if lnbuf[:tmp.start()].find(tmp2.group(u'name')) != -1:
+                                    lnbuf = u'%s<aozora leftrubi="〔底本では%s〕" length="%d">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
                                         self.reTagRemove.sub(u'', tmp2.group(u'name2')),
                                         len(self.reTagRemove.sub(u'', tmp2.group(u'name'))),
                                         lnbuf[tmpStart:tmpEnd],
                                         lnbuf[tmpEnd:tmp.start()],
                                         lnbuf[tmp.end():] )
+                                else:
+                                    lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                                 tmp = self.reCTRL2.search(lnbuf, tmpStart)
                             continue
 

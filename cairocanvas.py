@@ -571,7 +571,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 length, span = layout.get_pixel_size()
 
                 honbunxpos = int(math.ceil(span/2.))
-                print span
                 pangoctx.translate(self.xpos + xposoffset + honbunxpos,
                                                     self.ypos)  # 描画位置
                 pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
@@ -679,12 +678,18 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 elif u'tatenakayoko' in dicArg:
                     # 縦中横 直前の表示位置を元にセンタリングする
                     pc = layout.get_context() # Pango を得る
+                    # 横組文字の高さが幅より大きいとレイアウトが崩れるので、
+                    # 高さ（１文字の送り）を予め求める。
+                    pc.set_base_gravity('east')
+                    pc.set_gravity_hint('strong')
+                    layout.set_markup(u'国')
+                    length,y0 = layout.get_pixel_size()
                     pc.set_base_gravity('south')
                     pc.set_gravity_hint('natural')
                     layout.set_markup(sTmp)
-                    y, length = layout.get_pixel_size() #x,yを入れ替えることに注意
+                    y, length0 = layout.get_pixel_size() #x,yを入れ替えることに注意
                     pangoctx.translate(self.xpos + xposoffset - int(math.ceil(y/2.)),
-                                                        self.ypos)
+                                self.ypos - int(round((length0-length)/2.-0.5)))
                     pangoctx.rotate(0)
                     pangoctx.update_layout(layout)
                     pangoctx.show_layout(layout)

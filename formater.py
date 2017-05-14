@@ -2334,11 +2334,13 @@ class Aozora(ReaderSetting, AozoraScale):
                         except IndexError:
                             pass
 
+                        # 行末の空き長さを求める
                         # 調整可能文字での調整量は１文字高の半分が目安
-                        #n = fontheight * math.ceil(len(adjCurrent) / 2.) - pixellcc + pixelsmax
-                        #n = fontheight * round(len(adjCurrent) / 2.) - pixellcc + pixelsmax
-                        n = fontheight * len(adjCurrent) / 2. - pixellcc + pixelsmax
-
+                        n = fontheight * len(adjCurrent) * 0.5 - pixellcc + pixelsmax
+                        # 禁則文字が閉じ括弧類で終わっていたなら、行末の空き長さを調整（延長）する
+                        # これにより、行末に置けるのに次行に送られるのを回避する。
+                        if len(sTestTmp):
+                            n += fontheight * self.charwidth(sTestTmp[-1][-1]) * (0.5 if (sTestTmp[-1][-1] in u'）］｝〕〉》」』】〙〗〟｠') else 0.)
                         if n >= sum(fLenTmp):
                             # ピクセル値で調整可能範囲と比較
                             # 行末に収容できるなら接続

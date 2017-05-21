@@ -28,6 +28,29 @@ import errno
 import unicodedata
 import subprocess
 
+from contextlib import contextmanager
+
+import cairo
+import pango
+import pangocairo
+
+@contextmanager
+def cairocontext(surface):
+    try:
+        context = cairo.Context(surface)
+        yield context
+    finally:
+        del context
+
+@contextmanager
+def pangocairocontext(cairoctx):
+    try:
+        pangoctx = pangocairo.CairoContext(cairoctx)
+        yield pangoctx
+    finally:
+        del pangoctx
+
+
 class AozoraScale(object):
     """ 描画時のピクセル長の計算等
     """
@@ -113,7 +136,38 @@ class AozoraScale(object):
     reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
 
     def __init__(self):
+        self.font_description = None
         pass
+
+    def update_charwidth_2(self, font, size):
+        self.update_charwidth(pango.FontDescription(u'%s %f' % (font,size)))
+
+    def update_charwidth(self, font_des):
+        """ 実際の表示幅から、英数字及び記号（latin）の対全角文字幅比を求める
+        """
+        if font_des != self.font_description:
+            self.font_description = font_des
+            canvas_width = 800
+            canvas_height = 80
+            sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
+                                    canvas_width, canvas_height)
+
+            with cairocontext(sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                layout = pangoctx.create_layout()
+                pc = layout.get_context() # Pango を得る
+                pc.set_base_gravity('south')
+                pc.set_gravity_hint('natural')
+                layout.set_font_description(font_des)
+                layout.set_text( u'国'*40 )
+                span, length = layout.get_pixel_size()
+                f_span = float(span)
+
+                for s in self.charwidth_serif.iterkeys():
+                    layout.set_text(s*40)
+                    x, y = layout.get_pixel_size()
+                    self.charwidth_serif[s] = x / f_span
+                del layout
+
 
     def linelengthcount(self, sline):
         """ 文字列の長さを数える

@@ -175,7 +175,8 @@ class Aozora(ReaderSetting, AozoraScale):
     # キャプション
     reCaption = re.compile(ur'(［＃「(?P<name>.*?)」はキャプション］)')
     reCaption2 = re.compile(ur'(［＃キャプション］(?P<name>.*?)［＃キャプション終わり］)')
-
+    reCaptionWidth = re.compile(ur'width="(?P<width>.+?)"')
+    reCaptionRasio = re.compile(ur'rasio="(?P<rasio>.+?)"')
     # 文字サイズ
     reMojisize = re.compile(ur'(［＃「(?P<name2>.+?)」は(?P<size>.+?)段階(?P<name>.+?)な文字］)')
     reMojisize2 = re.compile(ur'(［＃(ここから)?(?P<size>.+?)段階(?P<name>.+?)な文字］)')
@@ -282,6 +283,8 @@ class Aozora(ReaderSetting, AozoraScale):
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
         AozoraScale.__init__(self)
+        self.update_charwidth_2(self.get_value(u'fontname'),
+                                                float(self.get_value(u'fontsize')))
         self.readcodecs = u'shift_jis'
         self.currentText = AozoraCurrentTextinfo()
         self.set_source()
@@ -1490,6 +1493,69 @@ class Aozora(ReaderSetting, AozoraScale):
     def formater(self, output_file=u'', mokuji_file=u''):
         """ フォーマッタ
         """
+        def __caption_sub_1(sTmp, width):
+            """ キャプション用の横書き整形
+                禁則処理は簡易版
+                改行コードに\rや\nを使うと、表示ルーチンのHTMLパーザがうまく処理できない
+                ので、代替に\a(BELL)を使う。
+            """
+            ch = self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )
+            l = 0.
+            s0 = []
+            f = False
+            for s in sTmp:
+                # <tag> はカウントしない
+                if f:
+                    if s == u'>':
+                        f = False
+                    continue
+                if s == u'<':
+                    f = True
+                    continue
+
+                if s == '\a':
+                    # 複数行連結時の改行位置
+                    s0.append(s)
+                    l = 0.
+                    continue
+
+                if s in self.kinsoku:
+                    # 行頭禁則
+                    try:
+                        if s0[-1] == '\n':
+                            # 直前が行末だった場合、非禁則文字に当たるまで遡って改行位置を変える
+                            pos = -2
+                            while s0[pos] in self.kinsoku:
+                                s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+                                pos -= 1
+                            s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+
+                    except:
+                        pass
+
+                    s0.append(s)
+                    l += self.charwidth(s) * ch
+                    if l >= width:
+                        #キャプション内に改行を置くとページ送りが狂う為、代替
+                        s0.append('\a')
+                        l = 0.
+                    continue
+
+                if l >= width:
+                    #キャプション内に改行を置くとページ送りが狂う為、代替
+                    s0.append('\a')
+                    l = 0.
+                    pos = -2
+                    while s0[pos] in self.kinsoku2:
+                        # 行末禁則
+                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
+                        pos -= 1
+
+                s0.append(s)
+                l += self.charwidth(s) * ch
+
+            return u'<span size="smaller">%s</span>' % u''.join(s0)
+            #return u''.join(s0)
 
         def __insertfig(tag, lines, mode=True):
             """ 挿図出力の下請け
@@ -1593,6 +1659,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     matchFig = self.reFig.match(tmp.group())
                     if matchFig:
+                        figwidth = -1 # 画像幅。キャプション表示幅を兼ねる
                         try:
                             fname = matchFig.group(u'filename')
                             tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
@@ -1625,6 +1692,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmpRasio = min( 1.0,
                                         min( tmpH / figheight * 0.8,
                                              tmpW / figwidth  * 0.9) )
+                        figheight = int(figheight * tmpRasio)
+                        figwidth = int(figwidth * tmpRasio)
 
                         matchFig2 = self.reFig2.match(tmp.group())
                         if matchFig2 and matchFig2.group(u'caption') == u'＃＃＃＃＃':
@@ -1633,10 +1702,10 @@ class Aozora(ReaderSetting, AozoraScale):
 
                             # 回りこむ行数を求める。
                             self.imgwidth_lines = int(math.ceil(
-                                (figwidth*tmpRasio+self.currentText.canvas_linewidth/2.)/self.currentText.canvas_linewidth))
+                                (figwidth+self.currentText.canvas_linewidth/2.)/self.currentText.canvas_linewidth))
                             # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
                             self.imgheight_chars = int(math.ceil(
-                                figheight*tmpRasio/float(self.currentText.get_value('fontheight')))) +1
+                                figheight/float(self.currentText.get_value('fontheight')))) +1
                             # キャプションが続くかどうか不明なのでここで出力する。行末の行頭復帰に留意。
                             __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\r' % (
                                         fname, figwidth, figheight, tmpRasio),
@@ -1647,11 +1716,12 @@ class Aozora(ReaderSetting, AozoraScale):
                             # ここで改行しないことに注意。改行はキャプションで行う。
                             figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
                                         fname, figwidth, figheight, tmpRasio),
-                                        int(math.ceil(figwidth*tmpRasio / self.currentText.canvas_linewidth)),
+                                        int(math.ceil(figwidth / self.currentText.canvas_linewidth)),
                                         True) )
                         figcapcount = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
+
                         continue
 
                     """ キャプション
@@ -1667,6 +1737,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         if figstack:
                             a = figstack.pop()
                             __insertfig(a[0], a[1])
+                            figwidth = int(self.reCaptionWidth.search(a[0]).group(u'width'))
+
                             figcapcount = 0
                             # 回り込み処理のキャンセル
                             __cancelfiglayout()
@@ -1674,7 +1746,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.countpage = False
                             self.__write2file(dfile,
                                     u'<aozora caption="dmy">%s</aozora>\r' %
-                                        self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]))
+                                        __caption_sub_1(self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]), figwidth))
+                            figwidth = -1
                             # 画像の直後に１行空ける。表示処理の都合で別行にすること。
                             self.__write2file(dfile,'\n')
                             self.countpage = True
@@ -1706,7 +1779,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.countpage = False
                             self.__write2file(dfile,
                                 u'<aozora caption="dmy">%s</aozora>\r' %
-                                    self.reAozoraTagRemove.sub(u'',tmp.group(u'name')))
+                                    __caption_sub_1(self.reAozoraTagRemove.sub(u'',tmp.group(u'name')), figwidth))
+                            figwidth = -1
                             # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
                             if figflag:
                                 self.__write2file(dfile,'\n')
@@ -1746,8 +1820,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         sTmp = u''
                         dfile.seek(0)
                         for sCenter in dfile:
-                            sTmp += sCenter.rstrip(u'\n')#+u'\\n'
-                        #sTmp = sTmp.replace( u'\n', u'\\n' )
+                            sTmp += sCenter.rstrip(u'\n')+'\a'# 改行の代替
 
                         if tmp.start() > 0:
                             # 青空文庫の揺らぎへの対策
@@ -1766,7 +1839,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.countpage = False      # ページカウントを抑止
                         # キャプション
                         self.__write2file(dfile,
-                                u'<aozora caption="dmy">%s</aozora>\r' % self.reAozoraTagRemove.sub(u'',sTmp))
+                                u'<aozora caption="dmy">%s</aozora>\r' % __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
+                        figwidth = -1
                         # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
                         if figflag:
                             self.__write2file(dfile,'\n')

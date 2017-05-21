@@ -111,7 +111,6 @@ class Download(object):
                                 raise StopIteration
                                 #break
                         else:
-                            print a.namelist()
                             return (False, u'アーカイブを' + \
                                             u'展開しましたがテキスト' + \
                                             u'ファイルが含まれていません。','')

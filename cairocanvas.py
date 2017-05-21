@@ -80,7 +80,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
         self.captionwidth = 0
         self.captiondata = u''
-        #print self.canvas_rubioffset
 
     def destroy(self):
         del self.tagstack
@@ -180,6 +179,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.font = pango.FontDescription(u'%s %f' % (font,size))
         self.font_rubi = pango.FontDescription(u'%s %f' % (font,rubisize))
 
+        self.update_charwidth(self.font)
+
     def getforegroundcolour(self):
         return (self.foreR,self.foreG,self.foreB)
 
@@ -219,55 +220,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.attrstack.append(attr)
 
     def handle_endtag(self, tag):
-        def __caption_sub_1(sTmp, width):
-            """ キャプション用の横書き整形
-                禁則処理無し
-            """
-            ch = self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )
-            l = 0.
-            s0 = []
-            f = False
-            for s in sTmp:
-                # <tag> はカウントしない
-                if f:
-                    if s == u'>':
-                        f = False
-                    continue
-                if s == u'<':
-                    f = True
-                    continue
-
-                if s in self.kinsoku:
-                    # 行頭禁則
-                    if s0[-1] == '\n':
-                        # 直前が行末だった場合、非禁則文字に当たるまで遡って改行位置を変える
-                        pos = -2
-                        while s0[pos] in self.kinsoku:
-                            s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-                            pos -= 1
-                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-
-                    s0.append(s)
-                    l += self.charwidth(s) * ch
-                    if l >= width:
-                        s0.append('\n')
-                        l = 0.
-                    continue
-
-                l += self.charwidth(s) * ch
-                if l >= width:
-                    s0.append('\n')
-                    l = 0.
-                    pos = -2
-                    while s0[pos] in self.kinsoku2:
-                        # 行末禁則
-                        s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-                        pos -= 1
-
-                s0.append(s)
-
-            return u'<span size="smaller">%s</span>' % u''.join(s0)
-
         if self.tagstack != []:
             if self.tagstack[-1] == tag:
                 try:
@@ -298,7 +250,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                                 pc = layout.get_context() # Pango を得る
                                 pc.set_base_gravity('south')
                                 pc.set_gravity_hint('natural')
-                                layout.set_markup(__caption_sub_1(self.captiondata, self.captionwidth))
+                                layout.set_markup(self.captiondata.replace('\a','\n'))
                                 span, length = layout.get_pixel_size()
                                 pangoctx.translate(
                                     self.xpos + max(0, (self.captionwidth-span)/2),
@@ -612,19 +564,17 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = self.canvas_fontheight + \
-                        math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
+                    length = self.canvas_fontheight + int(dicArg[u'height'])
                     # キャプション用に退避
                     self.figstack.append((self.xpos,# + self.canvas_linewidth,
                         self.ypos + int(self.canvas_fontheight)/2 + length,
-                        round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
+                        int(dicArg[u'width'])) )
                     del img
 
                 elif u'img3' in dicArg:
                     # 回りこみを伴う画像
-                    pangoctx.translate(self.xpos + xposoffset - int(
-                            float(dicArg[u'rasio'])*float(dicArg[u'width'])),
-                        self.ypos + self.canvas_fontheight*0.5)
+                    pangoctx.translate(self.xpos + xposoffset - int(dicArg[u'width']),
+                                        self.ypos + self.canvas_fontheight*0.5)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img3']))
@@ -636,14 +586,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = self.canvas_fontheight + \
-                        math.ceil(float(dicArg[u'height'])*float(dicArg[u'rasio']))
+                    length = self.canvas_fontheight + int(dicArg[u'height'])
                     # キャプション用に退避
                     # ただし、キャプションが続かない場合、スタックに取り残される。
-                    self.figstack.append((self.xpos - int(self.canvas_fontheight - self.canvas_linewidth*0.25 + \
-                        math.ceil(float(dicArg[u'width'])*float(dicArg[u'rasio']))),
+                    self.figstack.append((
+                        (self.xpos - int(self.canvas_fontheight - self.canvas_linewidth*0.25) + \
+                                            int(dicArg[u'width'])),
                         self.ypos + int(self.canvas_fontheight)/2 + length,
-                        round(float(dicArg[u'width']) * float(dicArg[u'rasio'])) ))
+                        int(dicArg[u'width']) ))
                     del img
 
                 elif u'caption' in dicArg:
@@ -684,6 +634,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     pc.set_gravity_hint('strong')
                     layout.set_markup(u'国')
                     length,y0 = layout.get_pixel_size()
+                    length += 1
                     pc.set_base_gravity('south')
                     pc.set_gravity_hint('natural')
                     layout.set_markup(sTmp)
@@ -837,7 +788,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.ypos += length
 
 
-class CairoCanvas(ReaderSetting, AozoraScale):
+class CairoCanvas(ReaderSetting):#, AozoraScale):
     """ cairo / pangocairo を使って文面を縦書きする
     """
     def __init__(self):
@@ -964,7 +915,8 @@ class CairoCanvas(ReaderSetting, AozoraScale):
                 layout.set_font_description(self.drawstring.font)
                 layout.set_markup( u'<span size="x-small">%d (全%d頁)</span>' % (currentpage, maxpage))
                 wx,wy = layout.get_pixel_size() # 左下時必要
-                pangoctx.translate(int(self.get_value('leftmargin')), self.canvas_height - wy -4) # 左下時のY位置
+                pangoctx.translate(int(self.get_value('leftmargin')),
+                                    self.canvas_height - wy -4) # 左下時のY位置
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
                 del layout

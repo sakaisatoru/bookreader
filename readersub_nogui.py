@@ -135,8 +135,11 @@ class AozoraScale(object):
     reImgtag = re.compile( ur'<aozora img="(?P<name>.+?)" width="(?P<width>.+?)" height="(?P<height>.+?)">' )
     reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
 
+
+
     def __init__(self):
         self.font_description = None
+        self.fontheight = 0             # 縦書き時の１文字の高さ
         pass
 
     def update_charwidth_2(self, font, size):
@@ -155,9 +158,15 @@ class AozoraScale(object):
             with cairocontext(sf) as ctx, pangocairocontext(ctx) as pangoctx:
                 layout = pangoctx.create_layout()
                 pc = layout.get_context() # Pango を得る
-                pc.set_base_gravity('south')
+                pc.set_base_gravity('east')
                 pc.set_gravity_hint('natural')
                 layout.set_font_description(font_des)
+                layout.set_text( u'国' )
+                self.fontheight, length = layout.get_pixel_size()
+
+                pc.set_base_gravity('south')
+                pc.set_gravity_hint('natural')
+                #layout.set_font_description(font_des)
                 layout.set_text( u'国'*40 )
                 span, length = layout.get_pixel_size()
                 f_span = float(span)
@@ -417,7 +426,7 @@ class ReaderSetting(object):
                 u'fontheight':u'',
                 u'leftmargin':u'10',
                 u'lines':u'24',
-                u'linestep':u'1.5',
+                u'linestep':u'1.0',
                 u'linewidth':u'32',
                 u'resolution':u'SVGA',
                 u'rightmargin':u'12',
@@ -456,29 +465,45 @@ class ReaderSetting(object):
         self.AOZORA_URL         = self.get_value(u'aozoraurl') # whatnew.WhatsNewUIより移動
         self.canvas_rubioffset  = float(self.get_value(u'rubioffset'))
 
-    def get_linedata(self, fsize, linestep):
+    def get_linedata(self, font, fsize, linestep):
         """ フォントサイズから行幅(ピクセル)を得る
-                12pt = 16px で計算
                 引数
+                    font            フォント名
                     fsize           フォントサイズ
                     linestep        行間
                 返値
                     honbunwidth     本文行幅（ピクセル）
+                    honbunheight    本文における１文字の高さ(ピクセル)
                     rubiwidth       ルビ幅（ピクセル）
                     linewidth       1行幅（ピクセル）
         """
-        honbunwidth = int(round(fsize*(16./12.)))
-        rubiwidth = int(math.ceil(honbunwidth/2))
+        font_des = pango.FontDescription(u'%s %f' % (font,fsize))
+        canvas_width = 800
+        canvas_height = 80
+        sf = cairo.ImageSurface(cairo.FORMAT_ARGB32, canvas_width, canvas_height)
+
+        with cairocontext(sf) as ctx, pangocairocontext(ctx) as pangoctx:
+            layout = pangoctx.create_layout()
+            pc = layout.get_context() # Pango を得る
+            pc.set_base_gravity('east')
+            pc.set_gravity_hint('natural')
+            layout.set_font_description(font_des)
+            layout.set_text( u'国' )
+            honbunheight, honbunwidth = layout.get_pixel_size()
+            del layout
+
+        rubiwidth = int(math.ceil(honbunwidth/2.))
         linewidth = int(math.ceil((honbunwidth+rubiwidth)*linestep))
-        return (honbunwidth, rubiwidth, linewidth)
+        return (honbunwidth, honbunheight, rubiwidth, linewidth)
 
     def update(self):
         """ 設定ファイルを更新する
         """
-        (honbun, rubiwidth, linewidth) = self.get_linedata(
+        (honbunwidth, honbunheight, rubiwidth, linewidth) = self.get_linedata(
+                                        self.dicSetting[u'fontname'],
                                         float(self.dicSetting[u'fontsize']),
                                         float(self.dicSetting[u'linestep']))
-        self.dicSetting[u'fontheight'] = str(honbun)
+        self.dicSetting[u'fontheight'] = str(honbunheight)
         self.dicSetting[u'rubiwidth'] = str(rubiwidth)
         self.dicSetting[u'linewidth'] = str(linewidth)
         (self.dicSetting[u'scrnwidth'],
@@ -487,7 +512,7 @@ class ReaderSetting(object):
                             (float(int(self.dicSetting[u'scrnheight']) -
                                     int(self.dicSetting[u'topmargin']) -
                                     int(self.dicSetting[u'bottommargin'])) //
-                                                        float(honbun)) ))
+                                                        float(honbunheight)) ))
         self.dicSetting[u'lines'] = str(int(
                                 (float(int(self.dicSetting[u'scrnwidth']) -
                                     int(self.dicSetting[u'leftmargin']) -

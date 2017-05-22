@@ -362,9 +362,9 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.linesteplabel = gtk.Label( u'行間' )
         linestepadj = gtk.Adjustment(
                         value=float(self.get_value(u'linestep')),
-                            lower=1.5,upper=2.5,step_incr=0.5,page_incr=0.5)
+                            lower=0.5,upper=2.5,step_incr=0.1,page_incr=0.5)
         self.linestep = gtk.SpinButton(adjustment  = linestepadj,
-                                        climb_rate = 0.5, digits = 1)
+                                        climb_rate = 0.1, digits = 1)
         self.hbox4 = gtk.HBox()
         self.hbox4.pack_start(self.linesteplabel)
         self.hbox4.pack_end(self.linestep)

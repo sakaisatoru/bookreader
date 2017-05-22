@@ -951,7 +951,8 @@ class Aozora(ReaderSetting, AozoraScale):
 
                                 # 図の高さに相当する文字列を得る
                                 sPad = u'＃' * int(math.ceil(
-                                    float(figheight)/float(self.currentText.get_value('fontheight'))))
+                                    float(figheight)/float(self.fontheight)))
+                                    #float(figheight)/float(self.currentText.get_value('fontheight'))))
                                 del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
@@ -1705,7 +1706,8 @@ class Aozora(ReaderSetting, AozoraScale):
                                 (figwidth+self.currentText.canvas_linewidth/2.)/self.currentText.canvas_linewidth))
                             # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
                             self.imgheight_chars = int(math.ceil(
-                                figheight/float(self.currentText.get_value('fontheight')))) +1
+                                        figheight/float(self.fontheight))) +1
+                                #figheight/float(self.currentText.get_value('fontheight')))) +1
                             # キャプションが続くかどうか不明なのでここで出力する。行末の行頭復帰に留意。
                             __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\r' % (
                                         fname, figwidth, figheight, tmpRasio),
@@ -2250,7 +2252,7 @@ class Aozora(ReaderSetting, AozoraScale):
         reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
         reAozoraTatenakayoko = re.compile(ur'<aozora tatenakayoko="(?P<target>.+?)">')
         kakkochosei = 1.    # 連続して出現する括弧類の送り量の調整
-        fontheight = self.currentText.get_linedata(self.currentText.canvas_fontsize,0)[0]
+        charheight = self.fontheight
 
         # 行末合わせ調整対象文字　優先順位兼用
         adjchars = u'　 、，．。）］｝〕〉》」』】〙〗（［｛〔〈《「『【〘〖｟,.'
@@ -2276,7 +2278,7 @@ class Aozora(ReaderSetting, AozoraScale):
         slinelen = len(sline)
         tagnamestart = 0        # tag の開始位置
         skipspc = True
-        pixelsmax = smax * fontheight           # 1行の長さのピクセル値
+        pixelsmax = smax * charheight           # 1行の長さのピクセル値
         pixellcc = 0.0                          # 描画時の全長（ピクセル値）
         substack = []
 
@@ -2375,7 +2377,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     if pixellcc == pixelsmax and sline[pos] in u'、。．，':
                         # 句読点のぶら下げ
                         sTestCurrent.append(sline[pos])
-                        fLenCurrent.append(fontheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                        fLenCurrent.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
                         # 調整余地があれば後段で処理するよう全長を調整する
                         if adjCurrent and sline[pos] in u'、，':
                             pixellcc += fLenCurrent[-1]
@@ -2403,18 +2405,18 @@ class Aozora(ReaderSetting, AozoraScale):
                                 else:
                                     # 禁則文字
                                     sTestTmp.append(sline[pos])
-                                    fLenTmp.append(fontheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                                    fLenTmp.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
                                     pos += 1
                         except IndexError:
                             pass
 
                         # 行末の空き長さを求める
                         # 調整可能文字での調整量は１文字高の半分が目安
-                        n = fontheight * len(adjCurrent) * 0.5 - pixellcc + pixelsmax
+                        n = charheight * len(adjCurrent) * 0.5 - pixellcc + pixelsmax
                         # 禁則文字が閉じ括弧類で終わっていたなら、行末の空き長さを調整（延長）する
                         # これにより、行末に置けるのに次行に送られるのを回避する。
                         if len(sTestTmp):
-                            n += fontheight * self.charwidth(sTestTmp[-1][-1]) * (0.5 if (sTestTmp[-1][-1] in u'）］｝〕〉》」』】〙〗〟｠') else 0.)
+                            n += charheight * self.charwidth(sTestTmp[-1][-1]) * (0.5 if (sTestTmp[-1][-1] in u'）］｝〕〉》」』】〙〗〟｠') else 0.)
                         if n >= sum(fLenTmp):
                             # ピクセル値で調整可能範囲と比較
                             # 行末に収容できるなら接続
@@ -2571,7 +2573,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 埋め込みイメージ
                             tagnamestart = pos
                             pos = sline.find(u'</',pos)
-                            imgheight = float(len(sline[tagnamestart:pos]) * fontheight)
+                            imgheight = float(len(sline[tagnamestart:pos]) * charheight)
                             if pixellcc +  imgheight > pixelsmax:
                                 # 行末までに収まらなければ次行へ送る
                                 sTestNext.insert(0, u'</aozora>')
@@ -2591,12 +2593,12 @@ class Aozora(ReaderSetting, AozoraScale):
                         if tmp:
                             # 割り注
                             wariheight = int(tmp.group('height'))
-                            if pixellcc + fontheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
+                            if pixellcc + charheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
                                 # 行末迄に収まらなければ割り注を分割する
                                 sTestCurrent.pop()
                                 fLenCurrent.pop()
 
-                                warisize = int(math.floor((pixelsmax - pixellcc) / (fontheight * self.fontsizefactor['size="x-small"'])))
+                                warisize = int(math.floor((pixelsmax - pixellcc) / (charheight * self.fontsizefactor['size="x-small"'])))
                                 waribun = tmp.group('name').replace(u'［＃改行］', u'')
                                 waricurrent = waribun[:warisize*2]
                                 warinext = waribun[warisize*2:]
@@ -2609,13 +2611,13 @@ class Aozora(ReaderSetting, AozoraScale):
                                 except IndexError:
                                     pass
                                 warisize = int(math.ceil(warisize))
-                                heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(fontheight) ))
+                                heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(charheight) ))
                                 heightnext = int(math.ceil(math.ceil(len(warinext)/2.) * self.fontsizefactor['size="x-small"']))
 
                                 sTestCurrent.append(u'<aozora warichu="%s" height="%d">' % (waricurrent, warisize))
                                 fLenCurrent.append(0.0)
                                 sTestCurrent.append(u'　' * heightcurrent)
-                                fLenCurrent.append(float(heightcurrent)*fontheight+1)
+                                fLenCurrent.append(float(heightcurrent)*charheight+1)
                                 pixellcc += fLenCurrent[-1]
                                 if pixellcc < pixelsmax:
                                     pixellcc = pixelsmax # ループ終了条件を満たす
@@ -2661,7 +2663,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             tagnamestart = pos # 変数名使いまわし
                             pos = sline.find(u'</aozora>',pos)
                             sTestCurrent.append(sline[tagnamestart:pos])
-                            fLenCurrent.append(1+fontheight * self.fontsizefactor[fontsizename])
+                            fLenCurrent.append(1+charheight * self.fontsizefactor[fontsizename])
                             pixellcc += fLenCurrent[-1]
                             tagnamestart = pos # 変数名使いまわし
                             pos += 9 #len(u'</aozora>')
@@ -2701,7 +2703,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 pos += 1
             else:
                 sTestCurrent.append(sline[pos])
-                fLenCurrent.append(fontheight * self.charwidth(sline[pos]) * \
+                fLenCurrent.append(charheight * self.charwidth(sline[pos]) * \
                             self.fontsizefactor[fontsizename] * kakkochosei)
                 pixellcc += fLenCurrent[-1] # tagでなければ画面上における全長を計算
 
@@ -2731,7 +2733,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 行末が終わり括弧や句読点で、且つ最終桁にかかる場合に限り
                 調整する。
             """
-            if adjCurrent and pixellcc > pixelsmax - fontheight:
+            if adjCurrent and pixellcc > pixelsmax - charheight:
                 currpos = -1
                 while sTestCurrent[currpos][0] == u'<':
                     currpos -= 1
@@ -2763,7 +2765,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         #    except IndexError:
                         #        continue
 
-                        adj = pixellcc - pixelsmax #- fontheight # 調整量
+                        adj = pixellcc - pixelsmax  # 調整量
                         adjsgn = float(-cmp(adj, 0))
                         adj = abs(adj)
                         adjn = adj / float(len(adjCurrent))

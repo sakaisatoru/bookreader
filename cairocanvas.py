@@ -31,7 +31,6 @@ import cairo
 import pango
 import pangocairo
 
-
 @contextmanager
 def cairocontext(surface):
     try:
@@ -68,7 +67,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
 
-    def __init__(self, canvas):
+    def __init__(self, canvas, ypos):
         HTMLParser.__init__(self)
         AozoraScale.__init__(self)
         ReaderSetting.__init__(self)
@@ -81,13 +80,16 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.captionwidth = 0
         self.captiondata = u''
 
+        self.ypos2 = ypos
+
     def destroy(self):
         del self.tagstack
         del self.attrstack
 
-    def settext(self, data, xpos, ypos):
+    #def settext(self, data, xpos, ypos):
+    def settext(self, data, xpos):
         self.xpos = xpos
-        self.ypos = ypos
+        self.ypos = self.ypos2
         self.rubilastYpos = 0       # 直前のルビの最末端
         self.tagstack = []
         self.attrstack = []
@@ -820,7 +822,7 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
         #                self.canvas_width*1.0, self.canvas_height*1.0)
 
         # 文字列表示クラス
-        self.drawstring = expango(self.sf)
+        self.drawstring = expango(self.sf, self.canvas_topmargin)
         self.drawstring.setcolour(self.get_value(u'fontcolor'),
                                                 self.get_value(u'backcolor'))
         self.drawstring.setfont(self.canvas_fontname, self.canvas_fontsize,
@@ -887,7 +889,7 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
 
                 if inKeikakomi:
                     # 罫囲み時の最大高さを得る
-                    tmpheight = self.linelengthcount(s0)
+                    tmpheight = self.drawstring.linelengthcount(s0)
                     if  tmpheight > maxchars:
                         maxchars = tmpheight
                     # 文字列の最低書き出し位置を求める
@@ -898,7 +900,8 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
                             offset_y = tmpheight
 
                 if s0:
-                    self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                    #self.drawstring.settext(s0, xpos, self.canvas_topmargin)
+                    self.drawstring.settext(s0, xpos)
                     # 行末が CR の場合は改行しないで終わる
                     if s0[-1] != '\r':
                         xpos -= self.canvas_linewidth

@@ -41,6 +41,7 @@ import subprocess
 import os
 import zipfile
 import inspect
+import re
 
 import gc
 import gtk
@@ -283,7 +284,7 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.hbox2.pack_end(self.rubifontsel)
 
         # 2.1行目 -- 太字フォントセレクタ行 --
-        self.boldfontlabel = gtk.Label( u'太字表示フォント' )
+        self.boldfontlabel = gtk.Label( u'本文太字表示フォント' )
         self.boldfontsel = gtk.FontButton( u'%s %s' % (self.get_value(u'boldfontname'),
                                     self.get_value(u'boldfontsize')))
         self.boldfontsel.set_use_font(True)
@@ -399,25 +400,23 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
 
         self.set_size_request(384, 360)
 
+        self.reFontNameSize = re.compile(ur'^(?P<name>.+) (?P<size>[\d\.]+)$')
+
     def fontsel_cb(self, widget):
         """ 本文とルビのフォント名の同期をとる
         """
-        fontsize = round(float(self.rubifontsel.get_font_name().lstrip(
-                    self.rubifontsel.get_font_name().rstrip(u'.0123456789'))),
-                    1 )
-        fontname = widget.get_font_name().rstrip( u'.0123456789' ).lstrip(u' ')
-        self.rubifontsel.set_font_name(u'%s %s' % (fontname,fontsize))
+        tmp = self.reFontNameSize.match(widget.get_font_name())
+        fontname = tmp.group(u'name')
+        tmp = self.reFontNameSize.match(self.rubifontsel.get_font_name())
+        self.rubifontsel.set_font_name(u'%s %s' % (fontname,tmp.group(u'size')))
 
     def rubifontsel_cb(self, widget):
         """ 本文とルビのフォント名の同期をとる
         """
-        fontsize = round(float(self.fontsel.get_font_name().lstrip(
-                        self.fontsel.get_font_name().rstrip(u'.0123456789'))),
-                        1)
-        fontname = widget.get_font_name().rstrip( u'.0123456789' ).lstrip(u' ')
-        self.fontsel.set_font_name(u'%s %s' % (fontname,fontsize))
-
-
+        tmp = self.reFontNameSize.match(widget.get_font_name())
+        fontname = tmp.group(u'name')
+        tmp = self.reFontNameSize.match(self.fontsel.get_font_name())
+        self.fontsel.set_font_name(u'%s %s' % (fontname,tmp.group(u'size')))
 
     def settingupdate(self):
         """ 設定の更新
@@ -1114,7 +1113,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年6［＃「6」は縦中横］月1［＃「1」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年6［＃「6」は縦中横］月2［＃「2」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+

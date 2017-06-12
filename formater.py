@@ -288,7 +288,7 @@ class Aozora(ReaderSetting, AozoraScale):
         self.readcodecs = u'shift_jis'
         self.currentText = AozoraCurrentTextinfo()
         self.set_source()
-        self.charsmax = self.currentText.chars - 1 # 最後の1文字は禁則処理用に確保
+        self.charsmax = self.chars - 1 # 最後の1文字は禁則処理用に確保
 
         self.imgwidth_lines = 0     # 挿図回避用
         self.imgheight_chars = 0    # 挿図回避用
@@ -330,12 +330,12 @@ class Aozora(ReaderSetting, AozoraScale):
     def get_form( self ):
         """ ページ設定を返す。
         """
-        return (self.currentText.chars, self.currentText.pagelines)
+        return (self.chars, self.pagelines)
 
     def mokuji_itre(self):
         """ 作成した目次のイテレータ。UI向け。
         """
-        with file(self.currentText.mokujifile,'r') as f0:
+        with file(self.mokujifile,'r') as f0:
             for s in f0:
                 yield s.strip('\n')
 
@@ -936,10 +936,10 @@ class Aozora(ReaderSetting, AozoraScale):
                             try:
                                 fname = tmp2.group(u'filename')
                                 tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                    os.path.join(self.currentText.aozoratextdir, fname))
+                                    os.path.join(self.aozoratextdir, fname))
                                 figheight = tmpPixBuff.get_height()
                                 figwidth = tmpPixBuff.get_width()
-                                if figwidth > self.currentText.canvas_linewidth * 2:
+                                if figwidth > self.canvas_linewidth * 2:
                                     # 大きな挿図(幅が2行以上ある)は独立表示へ変換する
                                     lnbuf = u'%s%s%s' % (
                                             lnbuf[:tmp.start()],
@@ -952,7 +952,6 @@ class Aozora(ReaderSetting, AozoraScale):
                                 # 図の高さに相当する文字列を得る
                                 sPad = u'＃' * int(math.ceil(
                                     float(figheight)/float(self.fontheight)))
-                                    #float(figheight)/float(self.currentText.get_value('fontheight'))))
                                 del tmpPixBuff
                             except gobject.GError:
                                 # ファイルI/Oエラー
@@ -1127,14 +1126,12 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp2 = self.reGyomigikogaki.match(tmp.group())
                         if tmp2:
                             sNameTmp = tmp2.group(u'name')
-                            #reTmp = re.compile( ur'%s$' % sNameTmp )
                             # lnbuf[:tmp.start()] の終わりにある修飾対象文字を
                             # 取り除くのに正規表現を使いたいのだが、()[]等が
                             # 含まれているとエラーになるので、文字列置換で代替
                             # している。終わり部分だけ取り除けば良いので、
                             # [::-1]で一度ひっくり返して一回だけ''に置換している。
                             lnbuf = u'%s%s%s' % (
-                                #reTmp.sub( u'', lnbuf[:tmp.start()] ),
                                 lnbuf[:tmp.start()][::-1].replace( sNameTmp[::-1], u'',1)[::-1],
                                 u'<sup>%s</sup>' % tmp2.group(u'name') if tmp2.group(u'type') == u'行右小書き' or \
                                     tmp2.group('type') == u'上付き小文字' else u'<sub>%s</sub>' % tmp2.group(u'name'),
@@ -1556,14 +1553,13 @@ class Aozora(ReaderSetting, AozoraScale):
                 l += self.charwidth(s) * ch
 
             return u'<span size="smaller">%s</span>' % u''.join(s0)
-            #return u''.join(s0)
 
         def __insertfig(tag, lines, mode=True):
             """ 挿図出力の下請け
                 図の挿入に際しては、事前に改行を送り込んで表示領域を取得する必要が
                 あるため、ここにまとめる。
             """
-            if self.linecounter + lines >= self.currentText.pagelines:
+            if self.linecounter + lines >= self.pagelines:
                 # 画像がはみ出すようなら改ページする
                 while not self.__write2file(dfile, '\n'):
                     pass
@@ -1590,7 +1586,7 @@ class Aozora(ReaderSetting, AozoraScale):
         (self.currentText.booktitle, self.currentText.bookauthor) = self.__get_booktitle_sub()
         logging.info( '****** %s ******' % self.currentText.sourcefile)
 
-        with file(self.currentText.destfile, 'wb') as fpMain, file(self.currentText.mokujifile, 'w') as self.mokuji_f:
+        with file(self.destfile, 'wb') as fpMain, file(self.mokujifile, 'w') as self.mokuji_f:
             dfile = fpMain                      # フォーマット済出力先
             self.pagecenterflag = False         # ページ左右中央用フラグ
             self.countpage = True               # ページ作成フラグ
@@ -1632,7 +1628,6 @@ class Aozora(ReaderSetting, AozoraScale):
                     if not lnbuf:
                         # 空行であれば挿図して終わる
                         a = figstack.pop()
-                        #__insertfig(a[0]+'\n',a[1], a[2])
                         __insertfig(a[0],a[1], a[2])
                         __write2file(dfile, '\n')
                         figcapcount = 0
@@ -1640,7 +1635,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 """ 空行の処理
                 """
-                if not lnbuf: #len(lnbuf) == 0:
+                if not lnbuf:
                     self.__write2file( dfile, '\n' )
                     continue
 
@@ -1664,7 +1659,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         try:
                             fname = matchFig.group(u'filename')
                             tmpPixBuff = gtk.gdk.pixbuf_new_from_file(
-                                os.path.join(self.currentText.aozoratextdir, fname))
+                                os.path.join(self.aozoratextdir, fname))
                             figheight = tmpPixBuff.get_height()
                             figwidth = tmpPixBuff.get_width()
                             del tmpPixBuff
@@ -1680,12 +1675,11 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 直前の画像への衝突を回避する為の暫定措置
                         __cancelfiglayout()
 
-                        tmpH = float(self.currentText.get_value(u'scrnheight')) - \
-                                float(self.currentText.get_value(u'bottommargin')) - \
-                                        float(self.currentText.get_value(u'topmargin'))
-                        tmpW = float(self.currentText.get_value(u'scrnwidth')) - \
-                                float(self.currentText.get_value(u'rightmargin')) - \
-                                        float(self.currentText.get_value(u'leftmargin'))
+                        tmpH = self.canvas_height - self.canvas_topmargin - \
+                                float(self.currentText.get_value(u'bottommargin'))
+
+                        tmpW = self.canvas_width - self.canvas_rightmargin - \
+                                float(self.currentText.get_value(u'leftmargin'))
 
                         # 表示領域に収まるような倍率を求める
                         # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
@@ -1703,11 +1697,10 @@ class Aozora(ReaderSetting, AozoraScale):
 
                             # 回りこむ行数を求める。
                             self.imgwidth_lines = int(math.ceil(
-                                (figwidth+self.currentText.canvas_linewidth/2.)/self.currentText.canvas_linewidth))
+                                figwidth / float(self.canvas_linewidth)))
                             # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
                             self.imgheight_chars = int(math.ceil(
                                         figheight/float(self.fontheight))) +1
-                                #figheight/float(self.currentText.get_value('fontheight')))) +1
                             # キャプションが続くかどうか不明なのでここで出力する。行末の行頭復帰に留意。
                             __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\r' % (
                                         fname, figwidth, figheight, tmpRasio),
@@ -1718,7 +1711,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             # ここで改行しないことに注意。改行はキャプションで行う。
                             figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
                                         fname, figwidth, figheight, tmpRasio),
-                                        int(math.ceil(figwidth / self.currentText.canvas_linewidth)),
+                                        int(math.ceil(figwidth / float(self.canvas_linewidth))),
                                         True) )
                         figcapcount = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
@@ -1883,7 +1876,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 一時ファイルに掃き出された行数を数えて
                             # ページ中央にくるようにパディングする
                             dfile.seek(0)
-                            iCenter = self.currentText.pagelines
+                            iCenter = self.pagelines
                             for sCenter in dfile:
                                 iCenter -= 1
                             while iCenter > 1:
@@ -2071,10 +2064,10 @@ class Aozora(ReaderSetting, AozoraScale):
                         iCenter = 0
                         for sCenter in dfile:
                             iCenter += 1
-                        if iCenter < self.currentText.pagelines:
+                        if iCenter < self.pagelines:
                             # 罫囲みが次ページへまたがる場合は改ページする。
                             # 但し、１ページを越える場合は無視する。
-                            if self.linecounter + iCenter >= self.currentText.pagelines:
+                            if self.linecounter + iCenter >= self.pagelines:
                                 while not self.__write2file(workfilestack[-1], '\n' ):
                                     pass
 
@@ -2178,7 +2171,6 @@ class Aozora(ReaderSetting, AozoraScale):
                                 # 地付き
                                 n = 0
                             currchars = self.charsmax - n
-                            #if lenP >= currchars:
                             if lenP >= self.charsmax:
                                 # 地付きする文字列の前に１行以上の長さが残って
                                 # いる場合はそのまま分割処理に送る。
@@ -2756,15 +2748,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             if adjCurrent[-1][1] == currpos:
                                 adjCurrent.pop()
 
-                        # 禁則処理で移動した要素を参照していれば抜去する
-                        #adjTmp = []
-                        #for a0 in adjCurrent:
-                        #    try:
-                        #        b = sTestCurrent[a0[1]]
-                        #        adjTmp.append(a0)
-                        #    except IndexError:
-                        #        continue
-
                         adj = pixellcc - pixelsmax  # 調整量
                         adjsgn = float(-cmp(adj, 0))
                         adj = abs(adj)
@@ -2933,7 +2916,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
             if s[-1] == '\n':
                 self.linecounter += 1
-            if self.linecounter >= self.currentText.pagelines:
+            if self.linecounter >= self.pagelines:
                 # 1頁出力し終えたらその位置を記録する
                 self.currentText.pagecounter += 1
                 self.currentText.currentpage.append(fd.tell())

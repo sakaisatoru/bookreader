@@ -553,8 +553,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 elif u'img2' in dicArg:
                     # 画像
-                    pangoctx.translate(self.xpos + xposoffset,# + self.canvas_linewidth,
-                        self.ypos + self.canvas_fontheight*0.5)
+                    pangoctx.translate(
+                        self.xpos + xposoffset,
+                        self.ypos + self.canvas_fontheight/2)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img2']))
@@ -566,17 +567,18 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = self.canvas_fontheight + int(dicArg[u'height'])
-                    # キャプション用に退避
-                    self.figstack.append((self.xpos,# + self.canvas_linewidth,
-                        self.ypos + int(self.canvas_fontheight)/2 + length,
+                    length = int(dicArg[u'height'])
+                    # キャプション描画位置を退避
+                    self.figstack.append((self.xpos + xposoffset,
+                        self.ypos + self.canvas_fontheight + length,
                         int(dicArg[u'width'])) )
                     del img
 
                 elif u'img3' in dicArg:
                     # 回りこみを伴う画像
-                    pangoctx.translate(self.xpos + xposoffset - int(dicArg[u'width']),
-                                        self.ypos + self.canvas_fontheight*0.5)
+                    pangoctx.translate(
+                        self.xpos + xposoffset - int(dicArg[u'width']),
+                        self.ypos + self.canvas_fontheight/2)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img3']))
@@ -588,14 +590,13 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
-                    length = self.canvas_fontheight + int(dicArg[u'height'])
-                    # キャプション用に退避
+                    length = int(dicArg[u'height'])
+                    # キャプション描画位置を退避
                     # ただし、キャプションが続かない場合、スタックに取り残される。
-                    self.figstack.append((
-                        (self.xpos - int(self.canvas_fontheight - self.canvas_linewidth*0.25) + \
-                                            int(dicArg[u'width'])),
-                        self.ypos + int(self.canvas_fontheight)/2 + length,
-                        int(dicArg[u'width']) ))
+                    self.figstack.append( (
+                        self.xpos + xposoffset - int(dicArg[u'width']),
+                        self.ypos + self.canvas_fontheight + length,
+                        int(dicArg[u'width']) ) )
                     del img
 
                 elif u'caption' in dicArg:

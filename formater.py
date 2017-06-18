@@ -227,12 +227,20 @@ class Aozora(ReaderSetting, AozoraScale):
     reKeikakomiGyou = re.compile(ur'(［＃「(?P<name>.+?)」は罫囲み］)')
 
     # 見出し
-    reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(?P<type>同行|窓)??(?P<midashisize>大|中|小)見出し］')
+    reMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は(?P<type>同行)??(?P<midashisize>大|中|小)見出し］')
     reMidashi2name = re.compile(ur'((<.+?)??(?P<name>.+?)[<［\n]+?)')
-    reMidashi2 = re.compile(ur'(［＃(?P<type>同行|窓)?(?P<midashisize>大|中|小)見出し］)')
-    reMidashi2owari = re.compile(ur'(［＃(?P<type>同行|窓)?(?P<midashisize>大|中|小)見出し終わり］)')
-    reMidashi3 = re.compile(ur'(［＃ここから(?P<type>同行|窓)?(?P<midashisize>大|中|小)見出し］)')
-    reMidashi3owari = re.compile(ur'(［＃ここで(?P<type>同行|窓)?(?P<midashisize>大|中|小)見出し終わり］)')
+    reMidashi2 = re.compile(ur'(［＃(?P<type>同行)?(?P<midashisize>大|中|小)見出し］)')
+    reMidashi2owari = re.compile(ur'(［＃(?P<type>同行)?(?P<midashisize>大|中|小)見出し終わり］)')
+    reMidashi3 = re.compile(ur'(［＃ここから(?P<type>同行)?(?P<midashisize>大|中|小)見出し］)')
+    reMidashi3owari = re.compile(ur'(［＃ここで(?P<type>同行)?(?P<midashisize>大|中|小)見出し終わり］)')
+
+    # 窓見出し
+    reMadoMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は窓(?P<midashisize>大|中|小)見出し］')
+    reMadoMidashi2name = re.compile(ur'((<.+?)??(?P<name>.+?)[<［\n]+?)')
+    #reMadoMidashi2 = re.compile(ur'(［＃窓(?P<midashisize>大|中|小)見出し］)')
+    #reMadoMidashi2owari = re.compile(ur'(［＃窓(?P<midashisize>大|中|小)見出し終わり］)')
+    reMadoMidashi3 = re.compile(ur'(［＃(ここから)?窓(?P<midashisize>大|中|小)見出し］)')
+    reMadoMidashi3owari = re.compile(ur'(［＃(ここで)?窓(?P<midashisize>大|中|小)見出し終わり］)')
 
     # 改ページ・改丁・ページの左右中央
     reKaipage = re.compile(ur'［＃改ページ］|［＃改丁］|［＃改段］|［＃改見開き］')
@@ -1283,7 +1291,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             #   目次用にタグを外す
                             self.midashi = self.__removetag(lnbuf[pos_end:tmp.start()])
                             self.sMidashiSize = tmp2.group('midashisize')
-
                             lnbuf = u'%s<span face="%s"%s>%s</span>%s' % (
                                 lnbuf[:pos_start],
                                 self.get_value("boldfontname"),
@@ -1506,9 +1513,11 @@ class Aozora(ReaderSetting, AozoraScale):
                 if f:
                     if s == u'>':
                         f = False
+                    #s0.append(s)
                     continue
                 if s == u'<':
                     f = True
+                    #s0.append(s)
                     continue
 
                 if s == '\a':
@@ -1527,7 +1536,6 @@ class Aozora(ReaderSetting, AozoraScale):
                                 s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
                                 pos -= 1
                             s0[pos],s0[pos+1] = s0[pos+1],s0[pos]
-
                     except:
                         pass
 
@@ -1552,7 +1560,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 s0.append(s)
                 l += self.charwidth(s) * ch
 
-            return u'<span size="smaller">%s</span>' % u''.join(s0)
+            return u''.join(s0)
 
         def __insertfig(tag, lines, mode=True):
             """ 挿図出力の下請け
@@ -1740,7 +1748,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                             self.countpage = False
                             self.__write2file(dfile,
-                                    u'<aozora caption="dmy">%s</aozora>\r' %
+                                    u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
                                         __caption_sub_1(self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]), figwidth))
                             figwidth = -1
                             # 画像の直後に１行空ける。表示処理の都合で別行にすること。
@@ -1773,7 +1781,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                             self.countpage = False
                             self.__write2file(dfile,
-                                u'<aozora caption="dmy">%s</aozora>\r' %
+                                u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
                                     __caption_sub_1(self.reAozoraTagRemove.sub(u'',tmp.group(u'name')), figwidth))
                             figwidth = -1
                             # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
@@ -1834,7 +1842,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.countpage = False      # ページカウントを抑止
                         # キャプション
                         self.__write2file(dfile,
-                                u'<aozora caption="dmy">%s</aozora>\r' % __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
+                                u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' % __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
                         figwidth = -1
                         # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
                         if figflag:
@@ -1900,6 +1908,117 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.imgheight_chars = 0
 
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
+                    """ 窓見出し
+                        2行とり、あるいは3行とりの窓見出し
+                        10文字で折り返す。文字の大きさ指定は無視する。
+                        画像回り込み時の字下げ処理を流用して見出しを表示する。このため、段落
+                        中に出現する窓見出しは正しく処理できないため、同行見出しとして処理する。
+                    """
+                    matchMidashi = self.reMadoMidashi.match(tmp.group())
+                    if matchMidashi:
+                        self.midashi = matchMidashi.group('midashi')
+                        self.sMidashiSize = u'小'
+                        tmpStart,tmpEnd = self.__honbunsearch(
+                                    lnbuf[:tmp.start()],self.midashi)
+                        if not lnbuf[:tmpStart]:
+                            # 行頭見出し
+                            sTmp2 = lnbuf[tmpStart:tmpEnd]
+                            if self.linecounter+(3 if len(self.midashi)>10 else 2) >= self.pagelines:
+                                # ページ末で表示域が分断される場合は改ページする
+                                while not self.__write2file(dfile, '\n'):
+                                    pass
+
+                            self.inMidashi = True
+                            self.imgwidth_lines = (3 if len(self.midashi)>10 else 2) # 見出し表示は原則2行とり
+                            self.imgheight_chars = int(math.ceil(
+                                (self.canvas_fontheight + \
+                                (10 if len(self.midashi)>10 else len(self.midashi)) * self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )) / self.canvas_fontheight))
+                            # 文字の折り返し処理（仮）キャプションの簡易ルーチンを流用
+                            sTmp = __caption_sub_1(sTmp2,10*self.canvas_fontheight * self.fontmagnification( u'size="smaller"' ))
+                            self.__write2file(dfile,
+                                u'<aozora mado="dmy" face="%s" lines="%d">%s</aozora>\r' % (
+                                        self.get_value("boldfontname"),
+                                        self.imgwidth_lines,
+                                        sTmp) )
+                            lnbuf = u'%s%s' % (lnbuf[tmpEnd:tmp.start()],
+                                    lnbuf[tmp.end():] )
+
+                        else:
+                            lnbuf = u'%s<span face="%s" size="smaller">%s</span>%s%s' % (
+                                lnbuf[:tmpStart],
+                                self.get_value("boldfontname"),
+                                lnbuf[tmpStart:tmpEnd],
+                                lnbuf[tmpEnd:tmp.start()],
+                                lnbuf[tmp.end():] )
+
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
+                    """ 窓見出し（複数行に及ぶ可能性のある）
+                        後続を一時ファイルに取り出し、閉じタグを検出した時点で見出しを作成
+                        する。
+                    """
+                    matchMidashi = self.reMadoMidashi3.match(tmp.group())
+                    if matchMidashi:
+                        # 文字サイズの指定は無視する
+                        # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える
+                        workfilestack.append(dfile)
+                        dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
+                        self.countpage = False  # 一時ファイル使用中はページカウントしない
+                        isNoForming = True      # 行の整形を抑止
+                        isMadoGyoto = not lnbuf[:tmp.start()] # 直前に文字列がなければ行頭窓見出し
+                        lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
+                        tmp = self.reCTRL2.search(lnbuf)
+                        continue
+
+                    matchMidashi = self.reMadoMidashi3owari.match(tmp.group())
+                    if matchMidashi:
+                        # 現在の行を掃きだす
+                        self.__write2file(dfile, lnbuf[:tmp.start()] )
+                        # 一時ファイルに掃き出された見出しを結合
+                        sTmp2 = u''
+                        dfile.seek(0)
+                        for sCenter in dfile:
+                            sTmp2 += sCenter
+
+                        sTmp2 = sTmp2.replace('\n','\a' )# 改行の代替
+                        dfile.close()
+                        dfile = workfilestack.pop() # 出力先を復元
+                        isNoForming = False         # 行の整形を再開
+                        self.countpage = True       # ページカウントを再開
+
+                        sTmp = self.reAozoraTagRemove.sub(u'',sTmp2)
+                        if self.linecounter+(3 if len(sTmp)>10 else 2) >= self.pagelines:
+                            # ページ末で表示域が分断される場合は改ページする
+                            while not self.__write2file(dfile, '\n'):
+                                pass
+
+                        self.inMidashi = True
+                        self.midashi = sTmp
+                        self.sMidashiSize = u'小'
+                        if isMadoGyoto:
+                            self.imgwidth_lines = (3 if len(sTmp)>10 else 2) # 見出し表示は原則2行とり
+                            self.imgheight_chars = int(math.ceil(
+                                (self.canvas_fontheight + \
+                                (10 if len(sTmp)>10 else len(sTmp)) * self.canvas_fontheight * self.fontmagnification( u'size="smaller"' )) / self.canvas_fontheight))
+                            # 文字の折り返し処理（仮）キャプションの簡易ルーチンを流用
+                            sTmp = __caption_sub_1(sTmp2,10*self.canvas_fontheight * self.fontmagnification( u'size="smaller"' ))
+                            self.__write2file(dfile,
+                                u'<aozora mado="dmy" face="%s" lines="%d">%s</aozora>\r' % (
+                                        self.get_value("boldfontname"),
+                                        self.imgwidth_lines,
+                                        sTmp) )
+                            lnbuf = lnbuf[tmp.end():]
+
+                        else:
+                            lnbuf = u'<span face="%s" size="smaller">%s</span>%s' % (
+                                self.get_value("boldfontname"),
+                                sTmp2.replace('\a',''),
+                                lnbuf[tmp.end():] )
+
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 

@@ -517,6 +517,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             honbunxpos = 0
             if not dicArg:
                 # 本文表示本体
+                sTmp = sTmp.replace('\a','\n') # 改行コードの復元
                 pc = layout.get_context() # Pango を得る
                 # 正しいlengthを得るため、予め文字の向きを決める
                 pc.set_base_gravity('east')
@@ -651,30 +652,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # ルビ、傍点、傍線類の表示位置を設定
                     honbunxpos = xposoffset + int(math.ceil(y/2.))
 
-                elif u'mado' in dicArg:
-                    pc = layout.get_context() # Pango を得る
-                    # 正しいlengthを得るため、予め文字の向きを決める
-                    pc.set_base_gravity('east')
-                    pc.set_gravity_hint('strong')
-                    # 見出しを２行にする。但し５文字未満の場合はそのまま
-                    l = int(round(len(sTmp)/2.))
-                    if l >= 3:
-                        sTmp = u'　%s\n　%s' % (sTmp[:l], sTmp[l:])
-                    sTmp = u'<span font="%s">%s　</span>' % (dicArg[u'font'], sTmp)
-                    layout.set_markup(sTmp)
-                    length, span = layout.get_pixel_size()
-
-                    honbunxpos = int(math.ceil(span/2.))
-                    pangoctx.translate(self.xpos + xposoffset + honbunxpos,
-                                                        self.ypos)  # 描画位置
-                    pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
-                    pangoctx.update_layout(layout)
-                    pangoctx.show_layout(layout)
-                    del pc
-
                 else:
                     # 本文表示本体
                     # ※少しでも処理速度を稼ぐため上にも似たルーチンがあります
+                    sTmp = sTmp.replace('\a','\n') # 改行コードの復元
+                    if u'mado' in dicArg:
+                        # 窓見出し
+                        sTmp = u'<span face="%s" size="smaller">%s</span>' % (
+                                    dicArg[u'face'], sTmp )
                     pc = layout.get_context() # Pango を得る
                     # 正しいlengthを得るため、予め文字の向きを決める
                     if u'yokogumi' in dicArg or u'yokogumi2' in dicArg:
@@ -713,8 +698,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             dashctx.close_path()
                             dashctx.stroke()
                     else:
-                        honbunxpos = int(math.ceil(span/2.))
-                        pangoctx.translate(self.xpos + xposoffset + honbunxpos,
+                        if u'mado' in dicArg:
+                            # 窓見出しの描画位置の調整
+                            pangoctx.translate(
+                                self.xpos + (self.canvas_fontheight - self.canvas_linewidth * (int(dicArg['lines']) -1))//2 + span//4,
+                                self.ypos + self.canvas_fontheight//2)  # 描画位置
+                        else:
+                            honbunxpos = int(math.ceil(span/2.))
+                            pangoctx.translate(self.xpos + xposoffset + honbunxpos,
                                                     self.ypos )  # 描画位置
                         pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
                         pangoctx.update_layout(layout)

@@ -176,7 +176,7 @@ class AozoraScale(object):
                     x, y = layout.get_pixel_size()
                     self.charwidth_serif[s] = x / f_span
                 del layout
-
+            del sf
 
     def linelengthcount(self, sline):
         """ 文字列の長さを数える

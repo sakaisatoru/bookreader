@@ -435,7 +435,6 @@ class Aozora(ReaderSetting, AozoraScale):
                 rv.append(u'Ⅿ'*s[l])
         return ''.join(rv)
 
-
     def __searchtag(self, s, pos=0):
         """ タグを見つけてその最初と終わりを返す
             見つからない場合は -1, -1
@@ -469,6 +468,59 @@ class Aozora(ReaderSetting, AozoraScale):
             sTmp = sTmp[:s0]+sTmp[e0:]
             s0, e0 = self.__searchtag(sTmp)
         return sTmp
+
+    def __gaiji_replace(self, a):
+        """ Shift-jis 未収録文字の置換
+        """
+        a2 = self.reGaiji3.match(a.group())
+        if a2:
+            # 外字置換（JIS第3、第4水準）
+            k = jis3.sconv(a2.group('number'))
+            if not k:
+                #logging.info( u'JIS未登録の外字を検出：%s' % a.group())
+                k = u'［'+a.group()[2:]
+            return k
+
+        a2 = self.reGaiji4.match(a.group())
+        try:
+            logging.debug(a.group())
+            logging.debug(a2.group())
+        except:
+            pass
+        if a2:
+            # 外字置換（Unicode文字）
+            # Python の実装によっては unichr が 0xffffまでしか引数をとらないので、
+            # その場合は変換不能としてそのまま返す。
+            try:
+                k = unichr(int(a2.group('number'),16))
+            except ValueError:
+                k = a.group()[2:]
+            return k
+
+        a2 = self.reKogakiKatakana.match(a.group())
+        if a2:
+            #   小書き片仮名
+            #   ヱの小文字など、JISにフォントが無い場合
+            return u'<span size="smaller">%s</span>' % a2.group(u'name')
+
+        a2 = self.reGaiji6.match(a.group())
+        if a2:
+            #   ローマ数字対策
+            #   1 - 3999 迄
+            return u'［＃縦中横］%s［＃縦中横終わり］' % self.romasuji(a2.group('num'))
+
+        # JISにもUnicodeにも定義されていない文字の注釈
+        # こちらで準備するか、そうでなければ
+        # ※［＃「」、底本ページ-底本行］ -> ※「」
+        a2 = self.reGaiji5.match(a.group())
+        if a2:
+            if a2.group(u'name') in self.dicReserveChar:
+                k = self.dicReserveChar[a2.group(u'name')]
+            else:
+                k = a2.group(u'name').strip(u'「」')
+            return k
+
+        return u''
 
     def __formater_pass1( self, sourcefile=u''):
         """ フォーマッタ（第1パス）
@@ -510,61 +562,6 @@ class Aozora(ReaderSetting, AozoraScale):
             if a.group() in self.dicAozoraTag:
                 return self.dicAozoraTag[a.group()]
             return a.group()
-
-        def __gaiji_replace(a):
-            """ Shift-jis 未収録文字の置換
-            """
-            a2 = self.reGaiji3.match(a.group())
-            if a2:
-                # 外字置換（JIS第3、第4水準）
-                k = jis3.sconv(a2.group('number'))
-                if not k:
-                    #logging.info( u'JIS未登録の外字を検出：%s' % a.group())
-                    k = u'［'+a.group()[2:]
-                return k
-
-            a2 = self.reGaiji4.match(a.group())
-            try:
-                logging.debug(a.group())
-                logging.debug(a2.group())
-            except:
-                pass
-            if a2:
-                # 外字置換（Unicode文字）
-                # Python の実装によっては unichr が 0xffffまでしか引数をとらないので、
-                # その場合は変換不能としてそのまま返す。
-                try:
-                    k = unichr(int(a2.group('number'),16))
-                except ValueError:
-                    k = a.group()[2:]
-                return k
-
-            a2 = self.reKogakiKatakana.match(a.group())
-            if a2:
-                #   小書き片仮名
-                #   ヱの小文字など、JISにフォントが無い場合
-                return u'<span size="smaller">%s</span>' % a2.group(u'name')
-
-            a2 = self.reGaiji6.match(a.group())
-            if a2:
-                #   ローマ数字対策
-                #   1 - 3999 迄
-                return u'［＃縦中横］%s［＃縦中横終わり］' % self.romasuji(a2.group('num'))
-
-            # JISにもUnicodeにも定義されていない文字の注釈
-            # こちらで準備するか、そうでなければ
-            # ※［＃「」、底本ページ-底本行］ -> ※「」
-            a2 = self.reGaiji5.match(a.group())
-            if a2:
-                if a2.group(u'name') in self.dicReserveChar:
-                    k = self.dicReserveChar[a2.group(u'name')]
-                else:
-                    k = a2.group(u'name').strip(u'「」')
-                    #logging.info(u'未定義文字を検出 : %s' % k )
-                    #loggingflag = True
-                return k
-
-            return u''
 
         """----------------------------------------------------------------
         """
@@ -633,7 +630,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 """ Shift-jis未定義の文字を得る
                 """
-                lnbuf = self.reCTRLGaiji.sub(__gaiji_replace, lnbuf)
+                lnbuf = self.reCTRLGaiji.sub(self.__gaiji_replace, lnbuf)
 
                 """ ルビにつくママ
                     ルビに変換する
@@ -712,62 +709,6 @@ class Aozora(ReaderSetting, AozoraScale):
                 """
                 lnbuf = lnbuf.replace(u'≫', u'》').replace(u'≪', u'《')
 
-                """ 連続して出現する括弧類の送り量の調整
-                """
-                retline = []
-                pos = 0
-                anchor = 0
-                end = len(lnbuf)
-                inAozora = 0
-                inTag = False
-                while pos < end:
-                    try:
-                        if inTag:
-                            if lnbuf[pos] == u'>':
-                                inTag = False
-                        elif lnbuf[pos] == u'<':
-                            inTag = True
-                        elif inAozora:
-                            if lnbuf[pos] == u'］':
-                                inAozora -= 1
-                        elif lnbuf[pos:pos+2] == u'［＃':
-                            inAozora += 1
-                            pos += 1
-                        elif lnbuf[pos] in self.kakko:
-                            # 括弧類を検出
-                            if lnbuf[pos] in u'、・' and pos > 0:
-                                # 、・の場合は前後に漢数字があるか調べる
-                                if kansuuji.find(lnbuf[pos-1]) != -1 and kansuuji.find(lnbuf[pos+1]) != -1:
-                                    if lnbuf[pos] == u'・':
-                                        retline.append(
-                                            u'%s<aozora half="0.75">%s</aozora><aozora half="0.75">%s</aozora>' % (
-                                                lnbuf[anchor:pos-1],
-                                                lnbuf[pos-1],
-                                                lnbuf[pos]))
-                                    else:
-                                        retline.append(
-                                            u'%s<aozora half="0.5">%s</aozora>' % (
-                                                lnbuf[anchor:pos], lnbuf[pos] ))
-                                    pos += 1
-                                    anchor = pos
-                                    continue
-
-                            if lnbuf[pos+1] in self.kakko and lnbuf[pos+1:pos+3] != u'［＃':
-                                if not (lnbuf[pos] in self.hajimekakko and lnbuf[pos+1] in self.owarikakko):
-                                    # 後ろにも括弧が続くか、且つタグの開始でないか
-                                    # 但し開閉の順()で続く場合は調整しない。
-                                    retline.append(
-                                    u'%s<aozora half="0.5">%s</aozora>' % (lnbuf[anchor:pos], lnbuf[pos]))
-                                    pos += 1
-                                    anchor = pos
-                                    continue
-                    except IndexError:
-                        pass
-                    pos += 1
-                retline.append(lnbuf[anchor:])
-
-                lnbuf = u''.join(retline)
-
                 """ フッタの検出
                 """
                 tmp = self.reFooter.search(lnbuf)
@@ -793,9 +734,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         if tmp2:
                             tmpStart,tmpEnd = self.__honbunsearch(
                                         lnbuf[:tmp.start()],tmp2.group(u'name'))
-                            lnbuf = u'%s<aozora tatenakayoko="%s">%s</aozora>%s%s' % (
+                            lnbuf = u'%s<aozora tatenakayoko="dmy">%s</aozora>%s%s' % (
                                         lnbuf[:tmpStart],
-                                        lnbuf[tmpStart:tmpEnd],
                                         lnbuf[tmpStart:tmpEnd],
                                         lnbuf[tmpEnd:tmp.start()],
                                         lnbuf[tmp.end():] )
@@ -821,9 +761,8 @@ class Aozora(ReaderSetting, AozoraScale):
                                 logging.error( u'%s を検出しましたがマッチしません。%s で閉じられています。' % (posstack[-1],tmp.group()) )
                             posstack.pop()
                             pos_start,pos_end = posstack.pop()
-                            lnbuf = u'%s<aozora tatenakayoko="%s">%s</aozora>%s' % (
+                            lnbuf = u'%s<aozora tatenakayoko="dmy">%s</aozora>%s' % (
                                 lnbuf[:pos_start],
-                                lnbuf[pos_end:tmp.start()],
                                 lnbuf[pos_end:tmp.start()],
                                 lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
@@ -1320,6 +1259,66 @@ class Aozora(ReaderSetting, AozoraScale):
                     # ［＃　で始まるタグの処理 終わり
                     break
 
+
+                """ 連続して出現する括弧類の送り量の調整
+                    ＃　で始まるタグの処理に影響しないよう、タグの処理後に実行する
+                """
+                retline = []
+                pos = 0
+                anchor = 0
+                end = len(lnbuf)
+                inAozora = 0
+                inTag = False
+                while pos < end:
+                    try:
+                        if inTag:
+                            if lnbuf[pos] == u'>':
+                                inTag = False
+                        elif lnbuf[pos] == u'<':
+                            inTag = True
+                        elif inAozora:
+                            if lnbuf[pos] == u'］':
+                                inAozora -= 1
+                        elif lnbuf[pos:pos+2] == u'［＃':
+                            inAozora += 1
+                            pos += 1
+                        elif lnbuf[pos] in self.kakko:
+                            # 括弧類を検出
+                            if lnbuf[pos] in u'、・' and pos > 0:
+                                # 、・の場合は前後に漢数字があるか調べる
+                                if kansuuji.find(lnbuf[pos-1]) != -1 and kansuuji.find(lnbuf[pos+1]) != -1:
+                                    if lnbuf[pos] == u'・':
+                                        retline.append(
+                                            u'%s<aozora half="0.75">%s</aozora><aozora half="0.75">%s</aozora>' % (
+                                                lnbuf[anchor:pos-1],
+                                                lnbuf[pos-1],
+                                                lnbuf[pos]))
+                                    else:
+                                        retline.append(
+                                            u'%s<aozora half="0.5">%s</aozora>' % (
+                                                lnbuf[anchor:pos], lnbuf[pos] ))
+                                    pos += 1
+                                    anchor = pos
+                                    continue
+
+                            if lnbuf[pos+1] in self.kakko and lnbuf[pos+1:pos+3] != u'［＃':
+                                if not (lnbuf[pos] in self.hajimekakko and lnbuf[pos+1] in self.owarikakko):
+                                    # 後ろにも括弧が続くか、且つタグの開始でないか
+                                    # 但し開閉の順()で続く場合は調整しない。
+                                    retline.append(
+                                    u'%s<aozora half="0.5">%s</aozora>' % (lnbuf[anchor:pos], lnbuf[pos]))
+                                    pos += 1
+                                    anchor = pos
+                                    continue
+                    except IndexError:
+                        pass
+                    pos += 1
+                retline.append(lnbuf[anchor:])
+
+                lnbuf = u''.join(retline)
+
+
+
                 if footerflag:
                     """ フッタにおける年月日を漢数字に置換
                     """
@@ -1748,8 +1747,8 @@ class Aozora(ReaderSetting, AozoraScale):
 
                             self.countpage = False
                             self.__write2file(dfile,
-                                    u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
-                                        __caption_sub_1(self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]), figwidth))
+                                u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
+                                    __caption_sub_1(self.reAozoraTagRemove.sub(u'',lnbuf[tmpStart:tmpEnd]), figwidth))
                             figwidth = -1
                             # 画像の直後に１行空ける。表示処理の都合で別行にすること。
                             self.__write2file(dfile,'\n')
@@ -1842,7 +1841,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.countpage = False      # ページカウントを抑止
                         # キャプション
                         self.__write2file(dfile,
-                                u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' % __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
+                            u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
+                            __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
                         figwidth = -1
                         # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
                         if figflag:

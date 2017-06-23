@@ -49,20 +49,11 @@ def pangocairocontext(cairoctx):
 
 class expango(HTMLParser, AozoraScale, ReaderSetting):
     """ 追加されたタグ
-        aozora  tatenakayoko
-                img
-                img2
-                warichu
-                caption     # 廃止
-                rubi
-                bousen
-                leftrubi
-                yokogumi
+        aozora  tatenakayoko, img, img2, warichu, caption, rubi, bousen,
+                leftrubi, yokogumi
 
         拡張されたタグ
-        pango   sup
-                sub
-
+        pango   sup, sub
     """
     # 送り調整を要する文字
     kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
@@ -80,13 +71,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.captionwidth = 0
         self.captiondata = u''
 
+        self.tatenakadata = u''     # 縦中横データ
+
         self.ypos2 = ypos
 
     def destroy(self):
         del self.tagstack
         del self.attrstack
 
-    #def settext(self, data, xpos, ypos):
     def settext(self, data, xpos):
         self.xpos = xpos
         self.ypos = self.ypos2
@@ -143,9 +135,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 #   caption の中である
                 #   なら見送る
                 for s in localtagstack:
-                    if s.find(u'<aozora yokogumi') != -1 or s.find(u'tatenakayoko') != -1:
-                        break
-                    if s.find(u'<aozora caption') != -1:
+                    if s.find(u'<aozora yokogumi') != -1 or \
+                       s.find(u'tatenakayoko') != -1 or \
+                       s.find(u'<aozora caption') != -1:
                         break
                 else:
                     localtagstack.append( u'<aozora yokogumi2' )
@@ -221,7 +213,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.tagstack.append(tag)
         self.attrstack.append(attr)
 
+
     def handle_endtag(self, tag):
+        # 実行時間を稼ぐためifを先行させる
         if self.tagstack != []:
             if self.tagstack[-1] == tag:
                 try:
@@ -242,13 +236,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         # 画像が表示されていればキャプションを横書きで表示する。
                         if self.figstack:
                             (self.xpos, self.ypos, self.captionwidth) = self.figstack.pop()
-
                             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                                 ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
                                 ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
                                 layout = pangoctx.create_layout()
                                 layout.set_font_description(self.font)
-
                                 pc = layout.get_context() # Pango を得る
                                 pc.set_base_gravity('south')
                                 pc.set_gravity_hint('natural')
@@ -263,6 +255,34 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                                 del pc
                             self.captiondata = u''
 
+                    elif self.attrstack[-1][0][0] == u'tatenakayoko':
+                        with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                            ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                            ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
+                            layout = pangoctx.create_layout()
+                            layout.set_font_description(self.font)
+                            # 縦中横 直前の表示位置を元にセンタリングする
+                            pc = layout.get_context() # Pango を得る
+                            # 横組文字の高さが幅より大きいとレイアウトが崩れるので、
+                            # 高さ（１文字の送り）を予め求める。
+                            pc.set_base_gravity('east')
+                            pc.set_gravity_hint('strong')
+                            layout.set_markup(u'国')
+                            length,y0 = layout.get_pixel_size()
+                            length += 1
+                            pc.set_base_gravity('south')
+                            pc.set_gravity_hint('natural')
+                            layout.set_markup(self.tatenakadata)
+                            y, length0 = layout.get_pixel_size() #x,yを入れ替えることに注意
+                            pangoctx.translate(self.xpos - int(math.ceil(y/2.)),
+                                        self.ypos - int(round((length0-length)/2.-0.5)))
+                            #pangoctx.rotate(0)
+                            pangoctx.update_layout(layout)
+                            pangoctx.show_layout(layout)
+                            del pc
+                            self.tatenakadata = u''
+                            self.ypos += length
+
                 except IndexError:
                     pass
                 self.tagstack.pop()
@@ -275,6 +295,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         def __bousen_common(key, xofset):
             """ 傍線表示
             """
+            # 縦中横(length==0)では１文字分を仮定
+            ltmp = self.canvas_fontheight if length < 1. else length
             with cairocontext(self.sf) as ctx00:
                 ctx00.set_antialias(cairo.ANTIALIAS_NONE)
                 ctx00.new_path()
@@ -285,7 +307,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     ctx00.set_dash((1.5,1.5,1.5,1.5))
                 elif dicArg[key] == u'二重傍線':
                     ctx00.move_to(self.xpos + xofset +2, self.ypos)
-                    ctx00.rel_line_to(0, length)
+                    ctx00.rel_line_to(0, ltmp)
                     ctx00.stroke()
 
                 if dicArg[key] == u'波線':
@@ -293,7 +315,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     spn = 5 # 周期
                     vx = 3 # 振幅
                     tmpx = self.xpos + xofset
-                    for y in xrange(0, length, spn):
+                    for y in xrange(0, ltmp, spn):
                         tmpy = self.ypos + y
                         ctx00.move_to(tmpx, tmpy)
                         ctx00.curve_to(tmpx,tmpy, tmpx+vx,tmpy+spn/2, tmpx,tmpy+spn)
@@ -301,7 +323,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 else:
                     # 波線以外を描画
                     ctx00.move_to(self.xpos + xofset, self.ypos)
-                    ctx00.rel_line_to(0, length)
+                    ctx00.rel_line_to(0, ltmp)
                 ctx00.stroke()
 
         def __bouten_common(key, xofset):
@@ -406,7 +428,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 rubilength,rubispan = layout.get_pixel_size()
 
                 # 表示位置 垂直方向のセンタリング
-                y = self.ypos + int((length-rubilength) // 2.)
+                # 縦中横の時(length==0)はフォント１文字分の高さを仮定
+                y = self.ypos + int(((self.canvas_fontheight if length<1. else length)-rubilength) // 2.)
                 if y < 0:
                     y = 0
                 if y < self.rubilastYpos and self.rubilastXofset * xofset > 0:
@@ -467,27 +490,23 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 拡張したタグは必ず属性をとる
                     for i in self.attrstack[pos]:
                         dicArg[i[0]] = i[1]
-                    # 一部のタグは本文を引数で置換する
-                    if u'tatenakayoko' in dicArg:
-                        sTmp = dicArg[u'tatenakayoko']
                     pos -= 1
                     continue
                 elif s == u'sup':
-                    #<sup>単独ではベースラインがリセットされる為、外部で指定する
-                    #また文字高(行高)がnormalのままとなるので size を使う
+                    # <sup>単独ではベースラインがリセットされる為、外部で指定する
+                    # また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = int(math.ceil(self.fontwidth / 3.))
-                    sTest = [u'<span size="small">', sTmp, u'</span>']
+                    #sTest = [u'<span size="smaller">', sTmp, u'</span>']
+                    sTest = [u'<sup>', sTmp, u'</sup>']
                     # 本文サイズとの相対値としたいが、タグを内側からチェックしているので
                     # 本文側のサイズを知ることができない！
                     # 例：<span size=><sup>hoge</sup></span>
                     # 　　<sup>が先にチェックされている
-                    #sTest = [u'<span size="%s">' % __fontsizechange(fontsizename, u'small'), sTmp, u'</span>']
                 elif s == u'sub':
-                    #<sub>単独ではベースラインがリセットされる為、外部で指定する
-                    #また文字高(行高)がnormalのままとなるので size を使う
+                    # <sub>単独ではベースラインがリセットされる為、外部で指定する
+                    # また文字高(行高)がnormalのままとなるので size を使う
                     xposoffset = -int(math.ceil(self.fontwidth / 3.))
-                    sTest = [u'<span size="small">', sTmp, u'</span>']
-                    #sTest = [u'<span size="%s">' % __fontsizechange(fontsizename, u'small'), sTmp, u'</span>']
+                    sTest = [u'<sub>', sTmp, u'</sub>']
                 else:
                     # 引数復元
                     sTest = []
@@ -604,9 +623,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 画像が表示されていればキャプションを連結する。
                     if self.figstack:
                         self.captiondata += sTmp
-                    else:
-                        pass
-                        #length = 0.
 
                 elif u'warichu' in dicArg:
                     # 割り注
@@ -630,27 +646,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     del pc
 
                 elif u'tatenakayoko' in dicArg:
-                    # 縦中横 直前の表示位置を元にセンタリングする
-                    pc = layout.get_context() # Pango を得る
-                    # 横組文字の高さが幅より大きいとレイアウトが崩れるので、
-                    # 高さ（１文字の送り）を予め求める。
-                    pc.set_base_gravity('east')
-                    pc.set_gravity_hint('strong')
-                    layout.set_markup(u'国')
-                    length,y0 = layout.get_pixel_size()
-                    length += 1
-                    pc.set_base_gravity('south')
-                    pc.set_gravity_hint('natural')
-                    layout.set_markup(sTmp)
-                    y, length0 = layout.get_pixel_size() #x,yを入れ替えることに注意
-                    pangoctx.translate(self.xpos + xposoffset - int(math.ceil(y/2.)),
-                                self.ypos - int(round((length0-length)/2.-0.5)))
-                    pangoctx.rotate(0)
-                    pangoctx.update_layout(layout)
-                    pangoctx.show_layout(layout)
-                    del pc
-                    # ルビ、傍点、傍線類の表示位置を設定
-                    honbunxpos = xposoffset + int(math.ceil(y/2.))
+                    # 縦中横はタグが閉じた時点で描画する
+                    self.tatenakadata += sTmp
+                    length = 0.
+                    # ルビ、傍点、傍線類の表示位置を設定（仮）
+                    honbunxpos = xposoffset + int(math.ceil(len(self.tatenakadata)*self.canvas_fontheight/2.))
 
                 else:
                     # 本文表示本体

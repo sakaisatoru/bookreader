@@ -47,57 +47,66 @@ def pangocairocontext(cairoctx):
     finally:
         del pangoctx
 
+_LEFT,_RIGHT = (0,1)
+
+"""
+    行の構成
+    縦書表示する文字の、右上の角がホームポジション (translate(x,y)の引数)
+    cairocanvasは左上角が(0,0)
+
+                    (self.xpos)
+                        (self.xpos+self.__honbunxpos)
+            +-----------+-----------+
+     ル 傍 傍            本　　　　　　　 傍 傍 ル
+     ビ 点 線            文            線 点 ビ
+"""
+
 class expango(HTMLParser, AozoraScale, ReaderSetting):
-    """ 追加されたタグ
-        aozora  tatenakayoko, img, img2, warichu, caption, rubi, bousen,
-                leftrubi, yokogumi
-
-        拡張されたタグ
-        pango   sup, sub
-    """
-    # 送り調整を要する文字
-    kakko = u',)]｝、）］｝〕〉》」』】〙〗〟’”｠»・。、．，([{（［｛〔〈《「『【〘〖〝‘“｟«'
-
     def __init__(self, canvas, ypos):
         HTMLParser.__init__(self)
         AozoraScale.__init__(self)
         ReaderSetting.__init__(self)
-        self.sf = canvas
-        self.oldwidth = 0
-        self.rubilastYpos = 0       # 直前のルビの最末端
-        self.rubilastXofset = 0     # 直前のルビが左右いずれかを保持
-        self.figstack = []          # キャプション表示位置を保持する
+        self.sf             = canvas
+        self.oldwidth       = 0
+        self.figstack       = []    # キャプション表示位置を保持する
+        self.captionwidth   = 0
+        self.captiondata    = u''
+        self.tatenakadata   = u''   # 縦中横データ
+        self.xpos_sideofset = 0     # sub, sup 時の相対位置
+        self.__honbunxpos   = 0
+        self.ypos2          = ypos
+        self.rubilastYpos   = [0,0] # 直前に出現したルビの末端 left, right
+        self.boutenofset    = [0,0] # 傍点出現位置の補正値 left, right
+        self.tatenakayoko_rubi_ofset = 0 # 縦中横時のルビ位置の補正値
+        #self.tatenakayoko_buff = [] # 処理順序入替用バッファ
 
-        self.captionwidth = 0
-        self.captiondata = u''
-
-        self.tatenakadata = u''     # 縦中横データ
-
-        self.ypos2 = ypos
+        self.setcolour(self.convcolor(self.get_value(u'fontcolor')),
+                                self.convcolor(self.get_value(u'backcolor')))
+        self.setfont(self.canvas_fontname, self.canvas_fontsize,
+                                                    self.canvas_rubifontsize )
 
     def destroy(self):
         del self.tagstack
         del self.attrstack
 
     def settext(self, data, xpos):
-        self.xpos = xpos
-        self.ypos = self.ypos2
-        self.rubilastYpos = 0       # 直前のルビの最末端
-        self.tagstack = []
-        self.attrstack = []
+        self.xpos           = xpos
+        self.ypos           = self.ypos2
+        self.rubilastYpos   = [0,0]  # 直前のルビの最末端
+        self.tagstack       = []
+        self.attrstack      = []
         self.inKeikakomigyou = False # 罫囲み（行中）のフラグ
-        self.keisenxpos = 0
+        self.keisenxpos     = 0
 
         """ Pangoのバグに対する対策
-            オリジナルのPangoがタグによる重力制御を振り切るケースが多々ある
-            ため、ここで文字種を判定し英文には横組タグ(aozora yokogumi)を
-            付す。
+            オリジナルのPangoがタグによる重力制御を振り切るケースが多々あるため、ここで
+            文字種を判定し英文には横組タグ(aozora yokogumi)を付す。
         """
-        sTmp = []
-        end = len(data)
-        localtagstack = []
-        pos_start = 0
-        pos_end = 0
+        sTmp                = []
+        end                 = len(data)
+        localtagstack       = []
+        pos_start           = 0
+        pos_end             = 0
         while pos_start < end:
             if data[pos_start:pos_start+2] == u'</':
                 # 既存の閉じタグを検出
@@ -135,9 +144,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 #   caption の中である
                 #   なら見送る
                 for s in localtagstack:
-                    if s.find(u'<aozora yokogumi') != -1 or \
-                       s.find(u'tatenakayoko') != -1 or \
-                       s.find(u'<aozora caption') != -1:
+                    if s.find(u'<aozora yokogumi')  != -1 or \
+                       s.find(u'tatenakayoko')      != -1 or \
+                       s.find(u'<aozora caption')   != -1:
                         break
                 else:
                     localtagstack.append( u'<aozora yokogumi2' )
@@ -158,20 +167,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     def setcolour(self, fore, back):
         """ 描画色・背景色を得る
         """
-        (self.foreR,self.foreG,self.foreB) = self.convcolor(fore)
-        (self.backR,self.backG,self.backB) = self.convcolor(back)
+        (self.foreR,self.foreG,self.foreB) = fore
+        (self.backR,self.backG,self.backB) = back
 
     def setfont(self, font, size, rubisize):
         """ フォント
         """
-        self.fontname = font
-        self.fontsize = size
-        self.fontrubisize = rubisize
-        self.fontheight = int(round(float(size)*(16./12.)))
-        self.fontwidth = self.fontheight # 暫定
-        self.rubifontheight = int(round(float(rubisize)*(16./12.)))
-        self.font = pango.FontDescription(u'%s %f' % (font,size))
-        self.font_rubi = pango.FontDescription(u'%s %f' % (font,rubisize))
+        self.font           = pango.FontDescription(u'%s %f' % (font,size))
+        self.font_rubi      = pango.FontDescription(u'%s %f' % (font,rubisize))
 
         self.update_charwidth(self.font)
 
@@ -210,35 +213,95 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.handle_data(u'&%s;' % name)
 
     def handle_starttag(self, tag, attr):
+        if tag == u'aozora':
+            if attr[0][0].find(u'bousen') != -1 or attr[0][0].find(u'rubi') != -1:
+                # 傍線及びルビの表示開始位置を保存
+                attr.append((u'start',self.ypos))
         self.tagstack.append(tag)
         self.attrstack.append(attr)
 
-
     def handle_endtag(self, tag):
-        # 実行時間を稼ぐためifを先行させる
-        if self.tagstack != []:
-            if self.tagstack[-1] == tag:
+        if tag == "sup" or tag == "sub":
+            # 左右小文字の表示位置を解除
+            self.xpos_sideofset = 0
+
+        # 実行時間を稼ぐためifを先行させる。andで連結しているので式の評価順序に注意
+        if self.tagstack != [] and self.tagstack[-1] == tag:
+            with cairocontext(self.sf) as ctx:
+                ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
                 try:
-                    if self.attrstack[-1][0][0] == u'keikakomigyou':
+                    if self.attrstack[-1][0][0].find(u'rubi') != -1:
+                        """ ルビ・左ルビ
+                        """
+                        sideband = _RIGHT if self.attrstack[-1][0][0] == u'rubi' else _LEFT
+                        # ママ表示　ルビにママをつける場合は２行表示とする
+                        rubipos = self.attrstack[-1][0][1].rfind(u'〔ルビママ〕')
+                        if rubipos == -1:
+                            rubipos = self.attrstack[-1][0][1].rfind(u'〔ママ〕')
+                        if rubipos > 0:
+                            if rubipos <= len(self.attrstack[-1][0][1])/2.:
+                                # ルビが短い
+                                rubitmp = u'%s\n%s' % (self.attrstack[-1][0][1][rubipos:],
+                                    self.attrstack[-1][0][1][:rubipos].center(len(self.attrstack[-1][0][1][rubipos:])*2))
+                            else:
+                                rubitmp = u'%s\n%s' % (self.attrstack[-1][0][1][rubipos:].center(len(self.attrstack[-1][0][1][:rubipos])*2),
+                                    self.attrstack[-1][0][1][:rubipos])
+                            rubitmp = rubitmp.strip(u'\n') # １行しかない場合は改行を外す
+                        else:
+                            rubitmp = self.attrstack[-1][0][1]
+
+                        with pangocairocontext(ctx) as pangoctx:
+                            ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                            layout = pangoctx.create_layout()
+                            pc = layout.get_context()       # Pango を得る
+                            pc.set_base_gravity('east')     # markup 前に実行
+                            pc.set_gravity_hint('natural')   # markup 前に実行
+                            layout.set_font_description(self.font_rubi)
+
+                            layout.set_markup(rubitmp)
+                            rubilength,rubispan = layout.get_pixel_size()
+                            length = self.ypos - self.attrstack[-1][2][1]
+                            # 表示位置 垂直方向のセンタリング
+                            # 縦中横の時(length==0)はフォント１文字分の高さを仮定
+                            y = self.attrstack[-1][2][1] + int(((self.fontheight if length<1. else length)-rubilength) // 2.)
+                            if y < 0:
+                                y = 0
+                            if y < self.rubilastYpos[sideband]:
+                                # ルビが連なる場合、直前のルビとの干渉を回避する
+                                y = self.rubilastYpos[sideband]
+
+                            pangoctx.translate(self.xpos + [-1,rubispan][sideband] + \
+                                [-1,1][sideband] * (self.__honbunxpos * self.canvas_rubioffset + self.tatenakayoko_rubi_ofset) + \
+                                                self.boutenofset[sideband], y)
+                            pangoctx.rotate(1.57075)
+                            pangoctx.update_layout(layout)
+                            pangoctx.show_layout(layout)
+                            self.rubilastYpos[sideband] = y + rubilength  # ルビの最末端を保存
+                            del pc
+                            del layout
+                            # 補正値は使い捨て
+                            self.boutenofset[sideband] = 0
+                            self.tatenakayoko_rubi_ofset = 0
+
+                    elif self.attrstack[-1][0][0] == u'keikakomigyou':
+                        """ 罫囲み（行中）の閉じ罫線（下側罫線）
+                        """
                         if self.attrstack[-1][0][1] in [u'3', u'0']:
-                            # 罫囲み（行中）の閉じ罫線（下側罫線）
-                            # handle_data では都度引かれてしまうのでここで処理する
-                            with cairocontext(self.sf) as ctx00:
-                                ctx00.set_antialias(cairo.ANTIALIAS_NONE)
-                                ctx00.set_line_width(1)
-                                # 下
-                                ctx00.move_to(self.xpos - self.keisenxpos, self.ypos)
-                                ctx00.rel_line_to(self.keisenxpos*2, 0)
-                                ctx00.stroke()
-                                self.inKeikakomigyou = False
+                            ctx.set_antialias(cairo.ANTIALIAS_NONE)
+                            ctx.set_line_width(1)
+                            # 下
+                            ctx.move_to(self.xpos - self.keisenxpos, self.ypos)
+                            ctx.rel_line_to(self.keisenxpos*2, 0)
+                            ctx.stroke()
+                            self.inKeikakomigyou = False
 
                     elif self.attrstack[-1][0][0] == u'caption':
-                        # 画像が表示されていればキャプションを横書きで表示する。
+                        """ 画像が表示されていればキャプションを横書きで表示する。
+                        """
                         if self.figstack:
                             (self.xpos, self.ypos, self.captionwidth) = self.figstack.pop()
-                            with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                            with pangocairocontext(ctx) as pangoctx:
                                 ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                                ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
                                 layout = pangoctx.create_layout()
                                 layout.set_font_description(self.font)
                                 pc = layout.get_context() # Pango を得る
@@ -256,9 +319,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             self.captiondata = u''
 
                     elif self.attrstack[-1][0][0] == u'tatenakayoko':
-                        with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                        """ 縦中横
+                        """
+                        with pangocairocontext(ctx) as pangoctx:
                             ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                            ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
                             layout = pangoctx.create_layout()
                             layout.set_font_description(self.font)
                             # 縦中横 直前の表示位置を元にセンタリングする
@@ -274,59 +338,61 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             pc.set_gravity_hint('natural')
                             layout.set_markup(self.tatenakadata)
                             y, length0 = layout.get_pixel_size() #x,yを入れ替えることに注意
-                            pangoctx.translate(self.xpos - int(math.ceil(y/2.)),
+                            # ルビ表示位置の補正量を求める
+                            # 但し、現状ではルビの表示処理が先行するので意味がない。
+                            #self.tatenakayoko_rubi_ofset = int(math.ceil(y/2.)) - self.__honbunxpos
+                            #if self.tatenakayoko_rubi_ofset < 0:
+                            #    self.tatenakayoko_rubi_ofset = 0
+                            pangoctx.translate(self.xpos - int(math.ceil(y/2.)) + self.xpos_sideofset,
                                         self.ypos - int(round((length0-length)/2.-0.5)))
-                            #pangoctx.rotate(0)
                             pangoctx.update_layout(layout)
                             pangoctx.show_layout(layout)
                             del pc
                             self.tatenakadata = u''
                             self.ypos += length
 
+                    elif self.attrstack[-1][0][0].find(u'bousen') != -1:
+                        """ 傍線各種
+                        """
+                        ltmp = self.ypos - self.attrstack[-1][1][1]
+                        xofset = self.__honbunxpos * ( 1 if self.attrstack[-1][0][0] == u'bousen' else -1 )
+                        ctx.set_antialias(cairo.ANTIALIAS_NONE)
+                        ctx.new_path()
+                        ctx.set_line_width(1)
+                        if self.attrstack[-1][0][1] == u'破線':
+                            ctx.set_dash((3.5,3.5,3.5,3.5))
+                        elif self.attrstack[-1][0][1] == u'鎖線':
+                            ctx.set_dash((1.5,1.5,1.5,1.5))
+                        elif self.attrstack[-1][0][1] == u'二重傍線':
+                            ctx.move_to(self.xpos + xofset +2, self.attrstack[-1][1][1]) # １本目
+                            ctx.rel_line_to(0, ltmp)
+                            ctx.stroke()
+
+                        if self.attrstack[-1][0][1] == u'波線':
+                            ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                            spn = 5 # 周期
+                            vx = 3 # 振幅
+                            tmpx = self.xpos + xofset
+                            for y in xrange(0, int(ltmp), spn):
+                                tmpy = self.attrstack[-1][1][1] + y
+                                ctx.move_to(tmpx, tmpy)
+                                ctx.curve_to(tmpx,tmpy, tmpx+vx,tmpy+spn/2, tmpx,tmpy+spn)
+                                vx *= -1
+                        else:
+                            # 波線以外を描画
+                            ctx.move_to(self.xpos + xofset, self.attrstack[-1][1][1])
+                            ctx.rel_line_to(0, ltmp)
+                        ctx.stroke()
+
                 except IndexError:
                     pass
-                self.tagstack.pop()
-                self.attrstack.pop()
+            self.tagstack.pop()
+            self.attrstack.pop()
 
     def handle_data(self, data):
         """ 挟まれたテキスト部分が得られる
         """
-
-        def __bousen_common(key, xofset):
-            """ 傍線表示
-            """
-            # 縦中横(length==0)では１文字分を仮定
-            ltmp = self.canvas_fontheight if length < 1. else length
-            with cairocontext(self.sf) as ctx00:
-                ctx00.set_antialias(cairo.ANTIALIAS_NONE)
-                ctx00.new_path()
-                ctx00.set_line_width(1)
-                if dicArg[key] == u'破線':
-                    ctx00.set_dash((3.5,3.5,3.5,3.5))
-                elif dicArg[key] == u'鎖線':
-                    ctx00.set_dash((1.5,1.5,1.5,1.5))
-                elif dicArg[key] == u'二重傍線':
-                    ctx00.move_to(self.xpos + xofset +2, self.ypos)
-                    ctx00.rel_line_to(0, ltmp)
-                    ctx00.stroke()
-
-                if dicArg[key] == u'波線':
-                    ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                    spn = 5 # 周期
-                    vx = 3 # 振幅
-                    tmpx = self.xpos + xofset
-                    for y in xrange(0, ltmp, spn):
-                        tmpy = self.ypos + y
-                        ctx00.move_to(tmpx, tmpy)
-                        ctx00.curve_to(tmpx,tmpy, tmpx+vx,tmpy+spn/2, tmpx,tmpy+spn)
-                        vx *= -1
-                else:
-                    # 波線以外を描画
-                    ctx00.move_to(self.xpos + xofset, self.ypos)
-                    ctx00.rel_line_to(0, ltmp)
-                ctx00.stroke()
-
-        def __bouten_common(key, xofset):
+        def __bouten_common(key, sideband):
             """ 傍点表示
             """
             def ___cairo_bouten():
@@ -369,7 +435,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 ctx00.rel_line_to(xx,-2*yy)
 
             dicfunc = {
-                # stroke                      fill
                 u'ばつ傍点':___cairo_batsu,
                 u'白ゴマ傍点':___cairo_bouten,  u'傍点':___cairo_bouten,
                 u'白丸傍点':___cairo_maru,      u'丸傍点':___cairo_maru,
@@ -383,11 +448,12 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 r = d / 2.                      # 表示幅の半分、例えば白丸の半径
                 # 表示領域左上座標
                 tmpx = self.xpos + \
-                        xofset * self.canvas_rubioffset + \
-                        r * (-2 if xofset < 0 else 1)
+                        self.__honbunxpos * self.canvas_rubioffset * (-1 if sideband == _LEFT else 1 )+ \
+                        r * (-2 if sideband == _LEFT else 1)
                 tmpy = self.ypos + d + r
                 ctx00.new_path()
                 ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT) # cairo.ANTIALIAS_NONE
+                ctx00.set_source_rgb(self.foreR, self.foreG, self.foreB)
                 ctx00.set_line_width(d/5.7)     # フォントサイズに連動する
                 # 傍点を描く。修飾対象文字が縦中横で修飾される場合は１文字扱い。
                 for s in data if not u'tatenakayoko' in dicArg else u' ':
@@ -397,91 +463,22 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     ctx00.fill()
                 else:
                     ctx00.stroke()
-            self.boutenofset = -d if xofset < 0 else (d+r)
-
-        def __rubi_common(key, xofset):
-            """ ルビ表示
-            """
-            with cairocontext(self.sf) as ctx00, pangocairocontext(ctx00) as pangoctx00:
-                layout = pangoctx00.create_layout()
-                pc = layout.get_context()       # Pango を得る
-                pc.set_base_gravity('east')     # markup 前に実行
-                pc.set_gravity_hint('natural')   # markup 前に実行
-                layout.set_font_description(self.font_rubi)
-
-                # ママ表示　ルビにママをつける場合は２行表示とする
-                rubipos = dicArg[key].rfind(u'〔ルビママ〕')
-                if rubipos == -1:
-                    rubipos = dicArg[key].rfind(u'〔ママ〕')
-                if rubipos > 0:
-                    if rubipos <= len(dicArg[key])/2.:
-                        # ルビが短い
-                        rubitmp = u'%s\n%s' % (dicArg[key][rubipos:],
-                            dicArg[key][:rubipos].center(len(dicArg[key][rubipos:])*2))
-                    else:
-                        rubitmp = u'%s\n%s' % (dicArg[key][rubipos:].center(len(dicArg[key][:rubipos])*2),
-                            dicArg[key][:rubipos])
-                    rubitmp = rubitmp.strip(u'\n') # １行しかない場合は改行を外す
-                else:
-                    rubitmp = dicArg[key]
-                layout.set_markup(rubitmp)
-                rubilength,rubispan = layout.get_pixel_size()
-
-                # 表示位置 垂直方向のセンタリング
-                # 縦中横の時(length==0)はフォント１文字分の高さを仮定
-                y = self.ypos + int(((self.canvas_fontheight if length<1. else length)-rubilength) // 2.)
-                if y < 0:
-                    y = 0
-                if y < self.rubilastYpos and self.rubilastXofset * xofset > 0:
-                    # ルビが連なる場合、直前のルビとの干渉を回避する
-                    y = self.rubilastYpos
-
-                if key == u'leftrubi':
-                    rubispan = 0
-                #"""
-                pangoctx00.translate(self.xpos + rubispan + \
-                                           xofset * self.canvas_rubioffset + \
-                                            self.boutenofset, y)
-
-                pangoctx00.rotate(1.57075)
-                pangoctx00.update_layout(layout)
-                pangoctx00.show_layout(layout)
-                self.rubilastYpos = y + rubilength  # ルビの最末端を保存
-                self.rubilastXofset = xofset # ルビが左右いずれかであるかを保持
-                del pc
-                del layout
-
-        def __fontsizechange(parentsize, default):
-            """ 一段階大きい（あるいは小さい）フォントサイズを得る
-            """
-            if not parentsize:
-                size = default
-            else:
-                tmp = parentsize.split(u'-')
-                size = u''
-                if len(tmp) == 1:
-                    size = u'x-%s' % tmp[0]
-                else:
-                    size = u'x%s' % parentsize
-                if u'xxx' in size:
-                    size = parentsize #
-            return size
+            self.boutenofset[sideband] = -d if sideband == _LEFT else (d+r)
 
 
         """------------------------------------------------------------------
         """
         # 初期化
-        self.boutenofset = 0    # 傍点描画後のルビ位置補正値
-
-        xposoffset = 0
-        rubispan = 0
-        dicArg = {}
-        sTmp = data
-        fontsizename = u''
-        length = 0.
+        self.boutenofset    = [0, 0]    # 傍点描画後のルビ位置補正値
+        rubispan            = 0
+        dicArg              = {}
+        sTmp                = data
+        fontsizename        = u''
+        length              = 0.
 
         try:
             # タグスタックに積まれている書式指定を全て付す
+            # TOS（即ちdataの直前に出現したタグ)から見ていくことに注意。
             # Pangoでうまく処理できないタグはここで代替処理する
             pos = -1
             while True:
@@ -491,21 +488,15 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     for i in self.attrstack[pos]:
                         dicArg[i[0]] = i[1]
                     pos -= 1
+                    if u'tatenakayoko' in dicArg:
+                        # 縦中横の中に含まれるsub/supで指定された補正値を解除
+                        self.xpos_sideofset = 0
                     continue
                 elif s == u'sup':
-                    # <sup>単独ではベースラインがリセットされる為、外部で指定する
-                    # また文字高(行高)がnormalのままとなるので size を使う
-                    xposoffset = int(math.ceil(self.fontwidth / 3.))
-                    #sTest = [u'<span size="smaller">', sTmp, u'</span>']
+                    self.xpos_sideofset = int(math.ceil(self.fontwidth / 3.))
                     sTest = [u'<sup>', sTmp, u'</sup>']
-                    # 本文サイズとの相対値としたいが、タグを内側からチェックしているので
-                    # 本文側のサイズを知ることができない！
-                    # 例：<span size=><sup>hoge</sup></span>
-                    # 　　<sup>が先にチェックされている
                 elif s == u'sub':
-                    # <sub>単独ではベースラインがリセットされる為、外部で指定する
-                    # また文字高(行高)がnormalのままとなるので size を使う
-                    xposoffset = -int(math.ceil(self.fontwidth / 3.))
+                    self.xpos_sideofset = -int(math.ceil(self.fontwidth / 3.))
                     sTest = [u'<sub>', sTmp, u'</sub>']
                 else:
                     # 引数復元
@@ -533,7 +524,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
             ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
             layout = pangoctx.create_layout()
             layout.set_font_description(self.font)
-            honbunxpos = 0
+
             if not dicArg:
                 # 本文表示本体
                 sTmp = sTmp.replace('\a','\n') # 改行コードの復元
@@ -543,10 +534,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 pc.set_gravity_hint('strong')
                 layout.set_markup(sTmp)
                 length, span = layout.get_pixel_size()
-
-                honbunxpos = int(math.ceil(span/2.))
-                pangoctx.translate(self.xpos + xposoffset + honbunxpos,
-                                                    self.ypos)  # 描画位置
+                self.__honbunxpos = int(math.ceil(span/2.))
+                # 描画位置　左右小文字はタグで分断されているので手動で表示位置を補正する。
+                pangoctx.translate(self.xpos + self.xpos_sideofset + self.__honbunxpos,
+                                                    self.ypos)
                 pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
                 pangoctx.update_layout(layout)
                 pangoctx.show_layout(layout)
@@ -562,8 +553,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     length, y = layout.get_pixel_size() #幅と高さを返す(実際のピクセルサイズ)
                     imgtmpx = int(math.ceil(float(dicArg[u'width'])/2.))
                     imgtmpy = int(math.ceil((length - float(dicArg[u'height']))/2.))
-                    pangoctx.translate(self.xpos + xposoffset - imgtmpx,
-                                            self.ypos+imgtmpy)
+                    pangoctx.translate(self.xpos - imgtmpx, self.ypos+imgtmpy)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                             os.path.join(self.aozoratextdir,dicArg[u'img']) )
@@ -574,48 +564,45 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 elif u'img2' in dicArg:
                     # 画像
                     pangoctx.translate(
-                        self.xpos + xposoffset,
-                        self.ypos + self.canvas_fontheight/2)
+                        self.xpos,
+                        self.ypos + self.fontheight/2)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img2']))
 
                     ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
-                    # scaleで画像を縮小すると座標系全てが影響を受ける為、
-                    # translate で指定したものを活かす
+                    # scaleで画像を縮小すると座標系全てが影響を受ける為、translate で指定したものを活かす
                     sp = cairo.SurfacePattern(self.sf)
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
                     length = int(dicArg[u'height'])
                     # キャプション描画位置を退避
-                    self.figstack.append((self.xpos + xposoffset,
-                        self.ypos + self.canvas_fontheight + length,
+                    self.figstack.append((self.xpos,
+                        self.ypos + self.fontheight + length,
                         int(dicArg[u'width'])) )
                     del img
 
                 elif u'img3' in dicArg:
                     # 回りこみを伴う画像
                     pangoctx.translate(
-                        self.xpos + xposoffset - int(dicArg[u'width']),
-                        self.ypos + self.canvas_fontheight/2)
+                        self.xpos - int(dicArg[u'width']),
+                        self.ypos + self.fontheight/2)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
                                 os.path.join(self.aozoratextdir,dicArg[u'img3']))
 
                     ctx.scale(float(dicArg[u'rasio']),float(dicArg[u'rasio']))
-                    # scaleで画像を縮小すると座標系全てが影響を受ける為、
-                    # translate で指定したものを活かす
+                    # scaleで画像を縮小すると座標系全てが影響を受ける為、translate で指定したものを活かす
                     sp = cairo.SurfacePattern(self.sf)
                     sp.set_filter(cairo.FILTER_BEST) #FILTER_GAUSSIAN )#FILTER_NEAREST)
                     ctx.set_source_surface(img,0,0)
                     ctx.paint()
                     length = int(dicArg[u'height'])
-                    # キャプション描画位置を退避
-                    # ただし、キャプションが続かない場合、スタックに取り残される。
+                    # キャプション描画位置を退避 ただし、キャプションが続かない場合、スタックに取り残される。
                     self.figstack.append( (
-                        self.xpos + xposoffset - int(dicArg[u'width']),
-                        self.ypos + self.canvas_fontheight + length,
+                        self.xpos - int(dicArg[u'width']),
+                        self.ypos + self.fontheight + length,
                         int(dicArg[u'width']) ) )
                     del img
 
@@ -649,11 +636,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 縦中横はタグが閉じた時点で描画する
                     self.tatenakadata += sTmp
                     length = 0.
-                    # ルビ、傍点、傍線類の表示位置を設定（仮）
-                    honbunxpos = xposoffset + int(math.ceil(len(self.tatenakadata)*self.canvas_fontheight/2.))
 
                 else:
-                    # 本文表示本体
+                    # 本文表示本体 送り量や書き出し位置の調整タグの処理を含む。
                     # ※少しでも処理速度を稼ぐため上にも似たルーチンがあります
                     sTmp = sTmp.replace('\a','\n') # 改行コードの復元
                     if u'mado' in dicArg:
@@ -670,6 +655,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                         pc.set_gravity_hint('strong')
                     layout.set_markup(sTmp)
                     length, span = layout.get_pixel_size()
+                    self.__honbunxpos = int(math.ceil(span/2.))
                     if u'half' in dicArg:
                         # 連続して出現すする括弧等の送り量を調整する
                         honbunokuri = float(dicArg['half'])
@@ -687,26 +673,23 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     if u'dash' in dicArg:
                         # ダッシュ
                         # フォントを使わずcairoで描画する
-                        with cairocontext(self.sf) as dashctx:
-                            # cairo.ANTIALIAS_GRAY, cairo.ANTIALIAS_NONE
-                            dashctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                            dashctx.new_path()
-                            dashctx.set_line_width(1)
-                            dashctx.move_to(self.xpos + xposoffset + honbunxpos,
-                                                    self.ypos)
-                            dashctx.rel_line_to(0, length)
-                            dashctx.close_path()
-                            dashctx.stroke()
+                        ctx.new_path()
+                        ctx.set_line_width(1)
+                        ctx.move_to(self.xpos, self.ypos)
+                        ctx.rel_line_to(0, length)
+                        ctx.close_path()
+                        ctx.stroke()
+
                     else:
                         if u'mado' in dicArg:
-                            # 窓見出しの描画位置の調整
+                            # 窓見出しの描画位置の調整(３行か２行取りになることが前提）
                             pangoctx.translate(
-                                self.xpos + (self.canvas_fontheight - self.canvas_linewidth * (int(dicArg['lines']) -1))//2 + span//4,
-                                self.ypos + self.canvas_fontheight//2)  # 描画位置
+                                self.xpos - self.canvas_linewidth // (4-int(dicArg['lines'])) + span//2,
+                                self.ypos + self.fontheight//2)  # 描画位置
                         else:
-                            honbunxpos = int(math.ceil(span/2.))
-                            pangoctx.translate(self.xpos + xposoffset + honbunxpos,
-                                                    self.ypos )  # 描画位置
+                            # 描画位置　左右小文字はタグで分断されているので手動で表示位置を補正する。
+                            pangoctx.translate(self.xpos + self.xpos_sideofset + self.__honbunxpos,
+                                                    self.ypos )
                         pangoctx.rotate(1.57075) # 90度右回転、即ち左->右を上->下へ
                         pangoctx.update_layout(layout)
                         pangoctx.show_layout(layout)
@@ -722,13 +705,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 下側罫線はタグの終端検出時に描画する
                     with cairocontext(self.sf) as ctx00:
                         ctx00.set_antialias(cairo.ANTIALIAS_NONE)
+                        ctx00.set_source_rgb(self.foreR,self.foreG,self.foreB)
                         ctx00.set_line_width(1)
-                        self.keisenxpos = honbunxpos
+                        self.keisenxpos = self.__honbunxpos
                         # 右
-                        ctx00.move_to(self.xpos + honbunxpos, self.ypos)
+                        ctx00.move_to(self.xpos + self.__honbunxpos, self.ypos)
                         ctx00.rel_line_to(0, length)
                         # 左
-                        ctx00.move_to(self.xpos - honbunxpos, self.ypos)
+                        ctx00.move_to(self.xpos - self.__honbunxpos, self.ypos)
                         ctx00.rel_line_to(0, length)
                         if not self.inKeikakomigyou and dicArg[u'keikakomigyou'] in [u'1', u'0']:
                             # 上
@@ -737,52 +721,18 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             self.inKeikakomigyou = True
                         ctx00.stroke()
 
-                if u'bousen' in dicArg:
-                    # 傍線
-                    __bousen_common(u'bousen', honbunxpos)
                 if u'bouten' in dicArg:
                     # 傍点
-                    __bouten_common(u'bouten', honbunxpos)
-
-                # 大域変数で傍点との重なりを回避するのでbouten/bousen処理の直後に置くこと
-                # 親文字に送り量調整された括弧類や句読点類が含まれると、ルビを繰り返し
-                # 表示してしまう。
-                if u'rubi' in dicArg and not data in self.kakko:
-                    # ルビ
-                    __rubi_common(u'rubi', honbunxpos)
-
-                if u'leftbousen' in dicArg:
-                    # 左傍線
-                    __bousen_common(u'leftbousen', -honbunxpos)
-
+                    __bouten_common(u'bouten', _RIGHT)
                 if u'leftbouten' in dicArg:
                     # 左傍点
-                    __bouten_common(u'leftbouten', -honbunxpos)
-
-                # 大域変数で傍点との重なりを回避するのでleft bouten/bousen処理の直後に置くこと
-                # 親文字に送り量調整された括弧類や句読点類が含まれると、ルビを繰り返し
-                # 表示してしまう。
-                if u'leftrubi' in dicArg and not data in self.kakko:
-                    # 左ルビ
-                    __rubi_common(u'leftrubi', -honbunxpos)
-                    # 多重表示を回避するため、一度表示したタグを抜去する
-                    for pos, s in enumerate(self.tagstack):
-                        if self.tagstack[pos] == u'aozora':
-                            for i in self.attrstack[pos]:
-                                if i[0] == u'leftrubi' and i[1] == dicArg[u'leftrubi']:
-                                    #self.tagstack.pop(pos)
-                                    self.attrstack.pop(pos)
-                                    self.attrstack.insert(pos, [(u'dmy',u'dmy')])
-                                    break
-                            else:
-                                continue
-                            break
+                    __bouten_common(u'leftbouten', _LEFT)
 
         # 次の呼び出しでの表示位置
         self.ypos += length
 
 
-class CairoCanvas(ReaderSetting):#, AozoraScale):
+class CairoCanvas(ReaderSetting):
     """ cairo / pangocairo を使って文面を縦書きする
     """
     def __init__(self):
@@ -800,8 +750,6 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
         offset_y = 0            # 文字列の書き出し位置
         tmpwidth = 0
         tmpheight = 0
-        fontheight = int(self.canvas_fontheight)
-        fontwidth = fontheight # 暫定
 
         xpos = self.canvas_width - self.canvas_rightmargin - int(math.ceil(self.canvas_linewidth/2.))
         KeikakomiXendpos = xpos
@@ -815,10 +763,9 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
 
         # 文字列表示クラス
         self.drawstring = expango(self.sf, self.canvas_topmargin)
-        self.drawstring.setcolour(self.get_value(u'fontcolor'),
-                                                self.get_value(u'backcolor'))
-        self.drawstring.setfont(self.canvas_fontname, self.canvas_fontsize,
-                                                    self.canvas_rubifontsize )
+
+        # 描画色の準備
+        foreR, foreG, foreB = self.drawstring.getforegroundcolour()
         # 画面クリア
         with cairocontext(self.sf) as ctx:
             ctx.rectangle(0, 0, self.canvas_width, self.canvas_height)
@@ -833,9 +780,9 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
             ctx.new_path()
             ctx.set_line_width(1)
             ctx.move_to(0,
-                    self.canvas_topmargin + self.chars * fontheight)
+                    self.canvas_topmargin + self.chars * self.canvas_fontheight)
             ctx.rel_line_to(self.canvas_width,0)
-            ctx.rel_line_to(0,-fontheight)
+            ctx.rel_line_to(0,-self.canvas_fontheight)
             ctx.rel_line_to(-self.canvas_width,0)
             ctx.close_path()
             ctx.stroke()
@@ -846,21 +793,23 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
             i = self.pagelines #+ 1
             while i:
                 s0 = f0.readline().rstrip('\n')
+                if s0.find( u'<aozora newpage="dmy">' ) != -1:
+                    break
 
-                tmpxpos = s0.find(u'<aozora keikakomi="start"></aozora>')
+                tmpxpos = s0.find(u'<aozora keikakomi="start"> </aozora>')
                 if tmpxpos != -1:
                     # 罫囲み開始
                     inKeikakomi = True
                     offset_y = self.chars
                     maxchars = 0
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+35:] # tagを抜去
-                    KeikakomiXendpos = xpos# + int(round(self.canvas_linewidth/2.))
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+36:] # tagを抜去
+                    KeikakomiXendpos = xpos
 
-                tmpxpos = s0.find(u'<aozora keikakomi="end"></aozora>')
+                tmpxpos = s0.find(u'<aozora keikakomi="end"> </aozora>')
                 if tmpxpos != -1:
                     # 罫囲み終わり
                     inKeikakomi = False
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+33:] # tagを抜去
+                    s0 = s0[:tmpxpos] + s0[tmpxpos+34:] # tagを抜去
                     if offset_y > 0:
                         offset_y -= 1
                     maxchars -= offset_y
@@ -869,12 +818,13 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
                     tmpwidth = KeikakomiXendpos - xpos
                     with cairocontext(self.sf) as ctx:
                         ctx.set_antialias(cairo.ANTIALIAS_NONE)
+                        ctx.set_source_rgb(foreR, foreG, foreB) # 描画色
                         ctx.new_path()
                         ctx.set_line_width(1)
                         ctx.move_to(xpos,
-                                self.canvas_topmargin + offset_y * fontheight)
+                                self.canvas_topmargin + offset_y * self.canvas_fontheight)
                         ctx.rel_line_to(tmpwidth,0)
-                        ctx.rel_line_to(0, maxchars * fontheight)
+                        ctx.rel_line_to(0, maxchars * self.canvas_fontheight)
                         ctx.rel_line_to(-tmpwidth,0)
                         ctx.close_path()
                         ctx.stroke()
@@ -892,7 +842,6 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
                             offset_y = tmpheight
 
                 if s0:
-                    #self.drawstring.settext(s0, xpos, self.canvas_topmargin)
                     self.drawstring.settext(s0, xpos)
                     # 行末が CR の場合は改行しないで終わる
                     if s0[-1] != '\r':
@@ -906,6 +855,8 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
         # ノンブル(ページ番号)
         if currentpage:
             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                ctx.set_source_rgb(foreR, foreG, foreB)
                 layout = pangoctx.create_layout()
                 layout.set_font_description(self.drawstring.font)
                 layout.set_markup( u'<span size="x-small">%d (全%d頁)</span>' % (currentpage, maxpage))
@@ -919,6 +870,8 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
             # 柱（テキスト名）
             if title:
                 with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
+                    ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
+                    ctx.set_source_rgb(foreR, foreG, foreB)
                     layout = pangoctx.create_layout()
                     layout.set_font_description(self.drawstring.font)
                     layout.set_markup( u'<span size="x-small">%s</span>' % title.strip(u' ').strip(u'　'))
@@ -932,8 +885,3 @@ class CairoCanvas(ReaderSetting):#, AozoraScale):
         self.sf.finish()
         del self.drawstring
         del self.sf
-
-
-
-
-

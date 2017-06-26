@@ -287,6 +287,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
     # 青空タグを除去する
     reAozoraTagRemove = re.compile( ur'<aozora.+?>|</aozora>' )
+    reAozoraTagRemove2 = re.compile( ur'^<aozora(^\>\<)+?>$' )
 
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
@@ -300,6 +301,8 @@ class Aozora(ReaderSetting, AozoraScale):
 
         self.imgwidth_lines = 0     # 挿図回避用
         self.imgheight_chars = 0    # 挿図回避用
+
+        self.isNewPageWrote = False # 改ページ後に何か書き出したか
 
         # 単純な置換
         # 設定ファイルから変数を拾うため、ここに移動。
@@ -1047,9 +1050,10 @@ class Aozora(ReaderSetting, AozoraScale):
                         if tmp2:
                             # ［＃傍点］
                             aozorastack.append(tmp.group())
-                            lnbuf = u'%s<aozora %s="%s">%s' % (
+                            lnbuf = u'%s<aozora %s%s="%s">%s' % (
                                 lnbuf[:tmp.start()],
-                                u'bousen' if not tmp2.group('position') else u'leftbousen',
+                                u'' if not tmp2.group('position') else u'left',
+                                u'bouten' if tmp2.group('type2') == u'傍点' else u'bousen',
                                 tmp2.group('type') + tmp2.group('type2'),
                                         lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
@@ -1317,8 +1321,6 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 lnbuf = u''.join(retline)
 
-
-
                 if footerflag:
                     """ フッタにおける年月日を漢数字に置換
                     """
@@ -1568,8 +1570,7 @@ class Aozora(ReaderSetting, AozoraScale):
             """
             if self.linecounter + lines >= self.pagelines:
                 # 画像がはみ出すようなら改ページする
-                while not self.__write2file(dfile, '\n'):
-                    pass
+                self.__newpage2file(dfile)
             if mode:
                 # 画像表示部分を改行で確保する。
                 while lines > 0:
@@ -1723,7 +1724,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         figcapcount = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
-
                         continue
 
                     """ キャプション
@@ -1899,13 +1899,12 @@ class Aozora(ReaderSetting, AozoraScale):
                             dfile.close()
                             dfile = workfilestack.pop()
 
-                        if self.linecounter != 0:
+                        if self.isNewPageWrote:
                             # ページ先頭に出現した場合は改ページしない
-                            while not self.__write2file(dfile, '\n'):
-                                pass
-                            # 挿図に対するテキストの回りこみを解除
-                            self.imgwidth_lines = 0
-                            self.imgheight_chars = 0
+                            self.__newpage2file(dfile)
+                        # 挿図に対するテキストの回りこみを解除
+                        self.imgwidth_lines = 0
+                        self.imgheight_chars = 0
 
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
@@ -1928,8 +1927,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             sTmp2 = lnbuf[tmpStart:tmpEnd]
                             if self.linecounter+(3 if len(self.midashi)>10 else 2) >= self.pagelines:
                                 # ページ末で表示域が分断される場合は改ページする
-                                while not self.__write2file(dfile, '\n'):
-                                    pass
+                                self.__newpage2file(dfile)
 
                             self.inMidashi = True
                             self.imgwidth_lines = (3 if len(self.midashi)>10 else 2) # 見出し表示は原則2行とり
@@ -1993,8 +1991,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         sTmp = self.reAozoraTagRemove.sub(u'',sTmp2)
                         if self.linecounter+(3 if len(sTmp)>10 else 2) >= self.pagelines:
                             # ページ末で表示域が分断される場合は改ページする
-                            while not self.__write2file(dfile, '\n'):
-                                pass
+                            self.__newpage2file(dfile)
 
                         self.inMidashi = True
                         self.midashi = sTmp
@@ -2166,7 +2163,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
                         # 一時ファイル使用中はページカウントしない
                         self.countpage = False
-                        lnbuf = u'%s<aozora keikakomi="start"></aozora>%s' % (
+                        lnbuf = u'%s<aozora keikakomi="start"> </aozora>%s' % (
                             lnbuf[:tmp.start()], lnbuf[tmp.end():] )
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -2187,8 +2184,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 罫囲みが次ページへまたがる場合は改ページする。
                             # 但し、１ページを越える場合は無視する。
                             if self.linecounter + iCenter >= self.pagelines:
-                                while not self.__write2file(workfilestack[-1], '\n' ):
-                                    pass
+                                self.__newpage2file(dfile)
 
                         # 一時ファイルからコピー
                         dfile.seek(0)
@@ -2197,7 +2193,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.__write2file(workfilestack[-1], sCenter)
                         dfile.close()
                         dfile = workfilestack.pop()
-                        lnbuf = u'%s<aozora keikakomi="end"></aozora>%s' % (
+                        lnbuf = u'%s<aozora keikakomi="end"> </aozora>%s' % (
                             lnbuf[:tmp.start()], lnbuf[tmp.end():] )
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -2366,7 +2362,7 @@ class Aozora(ReaderSetting, AozoraScale):
         charheight = self.fontheight
 
         # 行末合わせ調整対象文字　優先順位兼用
-        adjchars = u'　 、，．。）］｝〕〉》」』】〙〗（［｛〔〈《「『【〘〖｟,.'
+        adjchars = u'　 、，．。）］｝〕〉》」』】〙〗〟（［｛〔〈《「『【〘〖｟〝,.'
 
         """ 前回の呼び出しから引き継がれたタグがあれば付加する
         """
@@ -2899,21 +2895,21 @@ class Aozora(ReaderSetting, AozoraScale):
                         pass
                     #"""
 
-        """ 閉じられていないタグを検出する
-            あれば一旦閉じて次回へ引き継ぐ。
+        """ 閉じられていないタグを検出する。あれば一旦閉じて次回へ引き継ぐ。
             ルビの分かち書きもここで処理する。
         """
+        # 閉じられていないタグを検出してサブスタックに積む
         substack = []
         for currpos, sTest in enumerate(sTestCurrent):
             try:
                 if sTest[0:2] == u'</':
+                    # 閉じられたので抜去
                     substack.pop()
                 elif sTest[0] == u'<':
                     if sTest[1:].find(u'</') == -1:
-                        # 但し同一要素内でタグが完了していれば追加しない
+                        # タグを検出したのでサブスタックに積む
+                        # 但し同一要素内でタグが完了 <hoge></hoge> していれば追加しない
                         substack.append((currpos, sTest))
-                else:
-                    pass
             except IndexError:
                 pass
 
@@ -2979,15 +2975,30 @@ class Aozora(ReaderSetting, AozoraScale):
                             sTestCurrent.append(u'</aozora>')
                             self.tagstack.insert(0, u'<aozora %s="" length="0">' % tagattr[0] )
                     else:
-                        # 行末がこのタグで終わっているなら、全て次行へ持ち越し
-                        sTestCurrent.append(u'</aozora>')
+                        # 行末が<aozora rubi|leftrubiで終わっているなら抜去して、全てを次行へ持ち越す
+                        sTestCurrent.pop()
                         self.tagstack.insert(0, currtag)
-
             else:
                 sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<>'))
-                self.tagstack.insert(0, currtag) # 次回へ引き継ぐ
+                self.tagstack.insert(0, currtag) # 次行へ引き継ぐ
 
         return (u''.join(sTestCurrent), u''.join(sTestNext))
+
+    def __newpage2file(self, fd):
+        """ 改ページ
+        """
+        # 改行を書き出さない。__write2fileでの改ページ発生を抑止する
+        self.__write2file(fd, u'<aozora newpage="dmy"> </aozora>')
+        self.__newpage(fd)
+
+    def __newpage(self, fd):
+        """ 改ページ下請け
+        """
+        self.currentText.pagecounter += 1
+        self.currentText.currentpage.append(fd.tell())
+        self.linecounter = 0
+        self.isNewPageWrote = False
+        fd.flush()
 
     def __write2file(self, fd, s):
         """ formater 下請け
@@ -2997,6 +3008,7 @@ class Aozora(ReaderSetting, AozoraScale):
         """
         rv = False
         fd.write(s)         # 本文
+        self.isNewPageWrote = True
 
         if self.loggingflag:
             logging.debug( u'　位置：%dページ、%d行目' % (
@@ -3037,10 +3049,7 @@ class Aozora(ReaderSetting, AozoraScale):
                 self.linecounter += 1
             if self.linecounter >= self.pagelines:
                 # 1頁出力し終えたらその位置を記録する
-                self.currentText.pagecounter += 1
-                self.currentText.currentpage.append(fd.tell())
-                self.linecounter = 0
-                fd.flush()
+                self.__newpage(fd)
                 rv = True
         return rv
 

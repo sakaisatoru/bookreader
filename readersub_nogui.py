@@ -34,21 +34,17 @@ import cairo
 import pango
 import pangocairo
 
-@contextmanager
-def cairocontext(surface):
-    try:
-        context = cairo.Context(surface)
-        yield context
-    finally:
-        del context
+
 
 @contextmanager
-def pangocairocontext(cairoctx):
+def pangocairocontext(surface):
     try:
-        pangoctx = pangocairo.CairoContext(cairoctx)
+        context = cairo.Context(surface)
+        pangoctx = pangocairo.CairoContext(context)
         yield pangoctx
     finally:
         del pangoctx
+        del context
 
 
 class AozoraScale(object):
@@ -60,7 +56,7 @@ class AozoraScale(object):
     kinsoku = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»ヽヾ。、．，ーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻‐゠–〜?!‼⁇⁈⁉・:;！？'
     kinsoku2 = u'([{（［｛〔〈《「『【〘〖〝‘“｟«〳〴'
     kinsoku4 = u'\r,)]｝）］｝〕〉》」』】〙〗〟’”｠»。、．，'
-    kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗、'
+    kinsoku5 = u'\r,)]｝）］｝〕〉》」』】〙〗〟、，'
 
     # Serif(TakaoEx明朝)における、対全角文字比
     charwidth_serif = {
@@ -140,6 +136,7 @@ class AozoraScale(object):
     def __init__(self):
         self.font_description = None
         self.fontheight = 0             # 縦書き時の１文字の高さ
+        self.fontwidth = 0              # 縦書き時の１文字の幅
         pass
 
     def update_charwidth_2(self, font, size):
@@ -155,14 +152,14 @@ class AozoraScale(object):
             sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
                                     canvas_width, canvas_height)
 
-            with cairocontext(sf) as ctx, pangocairocontext(ctx) as pangoctx:
+            with pangocairocontext(sf) as pangoctx:
                 layout = pangoctx.create_layout()
                 pc = layout.get_context() # Pango を得る
                 pc.set_base_gravity('east')
                 pc.set_gravity_hint('natural')
                 layout.set_font_description(font_des)
                 layout.set_text( u'国' )
-                self.fontheight, length = layout.get_pixel_size()
+                self.fontheight, self.fontwidth = layout.get_pixel_size()
 
                 pc.set_base_gravity('south')
                 pc.set_gravity_hint('natural')
@@ -482,7 +479,7 @@ class ReaderSetting(object):
         canvas_height = 80
         sf = cairo.ImageSurface(cairo.FORMAT_ARGB32, canvas_width, canvas_height)
 
-        with cairocontext(sf) as ctx, pangocairocontext(ctx) as pangoctx:
+        with pangocairocontext(sf) as pangoctx:
             layout = pangoctx.create_layout()
             pc = layout.get_context() # Pango を得る
             pc.set_base_gravity('east')

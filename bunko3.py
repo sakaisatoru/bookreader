@@ -73,7 +73,8 @@ class aozoraDB(ReaderSetting):
             pos = bisect.bisect(self.idxYomiAuthor, (keyvalue,u''))
             l = len(self.idxYomiAuthor)
             while pos < l:
-                if self.idxYomiAuthor[pos][0].find(keyvalue) == -1:
+                if not keyvalue in self.idxYomiAuthor[pos][0]:
+                #if self.idxYomiAuthor[pos][0].find(keyvalue) == -1:
                     break
                 yield self.idxYomiAuthor[pos]
                 pos+=1
@@ -81,7 +82,8 @@ class aozoraDB(ReaderSetting):
             pos = bisect.bisect(self.idxYomiWorks, (keyvalue,u''))
             l = len(self.idxYomiWorks)
             while pos < l:
-                if self.idxYomiWorks[pos][0].find(keyvalue) == -1:
+                if not keyvalue in self.idxYomiWorks[pos][0]:
+                #if self.idxYomiWorks[pos][0].find(keyvalue) == -1:
                     break
                 yield self.idxYomiWorks[pos]
                 pos+=1

@@ -127,7 +127,7 @@ class Aozora(ReaderSetting, AozoraScale):
     reGaiji3 = re.compile(ur'(※［＃.*?、.*?(?P<number>\d+\-\d+\-\d+\d*)］)')
     reGaiji4 = re.compile(ur'(※［＃.+?、U\+(?P<number>[0-9A-F]+?)、.+?］)')
     reGaiji5 = re.compile(ur'(※［＃(?P<name>.+?)、.+?］)' )
-    reGaiji6 = re.compile(ur'(※［＃ローマ数字(?P<num>\d\d?)、.+?］)' )
+    reGaiji6 = re.compile(ur'(※［＃ローマ数字(?P<num>\d\d?)(?P<cap>.*?)、.+?］)' )
     # このプログラムで特に予約された文字
     dicReserveChar = {
         u'感嘆符三つ':u'<aozora tatenakayoko="!!!">!!!</aozora>', # 例）河童、芥川龍之介
@@ -237,8 +237,6 @@ class Aozora(ReaderSetting, AozoraScale):
     # 窓見出し
     reMadoMidashi = re.compile(ur'［＃「(?P<midashi>.+?)」は窓(?P<midashisize>大|中|小)見出し］')
     reMadoMidashi2name = re.compile(ur'((<.+?)??(?P<name>.+?)[<［\n]+?)')
-    #reMadoMidashi2 = re.compile(ur'(［＃窓(?P<midashisize>大|中|小)見出し］)')
-    #reMadoMidashi2owari = re.compile(ur'(［＃窓(?P<midashisize>大|中|小)見出し終わり］)')
     reMadoMidashi3 = re.compile(ur'(［＃(ここから)?窓(?P<midashisize>大|中|小)見出し］)')
     reMadoMidashi3owari = re.compile(ur'(［＃(ここで)?窓(?P<midashisize>大|中|小)見出し終わり］)')
 
@@ -429,13 +427,18 @@ class Aozora(ReaderSetting, AozoraScale):
             if l == 0:
                 rv.append((u'' if s[l] == 0 else unichr(0x215F+s[l])))
             elif l == 1:
-                rv.append([u'',u'Ⅹ', u'ⅩⅩ',u'ⅩⅩⅩ',u'ⅩⅬ',
-                            u'Ⅼ',u'ⅬⅩ',u'ⅬⅩⅩ',u'ⅬⅩⅩⅩ',u'ⅩⅭ'][s[l]])
+                #rv.append([u'',u'Ⅹ', u'ⅩⅩ',u'ⅩⅩⅩ',u'ⅩⅬ',
+                #            u'Ⅼ',u'ⅬⅩ',u'ⅬⅩⅩ',u'ⅬⅩⅩⅩ',u'ⅩⅭ'][s[l]])
+                rv.append([u'',u'X', u'XX',u'XXX',u'XL',
+                            u'L',u'LX',u'LXX',u'LXXX',u'X'][s[l]])
             elif l == 2:
-                rv.append([u'',u'Ⅽ',u'ⅭⅭ',u'ⅭⅭⅭ',u'ⅭⅮ',
-                            u'Ⅾ',u'ⅮⅭ',u'ⅮⅭⅭ',u'ⅮⅭⅭⅭ',u'ⅭⅯ'][s[l]])
+                #rv.append([u'',u'Ⅽ',u'ⅭⅭ',u'ⅭⅭⅭ',u'ⅭⅮ',
+                #            u'Ⅾ',u'ⅮⅭ',u'ⅮⅭⅭ',u'ⅮⅭⅭⅭ',u'ⅭⅯ'][s[l]])
+                rv.append([u'',u'C',u'CC',u'CCC',u'CD',
+                            u'D',u'DC',u'DCC',u'DCCC',u'CM'][s[l]])
             elif l == 3:
-                rv.append(u'Ⅿ'*s[l])
+                #rv.append(u'Ⅿ'*s[l])
+                rv.append(u'M'*s[l])
         return ''.join(rv)
 
     def __searchtag(self, s, pos=0):
@@ -471,6 +474,56 @@ class Aozora(ReaderSetting, AozoraScale):
             sTmp = sTmp[:s0]+sTmp[e0:]
             s0, e0 = self.__searchtag(sTmp)
         return sTmp
+
+    def __removetag_warichu(self, sTmp):
+        """ 割り注下請
+            ［＃改行］<sub></sub><sup></sup>以外のタグを抜去し、文字列の長さを
+            返す。
+            <sub><sup>による文字サイズの変化は勘案しない。
+        """
+        __s = []
+        __c = 0
+        __f = False
+        # ［＃］
+        __t3 = self.reCTRL2.search(sTmp)
+        while __t3:
+            if __t3.group(u'aozoratag') == u'［＃改行］':
+                __s.append(sTmp[:__t3.end()])
+                sTmp = sTmp[__t3.end():]
+                __c += 5
+                __f = True
+            else:
+                sTmp = sTmp[:__t3.start()]+sTmp[__t3.end():]
+            __t3 = self.reCTRL2.search(sTmp)
+        __s.append(sTmp)
+        sTmp = u''.join(__s)
+        __s = []
+        # <>
+        s0, e0 = self.__searchtag(sTmp)
+        while s0 != -1:
+            if sTmp[s0:e0] in [u'<sup>',u'</sup>',u'<sub>',u'</sub>']:
+                __s.append(sTmp[:s0])
+                #__s.append(u'[%s]' % sTmp[s0:e0].strip(u'<>'))
+                __s.append(sTmp[s0:e0])
+                sTmp = sTmp[e0:]
+                __c += len(sTmp[s0:e0])
+            else:
+                sTmp = sTmp[:s0]+sTmp[e0:]
+            s0, e0 = self.__searchtag(sTmp)
+        __s.append(sTmp)
+        sTmp = u''.join(__s)
+
+        if __f:
+            # 改行されているので、長い方の文字数を返す
+            __l = 0
+            for __s0 in sTmp.split(u'［＃改行］'):
+                if len(self.__removetag(__s0)) > __l:
+                    __l = len(self.__removetag(__s0))
+        else:
+            __l = int(math.ceil((len(sTmp) - __c)/2.))
+
+        return sTmp, __l
+
 
     def __gaiji_replace(self, a):
         """ Shift-jis 未収録文字の置換
@@ -510,17 +563,19 @@ class Aozora(ReaderSetting, AozoraScale):
         if a2:
             #   ローマ数字対策
             #   1 - 3999 迄
-            return u'［＃縦中横］%s［＃縦中横終わり］' % self.romasuji(a2.group('num'))
+            #return u'［＃縦中横］%s［＃縦中横終わり］' % self.romasuji(a2.group('num')).lower() \
+            return self.romasuji(a2.group('num')).lower() \
+                if u'小' in a2.group('cap') else self.romasuji(a2.group('num'))
 
         # JISにもUnicodeにも定義されていない文字の注釈
         # こちらで準備するか、そうでなければ
-        # ※［＃「」、底本ページ-底本行］ -> ※「」
+        # ※［＃「」、底本ページ-底本行］ -> ※［「」］
         a2 = self.reGaiji5.match(a.group())
         if a2:
             if a2.group(u'name') in self.dicReserveChar:
                 k = self.dicReserveChar[a2.group(u'name')]
             else:
-                k = a2.group(u'name').strip(u'「」')
+                k = u'※［%s］' % a2.group(u'name')
             return k
 
         return u''
@@ -844,29 +899,13 @@ class Aozora(ReaderSetting, AozoraScale):
                             posstack.pop()
                             pos_start,pos_end = posstack.pop()
 
-                            sTmp = lnbuf[pos_end:tmp.start()]
-                            if sTmp.find(u'<aozora') != -1 or sTmp.find(u'<span') != -1:
-                                # 本文にタグを検出した場合、割り注を放棄する
-                                lnbuf = u'%s%s%s' % (
-                                    lnbuf[:pos_start],
-                                    sTmp,
-                                    lnbuf[tmp.end():] )
-                            else:
-                                # 割り注表示部分の高さを求める
-                                if sTmp.find(u'［＃改行］') == -1:
-                                    # 改行位置が明示されていなければ、全長の半分
-                                    l = int(math.ceil(len(sTmp)/2.))
-                                else:
-                                    # 明示されていれば長いほうとする
-                                    l = 0
-                                    for s0 in sTmp.split(u'［＃改行］'):
-                                        if len(s0) > l:
-                                            l = len(s0)
-                                lnbuf = u'%s<aozora warichu="%s" height="%d">%s</aozora>%s' % (
-                                    lnbuf[:pos_start], sTmp, l,
-                                    u'　' * int(math.ceil(
-                                        l * self.fontmagnification(u'size="smaller"'))),
-                                    lnbuf[tmp.end():] )
+                            # 本文にあるタグは抜去する
+                            sTmp, l = self.__removetag_warichu(lnbuf[pos_end:tmp.start()])
+                            lnbuf = u'%s<aozora warichu="%s" height="%d">%s</aozora>%s' % (
+                                lnbuf[:pos_start], sTmp, l,
+                                u'　' * int(math.ceil(
+                                    l * self.fontmagnification(u'size="smaller"'))),
+                                lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
@@ -1374,34 +1413,34 @@ class Aozora(ReaderSetting, AozoraScale):
     def __boutencount(self, honbun):
         """ 本文を遡って傍点の打込位置を探し、キャラクタ数を返す
         """
-        c = 0
-        pos = len(honbun) - 1
-        inRubi = False
-        inTag = 0
-        inAtag = 0
-        while pos >= 0:
-            if honbun[pos] == u'｜':
+        __c = 0
+        __pos = len(honbun) - 1
+        __inRubi = False
+        __inTag = 0
+        __inAtag = 0
+        while __pos >= 0:
+            if honbun[__pos] == u'｜':
                 break
-            elif inAtag:
-                if honbun[pos:pos+2] == u'［＃':
-                    inAtag -= 1
-            elif honbun[pos] == u'］':
-                inAtag += 1
-            elif inTag:
-                if honbun[pos] == u'<':
-                    inTag -= 1
-            elif honbun[pos] == u'>':
-                inTag += 1
-            elif honbun[pos] == u'《':
-                inRubi = False
-            elif honbun[pos] == u'》':
-                inRubi = True
-            elif inRubi:
+            elif __inAtag:
+                if honbun[__pos:__pos+2] == u'［＃':
+                    __inAtag -= 1
+            elif honbun[__pos] == u'］':
+                __inAtag += 1
+            elif __inTag:
+                if honbun[__pos] == u'<':
+                    __inTag -= 1
+            elif honbun[__pos] == u'>':
+                __inTag += 1
+            elif honbun[__pos] == u'《':
+                __inRubi = False
+            elif honbun[__pos] == u'》':
+                __inRubi = True
+            elif __inRubi:
                 pass
             else:
-                c += 1
-            pos -= 1
-        return c
+                __c += 1
+            __pos -= 1
+        return __c
 
     def __honbunsearch(self, honbun, name):
         """ 本文を遡って name を検索し、その出現範囲を返す。
@@ -1422,12 +1461,12 @@ class Aozora(ReaderSetting, AozoraScale):
         end = -1
         l = len(name)
         pos = len(honbun)
-        inTag = False
+        __inTag = False
         inAtag = False
         tagstack = []
 
-        TagEnable = True if name.find(u'<') == -1 else False
-        AtagEnable = True if name.find(u'［＃') == -1 else False
+        TagEnable = not (u'<' in name)
+        AtagEnable = not (u'［＃' in name)
 
         while l > 0 and pos > 0:
             pos -= 1
@@ -1436,9 +1475,9 @@ class Aozora(ReaderSetting, AozoraScale):
                     inAtag = False
             elif AtagEnable and honbun[pos] == u'］':
                 inAtag = True
-            elif inTag:
+            elif __inTag:
                 if honbun[pos] == u'<':
-                    inTag = False
+                    __inTag = False
                     if honbun[pos:pos+2] == u'</':
                         # 閉じタグの場合はスタックに保存する
                         tagstack.append(pos)
@@ -1452,7 +1491,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                 end = honbun.find(u'>', postmp)
 
             elif TagEnable and honbun[pos] == u'>':
-                inTag = True
+                __inTag = True
             else:
                 if name[l-1] == honbun[pos]:
                     if end < 0:
@@ -1514,11 +1553,9 @@ class Aozora(ReaderSetting, AozoraScale):
                 if f:
                     if s == u'>':
                         f = False
-                    #s0.append(s)
                     continue
                 if s == u'<':
                     f = True
-                    #s0.append(s)
                     continue
 
                 if s == '\a':
@@ -1563,28 +1600,32 @@ class Aozora(ReaderSetting, AozoraScale):
 
             return u''.join(s0)
 
-        def __insertfig(tag, lines, mode=True):
+        def __insertfig(tag, lines, mode=0):
             """ 挿図出力の下請け
                 図の挿入に際しては、事前に改行を送り込んで表示領域を取得する必要が
                 あるため、ここにまとめる。
+                mode : 0  回り込み無し(img2)     0以外 回り込み有り(img3)
             """
             if self.linecounter + lines >= self.pagelines:
                 # 画像がはみ出すようなら改ページする
                 self.__newpage2file(dfile)
-            if mode:
+            if not mode:
                 # 画像表示部分を改行で確保する。
                 while lines > 0:
                     self.__write2file(dfile, '\n')
                     lines -= 1
+            # 回りこむ際は行頭復帰\rを付与する。それ以外は改ページを回避するため改行しない。
+            self.__write2file(dfile, tag % (u'img2' if not mode else u'img3',
+                                        u'' if not mode else u'\r'))
 
-            self.__write2file(dfile, tag)
-
-        def __cancelfiglayout():
-            """ 挿図周辺のテキスト回り込みをキャンセルする
+        def __checkfig():
+            """ 未出力の挿図があれば回り込みキャンセルで出力する
             """
-            while self.imgwidth_lines > 0:
-                self.__write2file(dfile, u'\n')
-                self.imgwidth_lines -= 1
+            if figstack:
+                a = figstack.pop()
+                __insertfig(a[0], a[1])
+                return True
+            return False
 
         if output_file:
             self.destfile = output_file
@@ -1608,6 +1649,11 @@ class Aozora(ReaderSetting, AozoraScale):
             self.FukusuMidashiOwari = False     # 複数行におよぶ見出しの終わり
             self.loggingflag = False            # デバッグ用フラグ、ページ数用
             self.tagstack = []                  # 書式引き継ぎ用
+            self.inKeikakomi = False            # 罫囲みフラグ
+            self.Keikakomidata = [self.charsmax,0] # 罫囲みデータ
+
+            self.imgheight_chars = 0            # 挿図の高さに相当する文字数
+            self.imgwidth_lines = 0             # 挿図の幅に相当する行数
 
             currchars = self.charsmax           # 1行の表示文字数
             jizume = 0                          # 字詰指定
@@ -1624,27 +1670,18 @@ class Aozora(ReaderSetting, AozoraScale):
             isNoForming = False                 # 行の整形を抑止する
 
             figstack = []                       # 画像用スタック
-            figcapcount = 0                     # 挿図からキャプションまでの行数を保持
 
             for lnbuf in self.__formater_pass1():
                 yield
 
-                """ 挿図が出現中
-                """
-                if figstack:
-                    figcapcount += 1
-                    if not lnbuf:
-                        # 空行であれば挿図して終わる
-                        a = figstack.pop()
-                        __insertfig(a[0],a[1], a[2])
-                        __write2file(dfile, '\n')
-                        figcapcount = 0
-                        continue
-
                 """ 空行の処理
                 """
                 if not lnbuf:
+                    if __checkfig():
+                        self.__write2file( dfile, '\n' ) # 挿図分の改行
                     self.__write2file( dfile, '\n' )
+                    if self.imgwidth_lines > 0:
+                        self.imgwidth_lines -= 1
                     continue
 
                 """ 制御文字列の処理
@@ -1680,11 +1717,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
-                        # 直前の画像への衝突を回避する為の暫定措置
-                        __cancelfiglayout()
-
                         tmpH = self.canvas_height - self.canvas_topmargin - \
-                                float(self.currentText.get_value(u'bottommargin'))
+                                float(self.currentText.canvas_bottommargin)
 
                         tmpW = self.canvas_width - self.canvas_rightmargin - \
                                 float(self.currentText.get_value(u'leftmargin'))
@@ -1692,36 +1726,45 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 表示領域に収まるような倍率を求める
                         # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
                         # 考慮して0.9程度の定数を乗じている。
-                        tmpRasio = min( 1.0,
-                                        min( tmpH / figheight * 0.8,
-                                             tmpW / figwidth  * 0.9) )
-                        figheight = int(figheight * tmpRasio)
-                        figwidth = int(figwidth * tmpRasio)
+                        if not u'キャプション付' in tmp.group() and \
+                            tmpH / figheight >= 1.0 and tmpX / figwidth >= 1.0:
+                            # キャプションが続かない場合、表示域最大まで
+                            tmpRasio = 1.0
+                        else:
+                            tmpRasio = min( 1.0,
+                                            min( tmpH / figheight * 0.8,
+                                                 tmpW / figwidth  * 0.9) )
+                            figheight = int(figheight * tmpRasio)
+                            figwidth = int(figwidth * tmpRasio)
 
+                        # 回りこむ行数を求める。
+                        self.imgwidth_lines = int(math.ceil(
+                                figwidth / float(self.canvas_linewidth)))
+
+                        if self.linecounter + self.imgwidth_lines >= self.pagelines:
+                            # ページ末で表示域が分断される場合は改ページする
+                            self.__newpage2file(dfile)
+
+                        # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
+                        # 挿図の高さが表示域の３分の２を超えるようならまわりこまない。
+                        self.imgheight_chars = 0 if figheight > tmpH * 2/3. else int(math.ceil(
+                                        figheight/float(self.fontheight))) +1
                         matchFig2 = self.reFig2.match(tmp.group())
                         if matchFig2 and matchFig2.group(u'caption') == u'＃＃＃＃＃':
                             # キャプションを調べて、キャプションなし画像（キャプションが＃＃＃＃＃）で
                             # あれば、回り込み処理を指定する。
-
-                            # 回りこむ行数を求める。
-                            self.imgwidth_lines = int(math.ceil(
-                                figwidth / float(self.canvas_linewidth)))
-                            # 挿図を単純に行頭から始めるので、回りこむ行はインデントを流用して表示される。
-                            self.imgheight_chars = int(math.ceil(
-                                        figheight/float(self.fontheight))) +1
-                            # キャプションが続くかどうか不明なのでここで出力する。行末の行頭復帰に留意。
-                            __insertfig(u'<aozora img3="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>\r' % (
+                            figstack.append((u'<aozora %%s="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>%%s' % (
                                         fname, figwidth, figheight, tmpRasio),
                                         self.imgwidth_lines,
-                                        False )
+                                        True if self.imgheight_chars == 0 else False, self.imgheight_chars ))
+                            self.imgwidth_lines = 0
                         else:
-                            # 画像幅をピクセルから行数に換算する
                             # ここで改行しないことに注意。改行はキャプションで行う。
-                            figstack.append((u'<aozora img2="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>' % (
+                            figstack.append((u'<aozora %%s="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>%%s' % (
                                         fname, figwidth, figheight, tmpRasio),
-                                        int(math.ceil(figwidth / float(self.canvas_linewidth))),
-                                        True) )
-                        figcapcount = 0
+                                        self.imgwidth_lines,
+                                        True, self.imgheight_chars) )
+                            self.imgwidth_lines = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -1733,17 +1776,12 @@ class Aozora(ReaderSetting, AozoraScale):
                     tmp2 = self.reCaption.match(tmp.group())
                     if tmp2:
                         tmpStart,tmpEnd = self.__honbunsearch(
-                                        lnbuf[:tmp.start()],tmp2.group(u'name'))
-                        # 未出力の挿図があるかチェックする。もし無ければこのキャプションは
-                        # 無視される。
+                                    lnbuf[:tmp.start()],tmp2.group(u'name'))
                         if figstack:
                             a = figstack.pop()
                             __insertfig(a[0], a[1])
+                            # 未出力の挿図があるかチェックする。なければこのタグは無視される。
                             figwidth = int(self.reCaptionWidth.search(a[0]).group(u'width'))
-
-                            figcapcount = 0
-                            # 回り込み処理のキャンセル
-                            __cancelfiglayout()
 
                             self.countpage = False
                             self.__write2file(dfile,
@@ -1753,9 +1791,9 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 画像の直後に１行空ける。表示処理の都合で別行にすること。
                             self.__write2file(dfile,'\n')
                             self.countpage = True
-                        lnbuf = u'%s%s' % (lnbuf[:tmpStart], lnbuf[tmp.end():])
-                        tmp = self.reCTRL2.search(lnbuf,tmpStart)
-                        continue
+                            lnbuf = u'%s%s' % (lnbuf[:tmpStart], lnbuf[tmp.end():])
+                            tmp = self.reCTRL2.search(lnbuf,tmpStart)
+                            continue
 
                     """ キャプション（開始/終了型）
                         同一行中に閉じられることを期待して
@@ -1763,20 +1801,11 @@ class Aozora(ReaderSetting, AozoraScale):
                         ページカウントは抑止される。
                     """
                     if tmp.group() == u'［＃キャプション］':
-                        # 直前に挿図があれば出力する。
-                        figflag = True # 挿図がここで出力されているか
-                        if figstack:
-                            a = figstack.pop()
-                            __insertfig(a[0], a[1]) #, a[2])
-                            figcapcount = 0
-                            figflag = False
+                        __checkfig()
 
                         tmp = self.reCaption2.search(lnbuf,tmp.start())
                         if tmp:
                             # [＃キャプション終わり]で閉じていれば、キャプションとして出力する
-
-                            # 回り込み処理のキャンセル
-                            __cancelfiglayout()
 
                             self.countpage = False
                             self.__write2file(dfile,
@@ -1784,8 +1813,8 @@ class Aozora(ReaderSetting, AozoraScale):
                                     __caption_sub_1(self.reAozoraTagRemove.sub(u'',tmp.group(u'name')), figwidth))
                             figwidth = -1
                             # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
-                            if figflag:
-                                self.__write2file(dfile,'\n')
+                            #if figflag:
+                            #    self.__write2file(dfile,'\n')
                             self.__write2file(dfile,'\n')
                             self.countpage = True
 
@@ -1801,12 +1830,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     if tmp.group() == u'［＃ここからキャプション］':
                         # キャプションの完成を待たないで取り敢えず挿図を行う
-                        figflag = True
-                        if figstack:
-                            a = figstack.pop()
-                            __insertfig(a[0], a[1]) #, a[2])
-                            figflag = False
-                            figcapcount = 0
+                        __checkfig()
 
                         # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える。
                         workfilestack.append(dfile)
@@ -1836,8 +1860,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         isNoForming = False         # 行の整形を再開
                         self.countpage = True       # ページカウントを再開
 
-                        __cancelfiglayout()         # 回り込み処理のキャンセル
-
                         self.countpage = False      # ページカウントを抑止
                         # キャプション
                         self.__write2file(dfile,
@@ -1845,8 +1867,8 @@ class Aozora(ReaderSetting, AozoraScale):
                             __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
                         figwidth = -1
                         # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
-                        if figflag:
-                            self.__write2file(dfile,'\n')
+                        #if figflag:
+                        #    self.__write2file(dfile,'\n')
                         self.__write2file(dfile,'\n')
                         self.countpage = True       # ページカウントを再開
 
@@ -1858,6 +1880,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """ ページの左右中央
                     """
                     if tmp.group() == u'［＃ページの左右中央］':
+                        __checkfig()
                         self.pagecenterflag = True
                         # カレントハンドルを退避して、一時ファイルを
                         # 作成して出力先を切り替える。
@@ -1873,6 +1896,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """ 改ページ・改丁・改段
                     """
                     if self.reKaipage.match(tmp.group()):
+                        __checkfig()
                         if self.pagecenterflag:
                             # ページの左右中央の処理
                             self.pagecenterflag = False
@@ -1918,6 +1942,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     matchMidashi = self.reMadoMidashi.match(tmp.group())
                     if matchMidashi:
+                        __checkfig()
                         self.midashi = matchMidashi.group('midashi')
                         self.sMidashiSize = u'小'
                         tmpStart,tmpEnd = self.__honbunsearch(
@@ -1961,6 +1986,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     matchMidashi = self.reMadoMidashi3.match(tmp.group())
                     if matchMidashi:
+                        __checkfig()
                         # 文字サイズの指定は無視する
                         # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える
                         workfilestack.append(dfile)
@@ -2025,6 +2051,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     matchMidashi = self.reMidashi3.match(tmp.group())
                     if matchMidashi:
+                        __checkfig()
                         # ［＃ここから見出し］
                         self.sMidashiSize = matchMidashi.group('midashisize')
                         self.inMidashi = True
@@ -2150,51 +2177,26 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
-                    """ 罫囲み
-                        天と地に罫線描画用に1文字の空きが必要に
-                        なるのでインデント処理を勘案してここで
-                        準備する。
+                    """ 罫囲み（開始）
                     """
                     if self.reKeikakomi.match(tmp.group()):
-                        inKeikakomi = True
-                        # カレントハンドルを退避して、一時ファイルを
-                        # 作成して出力先を切り替える。
-                        workfilestack.append(dfile)
-                        dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
-                        # 一時ファイル使用中はページカウントしない
-                        self.countpage = False
-                        lnbuf = u'%s<aozora keikakomi="start"> </aozora>%s' % (
+                        __checkfig()
+                        self.inKeikakomi = True
+                        lnbuf = u'%s<aozora keikakomi="start" ofset="0" length="0"></aozora>%s' % (
                             lnbuf[:tmp.start()], lnbuf[tmp.end():] )
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
+                    """ 罫囲み（終わり）
+                        前方に罫囲みがなければタグを抜去する
+                    """
                     if self.reKeikakomiowari.match(tmp.group()):
-                        inKeikakomi = False
-                        if len(workfilestack) == 1:
-                            # 退避してあるハンドルをフォーマット出力先と
-                            # 見てページカウントを再開
-                            self.countpage = True
-
-                        # 一時ファイルに掃き出された行数を数える
-                        dfile.seek(0)
-                        iCenter = 0
-                        for sCenter in dfile:
-                            iCenter += 1
-                        if iCenter < self.pagelines:
-                            # 罫囲みが次ページへまたがる場合は改ページする。
-                            # 但し、１ページを越える場合は無視する。
-                            if self.linecounter + iCenter >= self.pagelines:
-                                self.__newpage2file(dfile)
-
-                        # 一時ファイルからコピー
-                        dfile.seek(0)
-                        iCenter = 0
-                        for sCenter in dfile:
-                            self.__write2file(workfilestack[-1], sCenter)
-                        dfile.close()
-                        dfile = workfilestack.pop()
-                        lnbuf = u'%s<aozora keikakomi="end"> </aozora>%s' % (
-                            lnbuf[:tmp.start()], lnbuf[tmp.end():] )
+                        lnbuf = u''.join((
+                            lnbuf[:tmp.start()],
+                            u'<aozora keikakomi="end" ofset="%d" length="%d"></aozora>' % (self.Keikakomidata[0],self.Keikakomidata[1]) if self.inKeikakomi else u'',
+                            lnbuf[tmp.end():] ))
+                        self.inKeikakomi = False
+                        self.Keikakomidata = [self.charsmax,0]
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
 
@@ -2212,20 +2214,31 @@ class Aozora(ReaderSetting, AozoraScale):
                         loggingflag = True
                         lnbuf = lnbuf[:tmp.start()] + lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
-
+                        continue
 
                 if isNoForming:
                     """ 行の折り返し・分割処理を無視してファイルに出力する
                     """
-                    # 未出力の挿図があればバッファへ出力する
-                    if figcapcount:
-                        if figstack:
-                            a = figstack.pop()
-                            __insertfig(a[0]+'\n', a[1], a[2])
-                            figcapcount = 0
+                    # 未出力の挿図があれば出力する
+                    if figstack:
+                        a = figstack.pop()
+                        __insertfig(a[0]+'\n', a[1])
 
                     self.__write2file(dfile, "%s\n" % lnbuf)
                     continue
+
+                """ 挿図
+                    前述の処理でタグ［＃］の処理を全て終えているので、ここで残されている
+                    挿図はキャプションを付さないものとみなして出力する
+                """
+                if lnbuf != '' and figstack:
+                    a = figstack.pop()
+                    __insertfig(a[0], a[1], a[3])
+                    if not a[3]:
+                        self.__write2file( dfile, '\n' ) #回りこまないので改行する
+                    self.imgheight_chars = a[3] # 回り込みインデント
+                    self.imgwidth_lines = a[1]
+
 
                 """ インデント一式 (字下げ、字詰、字上げ、地付き)
                             |<---------- self.chars ------------>|
@@ -2241,7 +2254,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     #   画像回り込みの処理
                     #
                     if self.imgwidth_lines > 0:
-                        lnbuf = u'　' * self.imgheight_chars  + lnbuf
+                        lnbuf = u'　' * self.imgheight_chars + lnbuf
                         self.imgwidth_lines -= 1
 
                     #   1行の表示桁数の調整
@@ -2311,19 +2324,11 @@ class Aozora(ReaderSetting, AozoraScale):
                                 lnbuf = sP + sPad + lnbuf[tmp2.start('tag'):]
 
                     #   画面上の1行で収まらなければ分割して次行を得る
-                    self.ls, lnbuf = self.__linesplit(lnbuf, currchars)
-
-                    """ 未出力の挿図があればバッファへ出力する
-                    """
-                    if figcapcount:
-                        if figstack:
-                            a = figstack.pop()
-                            __insertfig(a[0]+'\n', a[1], a[2])
-                            figcapcount = 0
+                    self.ls, lnbuf, tmppixcellcc = self.__linesplit(lnbuf, currchars)
 
                     """ 行をバッファ(中間ファイル)へ掃き出す
                     """
-                    self.__write2file(dfile, "%s\n" % self.ls)
+                    self.__write2file(dfile, "%s\n" % self.ls, tmppixcellcc)
 
                     #   折り返しインデント
                     if lnbuf != '':
@@ -2348,8 +2353,36 @@ class Aozora(ReaderSetting, AozoraScale):
             sline   : 本文
             smax    : 1行における文字数（全角文字を1文字とした換算数）
         """
-        lcc = 0.0           # 全角１、半角0.5で長さを積算
-        inTag = False       # <tag>処理のフラグ
+
+        def ___adjcommon(_lcc=0.0):
+            """ 行長さ調整量の設定
+               調整箇所(adjCurrent)がなければ何もしない
+               adjCurrent[0][0] 0...全角スペース 1...半角スペース
+               各記号や空白に割り当てる調整量は一定（均等）。JISと異なる点に注意。割当量算出
+               時の計算誤差は無視する。
+               _lcc : 計算上の行ピクセル長
+            """
+            if adjCurrent:
+                adj = pixelsmax - pixellcc   # 調整量
+                adjsgn = cmp(adj, 0)
+                adj = abs(adj)
+                adjn = adj / float(len(adjCurrent))
+                adjCurrent.sort()
+
+                if adjn != 0.:
+                    for _a in adjCurrent:
+                        sTestCurrent[_a[1]] = u'<aozora %s="%f">%s</aozora>' % (
+                            # 開き括弧類は書き出し位置をずらし、それ以外は送り量を増減する
+                            u'ofset' if sTestCurrent[_a[1]] in self.kinsoku2 else u'adj',
+                            (adjn * adjsgn), # 調整ピクセル値
+                            sTestCurrent[_a[1]] )
+                        _lcc += (adjn * adjsgn)
+                        adj -= adjn
+                        if adj < 0.:
+                            break
+            return _lcc
+
+        inTag = 0           # <tag>処理のフラグ
         sTestCurrent = []   # sline を分割しながら格納
         sTestNext = []      # 〃（次行先頭部分）
         fLenCurrent = []    # 文字の画面上の長さ（全角を１とする比）
@@ -2416,7 +2449,7 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     # URL を検出した場合はラップしない
                     sTest0 = u''.join(sTestCurrent)
-                    for a in [u'http:', u'https:', u'mailto:']:
+                    for a in (u'http:', u'https:', u'mailto:'):
                         if a in sTest0:
                             raise IndexError
 
@@ -2427,12 +2460,11 @@ class Aozora(ReaderSetting, AozoraScale):
                         fLenTmp.insert(0,fLenCurrent.pop())
 
                     for a in sTestCurrent:
-                        # 無限ループを回避するため、ラップしたワードが1行の
-                        # 長さを上回るようならキャンセルする。本来ならそれだ
-                        # けでよいのだが、この後インデントで行頭に空白が付され
-                        # １行の長さを上回ると無限ループとなる。
-                        # その為、長さに関わらずラップしたワードが（空白以外）の
-                        # 行先頭要素であればキャンセルする。
+                        # 無限ループを回避するため、ラップしたワードが1行の長さを上回るよう
+                        # ならキャンセルする。本来ならそれだけでよいのだが、この後インデント
+                        # で行頭に空白が付され１行の長さを上回ると無限ループとなる。
+                        # その為、長さに関わらずラップしたワードが（空白以外）の行先頭要素で
+                        # あればキャンセルする。
                         if not a[0] in [u' ', u'　']:#0x20,全角空白
                             # 正常終了
                             sTestNext = sTestTmp + sTestNext
@@ -2472,7 +2504,6 @@ class Aozora(ReaderSetting, AozoraScale):
                     pass
 
 
-
                 if not sTestNext: # 次行先頭への送り込みがなければ
                     """ 行頭禁則処理
                         調整可能な範囲で前行末へ追い出す。
@@ -2485,10 +2516,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 句読点のぶら下げ
                         sTestCurrent.append(sline[pos])
                         fLenCurrent.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
-                        # 調整余地があれば後段で処理するよう全長を調整する
-                        if adjCurrent and sline[pos] in u'、，':
-                            pixellcc += fLenCurrent[-1]
-                        elif len(adjCurrent) >= 2:
+                        # 調整余地があれば後段で詰込処理するよう全長を調整する
+                        if adjCurrent:
                             pixellcc += fLenCurrent[-1]
                         pos += 1
                     else:
@@ -2562,20 +2591,23 @@ class Aozora(ReaderSetting, AozoraScale):
                             読点は二分空き
                             中点は前四分後ろベタ
                 """
-                if pixellcc >= pixelsmax:
-                    currpos = -1
+                currpos = -1
+                if pixellcc > pixelsmax:
                     while sTestCurrent[currpos][0] == u'<':
                         currpos -= 1
-                    pixellcc -= fLenCurrent[currpos]
-                    if sTestCurrent[currpos-1].find(u'<aozora half') == -1:
+                    if not u'<aozora half' in sTestCurrent[currpos-1]:
+                        pixellcc -= fLenCurrent[currpos]
                         # 送り量調整がかかっていなければ調整する
-                        if sTestCurrent[currpos][0] in self.kinsoku5:
+                        if sTestCurrent[currpos][0] in self.kinsoku5+u'。．':
                             fLenCurrent[currpos] *= 0.5
                         elif sTestCurrent[currpos][0] == u'・':
                             fLenCurrent[currpos] *= 0.75
-                    pixellcc += fLenCurrent[currpos]
+                        pixellcc += fLenCurrent[currpos]
 
-                if pixellcc != pixelsmax and adjCurrent:
+                if adjCurrent and \
+                        (pixellcc > pixelsmax or  \
+                            (pixellcc <= pixelsmax and not(     \
+                                sTestCurrent[currpos][0] in u'、。，．'))):
                     """ 行末合わせ
                             調整箇所文字の表示開始位置をずらす
                             調整箇所文字の送り量を増減する
@@ -2583,318 +2615,245 @@ class Aozora(ReaderSetting, AozoraScale):
                         溢れる場合は詰め、そうでない場合は延ばす。
                         不足する場合、行末が句読点ならばそのまま。
                     """
-                    try:
-                        # 拾い出された調整箇所全てで文字間調整を行う
-                        # 但し行末の閉じ括弧類は除外する
+                    # 拾い出された調整箇所全てで文字間調整を行う
+                    # 但し行末の句読点は除外する
 
-                        # 行末の閉じ括弧類が登録されていれば除外
-                        currpos = -1
-                        while sTestCurrent[currpos][0] == u'<':
-                            currpos -= 1
-                        if sTestCurrent[currpos][0] in self.kinsoku4:
-                            currpos = len(sTestCurrent) + currpos
-                            if adjCurrent[-1][1] == currpos:
-                                adjCurrent.pop()
+                    currpos = -1
+                    while sTestCurrent[currpos][0] == u'<':
+                        currpos -= 1
+                    if sTestCurrent[currpos][0] in u'、。，．':#self.kinsoku4:
+                        currpos = len(sTestCurrent) + currpos #相対位置を絶対位置に変換
+                        if adjCurrent[-1][1] == currpos:
+                            adjCurrent.pop()
 
-                        # 禁則処理で移動した要素を参照していれば抜去する
-                        adjTmp = []
-                        for a0 in adjCurrent:
-                            try:
-                                b = sTestCurrent[a0[1]]
-                                adjTmp.append(a0)
-                            except IndexError:
-                                continue
+                    # 禁則処理で移動した要素を参照していれば抜去する
+                    i = len(adjCurrent) -1
+                    while i >= 0:
+                        try:
+                            b = sTestCurrent[adjCurrent[i][1]]
+                        except IndexError:
+                            adjCurrent.pop(i)
+                        i -= 1
+                    pixellcc = ___adjcommon(pixellcc)
 
-                        adj = pixellcc - pixelsmax      # 調整量
-                        adjsgn = float(-cmp(adj, 0))
-                        adj = abs(adj)
-                        adjn = adj / float(len(adjTmp))
-                        # （全ての箇所で同じ調整量が適用される）
-                        adjTmp.sort()
-                        a = len(adjTmp) - 1
-                        while a >= 0:
-                            if a == 0 and adj >= 0.:
-                                adjn = adj # 最後は残り全部
 
-                            if sTestCurrent[adjTmp[a][1]] in self.kinsoku2:
-                                # 開き括弧類は書き出し位置をずらす
-                                sTestCurrent.insert(adjTmp[a][1],
-                                    u'<aozora ofset="%f">%s</aozora>' % (
-                                    (adjn * adjsgn), # 調整ピクセル値
-                                    sTestCurrent[adjTmp[a][1]] ))
-                            else:
-                                # それ以外は送り量を増減する
-                                sTestCurrent.insert(adjTmp[a][1],
-                                    u'<aozora adj="%f">%s</aozora>' % (
-                                    (adjn * adjsgn), # 調整ピクセル値
-                                    sTestCurrent[adjTmp[a][1]] ))
-                            sTestCurrent.pop(adjTmp[a][1]+1)
-                            adj -= adjn
-                            a -= 1
-
-                    except ZeroDivisionError:
-                        # 調整可能箇所なし
-                        pass
-                        #logging.info(
-                        #    u'行末調整用の文字が不足しています。%d ページ付近、%s' % (
-                        #    self.currentText.pagecounter, u''.join(sTestCurrent[0:20])) )
-                else:
-                    # 調整可能箇所なし
-                    pass
-                    #logging.info(
-                    #    u'行末調整用の文字が不足しています。%d ページ付近、%s' % (
-                    #    self.currentText.pagecounter, u''.join(sTestCurrent[0:20])) )
-
-                #-------------
                 # End of Loop
-                #-------------
                 sTestNext.append(sline[pos:])
                 break
 
-            if inTag:
-                if sline[pos] == u'>':
-                    inTag = False
-                    # tagスタックの操作
+            if inTag != 0:
+                # <> タグの処理
+                if sline[pos] == u'<':
+                    inTag += 1
                     pos += 1
-                    sTestCurrent.append(sline[tagnamestart:pos])
-                    fLenCurrent.append(0.0)
-                    if sline[tagnamestart:tagnamestart+2] == u'</':
-                        # </tag>の出現とみなしてスタックから取り除く
-                        if substack != []:
-                            # 訓点・返り点対応
-                            if substack[-1] in [u'<sup>', u'<sub>']:
-                                fontsizename = u'normal'
-                            # 連続して出現する括弧類
-                            elif substack[-1][:12] == u'<aozora half':
-                                kakkochosei = 1.
-                            # 抜去しつつフォントサイズかどうかチェック
-                            tmp = self.reFontsizefactor.search(substack.pop())
-                            if tmp:
-                                if tmp.group('name') in self.fontsizefactor:
-                                    fontsizename = u'normal' # 文字サイズの復旧
+                elif sline[pos] == u'>':
+                    inTag -= 1
+                    pos += 1
+                    if inTag == 0:
+                        # tagスタックの操作
+                        sTestCurrent.append(sline[tagnamestart:pos])
+                        fLenCurrent.append(0.0)
+                        if sline[tagnamestart:tagnamestart+2] == u'</':
+                            # </tag>の出現とみなしてスタックから取り除く
+                            if substack != []:
+                                # 訓点・返り点対応
+                                if substack[-1] in [u'<sup>', u'<sub>']:
+                                    fontsizename = u'normal'
+                                # 連続して出現する括弧類
+                                elif substack[-1][:12] == u'<aozora half':
+                                    kakkochosei = 1.
+                                # 抜去しつつフォントサイズかどうかチェック
+                                tmp = self.reFontsizefactor.search(substack.pop())
+                                if tmp:
+                                    if tmp.group('name') in self.fontsizefactor:
+                                        fontsizename = u'normal' # 文字サイズの復旧
 
-                    else:
-                        # tag 別の処理
-                        tmp = self.reImgtag.search(sline[tagnamestart:pos])
-                        if tmp:
+                        else:
+                            # tag 別の処理
+
                             # 埋め込みイメージ
-                            tagnamestart = pos
-                            pos = sline.find(u'</',pos)
-                            imgheight = float(len(sline[tagnamestart:pos]) * charheight)
-                            if pixellcc +  imgheight > pixelsmax:
-                                # 行末までに収まらなければ次行へ送る
-                                sTestNext.insert(0, u'</aozora>')
-                                sTestNext.insert(0, sline[tagnamestart:pos])
-                                sTestNext.insert(0, sTestCurrent.pop())
-                                fLenCurrent.pop()
-                                pos += 9 # len(u'</aozora>')
-                                pixellcc = pixelsmax # ループ終了条件を満たす
-                            else:
-                                sTestCurrent.append(sline[tagnamestart:pos])
-                                fLenCurrent.append(imgheight)
-                                pixellcc += imgheight
-                                substack.append(sTestCurrent[-1])
-                            continue
-
-                        tmp = reAozoraWarichu.search(sline[tagnamestart:pos])
-                        if tmp:
-                            # 割り注
-                            wariheight = int(tmp.group('height'))
-                            if pixellcc + charheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
-                                # 行末迄に収まらなければ割り注を分割する
-                                sTestCurrent.pop()
-                                fLenCurrent.pop()
-
-                                warisize = int(math.floor((pixelsmax - pixellcc) / (charheight * self.fontsizefactor['size="x-small"'])))
-                                waribun = tmp.group('name').replace(u'［＃改行］', u'')
-                                waricurrent = waribun[:warisize*2]
-                                warinext = waribun[warisize*2:]
-                                try:
-                                    while warinext[0] in self.kinsoku:
-                                        # 次行への行頭禁則文字の持ち越しを回避する
-                                        waricurrent += warinext[0]
-                                        warinext = warinext[1:]
-                                        warisize += 0.5 # 表示高さ補正
-                                except IndexError:
-                                    pass
-                                warisize = int(math.ceil(warisize))
-                                heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(charheight) ))
-                                heightnext = int(math.ceil(math.ceil(len(warinext)/2.) * self.fontsizefactor['size="x-small"']))
-
-                                sTestCurrent.append(u'<aozora warichu="%s" height="%d">' % (waricurrent, warisize))
-                                fLenCurrent.append(0.0)
-                                sTestCurrent.append(u'　' * heightcurrent)
-                                fLenCurrent.append(float(heightcurrent)*charheight+1)
-                                pixellcc += fLenCurrent[-1]
-                                if pixellcc < pixelsmax:
+                            tmp = self.reImgtag.search(sline[tagnamestart:pos])
+                            if tmp:
+                                tagnamestart = pos
+                                pos = sline.find(u'</',pos)
+                                imgheight = float(len(sline[tagnamestart:pos]) * charheight)
+                                if pixellcc +  imgheight > pixelsmax:
+                                    # 行末までに収まらなければ次行へ送る
+                                    sTestNext.insert(0, u'</aozora>')
+                                    sTestNext.insert(0, sline[tagnamestart:pos])
+                                    sTestNext.insert(0, sTestCurrent.pop())
+                                    fLenCurrent.pop()
+                                    pos += 9 # len(u'</aozora>')
                                     pixellcc = pixelsmax # ループ終了条件を満たす
-                                sTestCurrent.append(u'</aozora>')
-                                fLenCurrent.append(0.0)
-
-                                # 残りを次行へ送る
-                                sTestNext.insert(0, u'</aozora>')
-                                sTestNext.insert(0, u'　' * heightnext)
-                                sTestNext.insert(0, u'<aozora warichu="%s" height="%d">' % (warinext, math.ceil(len(warinext)/2.)))
-
-                                pos = sline.find(u'</aozora>',pos) + 9
+                                else:
+                                    sTestCurrent.append(sline[tagnamestart:pos])
+                                    fLenCurrent.append(imgheight)
+                                    pixellcc += imgheight
+                                    substack.append(sTestCurrent[-1])
                                 continue
 
-                        elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
-                            # 縦中横　特殊処理　本文文字列高さを常に１文字+1pixelとみなす
-                            # 先頭が連続する括弧の一部であれば、直前の送り量調整を解除する
-                            tatenakapos = sline.find(u'>',tagnamestart)+1
-                            if sline[tatenakapos] in self.kakko:
-                                tatenakapos = -1 # 変数名使いまわし
-                                try:
-                                    while sTestCurrent[tatenakapos][0] == u'<':
-                                        # タグスキップ
-                                        tatenakapos -= 1
-                                    if sTestCurrent[tatenakapos][0] in self.kakko:
-                                        targetpos = tatenakapos # 連続する括弧類の前半
-                                        tatenakapos -= 1
-                                        while True:
-                                            tmp = self.reAozoraHalf.search(sTestCurrent[tatenakapos])
-                                            if tmp:
-                                                # 送り量補正
-                                                pixellcc -= fLenCurrent[targetpos]
-                                                fLenCurrent[targetpos] /= float(tmp.group(u'name'))
-                                                pixellcc += fLenCurrent[targetpos]
-                                                sTestCurrent[tatenakapos] = u'<aozora half="1.0">'
-                                                break
-                                            else:
-                                                tatenakapos -= 1
-                                except IndexError:
-                                    pass
-
-                            # 処理時間を稼ぐためここで閉じる
-                            tagnamestart = pos # 変数名使いまわし
-                            pos = sline.find(u'</aozora>',pos)
-                            sTestCurrent.append(sline[tagnamestart:pos])
-                            fLenCurrent.append(1+charheight * self.fontsizefactor[fontsizename])
-                            pixellcc += fLenCurrent[-1]
-                            tagnamestart = pos # 変数名使いまわし
-                            pos += 9 #len(u'</aozora>')
-                            sTestCurrent.append(sline[tagnamestart:pos])
-                            fLenCurrent.append(0.0)
-                            continue
-
-                        elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
-                            # 訓点・返り点対応
-                            if fontsizename == u'size="small"':
-                                fontsizename = u'size="x-small"'
-                            elif fontsizename == u'size="x-small"':
-                                fontsizename = u'size="xx-small"'
-                            elif fontsizename == u'size="xx-small"':
-                                pass
-                            else:
-                                fontsizename = u'size="small"'
-                        else:
-                            tmp = self.reAozoraHalf.search(sline[tagnamestart:pos])
+                            # 割り注
+                            tmp = reAozoraWarichu.search(sline[tagnamestart:pos])
                             if tmp:
-                                # 送り量の調整
-                                kakkochosei = float(tmp.group('name'))
+                                wariheight = int(tmp.group('height'))
+                                if pixellcc + charheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
+                                    # 行末迄に収まらなければ割り注を分割する
+                                    sTestCurrent.pop()
+                                    fLenCurrent.pop()
+                                    warisize = int(math.floor((pixelsmax - pixellcc) / (charheight * self.fontsizefactor['size="x-small"'])))
+                                    waribun = tmp.group('name').replace(u'［＃改行］', u'')
+                                    waricurrent,warinext,tmpwaridmy = self.__linesplit(waribun, warisize*2.)
+                                    heightcurrent = int(math.ceil((pixelsmax - pixellcc) / float(charheight) ))
+                                    heightnext = int(math.ceil(math.ceil(len(warinext)/2.) * self.fontsizefactor['size="x-small"']))
+
+                                    sTestCurrent.append(u'<aozora warichu="%s" height="%d">' % (waricurrent, warisize))
+                                    fLenCurrent.append(0.0)
+                                    sTestCurrent.append(u'　' * heightcurrent)
+                                    fLenCurrent.append(float(heightcurrent)*charheight+1)
+                                    pixellcc += fLenCurrent[-1]
+                                    if pixellcc < pixelsmax:
+                                        pixellcc = pixelsmax # ループ終了条件を満たす
+                                    sTestCurrent.append(u'</aozora>')
+                                    fLenCurrent.append(0.0)
+
+                                    # 残りを次行へ送る
+                                    sTestNext.insert(0, u'</aozora>')
+                                    sTestNext.insert(0, u'　' * heightnext)
+                                    sTestNext.insert(0, u'<aozora warichu="%s" height="%d">' % (warinext, math.ceil(len(warinext)/2.)))
+
+                                    pos = sline.find(u'</aozora>',pos) + 9
+                                    continue
+
+                            # 縦中横　特殊処理　
+                            elif sline[tagnamestart:tagnamestart+20] == u'<aozora tatenakayoko':
+                                # 先頭が連続する括弧の一部であれば、直前の送り量調整を解除する
+                                tatenakapos = sline.find(u'>',tagnamestart)+1
+                                if sline[tatenakapos] in self.kakko:
+                                    tatenakapos = -1 # 変数名使いまわし
+                                    try:
+                                        while sTestCurrent[tatenakapos][0] == u'<':
+                                            # タグスキップ
+                                            tatenakapos -= 1
+                                        if sTestCurrent[tatenakapos][0] in self.kakko:
+                                            targetpos = tatenakapos # 連続する括弧類の前半
+                                            tatenakapos -= 1
+                                            while True:
+                                                tmp = self.reAozoraHalf.search(sTestCurrent[tatenakapos])
+                                                if tmp:
+                                                    # 送り量補正
+                                                    pixellcc -= fLenCurrent[targetpos]
+                                                    fLenCurrent[targetpos] /= float(tmp.group(u'name'))
+                                                    pixellcc += fLenCurrent[targetpos]
+                                                    sTestCurrent[tatenakapos] = u'<aozora half="1.0">'
+                                                    break
+                                                else:
+                                                    tatenakapos -= 1
+                                    except IndexError:
+                                        pass
+
+                                # 処理時間を稼ぐためここで閉じる
+                                tagnamestart = pos # 変数名使いまわし
+                                pos = sline.find(u'</aozora>',pos)
+                                sTestCurrent.append(sline[tagnamestart:pos])
+                                fLenCurrent.append(charheight * self.fontsizefactor[fontsizename])
+                                pixellcc += fLenCurrent[-1]
+                                tagnamestart = pos # 変数名使いまわし
+                                pos += 9 #len(u'</aozora>')
+                                sTestCurrent.append(sline[tagnamestart:pos])
+                                fLenCurrent.append(0.0)
+                                continue
+
+                            # 訓点・返り点対応
+                            elif sline[tagnamestart:pos] in [u'<sup>', u'<sub>']:
+                                if fontsizename == u'size="small"':
+                                    fontsizename = u'size="x-small"'
+                                elif fontsizename == u'size="x-small"':
+                                    fontsizename = u'size="xx-small"'
+                                elif fontsizename == u'size="xx-small"':
+                                    pass
+                                else:
+                                    fontsizename = u'size="small"'
                             else:
-                                tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                                # 送り量の調整
+                                tmp = self.reAozoraHalf.search(sline[tagnamestart:pos])
                                 if tmp:
+                                    kakkochosei = float(tmp.group('name'))
+                                else:
                                     # 文字サイズ変更
-                                    if tmp.group('name') in self.fontsizefactor:
-                                        fontsizename = tmp.group('name')
-                        # tag をスタックへ保存
-                        substack.append(sline[tagnamestart:pos])
+                                    tmp = self.reFontsizefactor.search(sline[tagnamestart:pos])
+                                    if tmp:
+                                        if tmp.group('name') in self.fontsizefactor:
+                                            fontsizename = tmp.group('name')
+                            # tag をスタックへ保存
+                            substack.append(sline[tagnamestart:pos])
+
+
                 else:
                     pos += 1
-            elif sline[pos] == u'<':
-                # tag 開始位置を得る
-                inTag = True
-                tagnamestart = pos
-                pos += 1
             else:
-                sTestCurrent.append(sline[pos])
-                fLenCurrent.append(charheight * self.charwidth(sline[pos]) * \
-                            self.fontsizefactor[fontsizename] * kakkochosei)
-                pixellcc += fLenCurrent[-1] # tagでなければ画面上における全長を計算
+                if sline[pos] == u'<':
+                    # tag 開始位置を得る
+                    inTag += 1
+                    tagnamestart = pos
+                else:
+                    sTestCurrent.append(sline[pos])
+                    fLenCurrent.append(charheight * self.charwidth(sline[pos]) * \
+                                self.fontsizefactor[fontsizename] * kakkochosei)
+                    pixellcc += fLenCurrent[-1] # tagでなければ画面上における全長を計算
 
-                """ 行全長調整用の文字位置を記録する
-                    行頭の空白（おそらくはインデント分）と最初の括弧類は調整対象から外す
-                """
-                if skipspc and not sline[pos] in u'　 '+self.kinsoku2:
-                    # 行頭の空白や括弧が途切れたらフラグオフ
-                    skipspc = False
+                    """ 行全長調整用の文字位置を記録する
+                        行頭の空白（おそらくはインデント分）と最初の括弧類は調整対象から外す
+                    """
+                    if skipspc and not sline[pos] in u'　 '+self.kinsoku2:
+                        # 行頭の空白や括弧が途切れたらフラグオフ
+                        skipspc = False
 
-                i = adjchars.find(sline[pos]) # 調整時の優先順を兼ねる
-                if i != -1 and not skipspc:
-                    if substack and substack[-1].find(u' ') != -1:
-                        # 直前のタグを調べて、調整対象にするか判断する
-                        # 属性のないタグ(sup,sub)を避ける為上のifで' 'の有無を見る
-                        sTagname = substack[-1].split()[1].split(u'=')[0]
-                        if not sTagname in [u'rubi',u'half',u'img',u'img2',u'warichu']:
-                            # ルビ類でなければ調整対象
+                    i = adjchars.find(sline[pos]) # 調整時の優先順を兼ねる
+                    if i != -1 and not skipspc:
+                        if substack and substack[-1].find(u'<aozora') != -1:
+                            # 直前のタグを調べて、調整対象にするか判断する
+                            # 属性のないタグ(sup,sub)を避ける
+                            if not (substack[-1].split()[1].split(u'=')[0] in [
+                                                    u'mado', u'rubi', u'half',
+                                                    u'img',u'img2',u'warichu']):
+                                # ルビ類でなければ調整対象
+                                adjCurrent.append((i,len(sTestCurrent)-1))
+                        else:
                             adjCurrent.append((i,len(sTestCurrent)-1))
-                    else:
-                        adjCurrent.append((i,len(sTestCurrent)-1))
 
                 pos += 1
 
         else:
             """ 行の分割が発生しなかった際の行末調整
-                行末が終わり括弧や句読点で、且つ最終桁にかかる場合に限り
-                調整する。
+                行末が終わり括弧や読点で、且つ最終桁にかかる場合に限り調整する。
             """
-            if adjCurrent and pixellcc > pixelsmax - charheight:
+            #"""
+            try:
                 currpos = -1
                 while sTestCurrent[currpos][0] == u'<':
                     currpos -= 1
                 if sTestCurrent[currpos][0] in self.kinsoku5 + u'・':
-                    # 送り量調整
-                    pixellcc -= fLenCurrent[currpos]
-                    if sTestCurrent[currpos-1].find(u'<aozora half') == -1:
+                    # 末尾が読点以外なら送り量調整の上、行全長も調整する
+                    if not u'<aozora half' in sTestCurrent[currpos-1]:
+                        pixellcc -= fLenCurrent[currpos]
                         if sTestCurrent[currpos][0] in self.kinsoku5:
                             fLenCurrent[currpos] *= 0.5
                         elif sTestCurrent[currpos][0] == u'・':
                             fLenCurrent[currpos] *= 0.75
-                    pixellcc += fLenCurrent[currpos]
+                        pixellcc += fLenCurrent[currpos]
 
-                    #"""
-                    try:
+                    if adjCurrent and pixellcc > pixelsmax:# - charheight:
                         # 拾い出された調整箇所全てで文字間調整を行う
-                        # 但し行末の閉じ括弧類は除外する
-                        if sTestCurrent[currpos][0] in self.kinsoku4:
-                            currpos = len(sTestCurrent) + currpos
+                        # 但し行末の句読点は除外する
+                        if sTestCurrent[currpos][0] in u'、。，．':#self.kinsoku4
+                            currpos = len(sTestCurrent) + currpos # 相対位置を絶対位置に変換
                             if adjCurrent[-1][1] == currpos:
                                 adjCurrent.pop()
+                        pixellcc = ___adjcommon(pixellcc)
 
-                        adj = pixellcc - pixelsmax  # 調整量
-                        adjsgn = float(-cmp(adj, 0))
-                        adj = abs(adj)
-                        adjn = adj / float(len(adjCurrent))
-                        # （全ての箇所で同じ調整量が適用される）
-                        adjCurrent.sort()
-                        a = len(adjCurrent) - 1
-                        while a >= 0:
-                            if a == 0 and adj >= 0.:
-                                adjn = adj # 最後は残り全部
-
-                            if sTestCurrent[adjCurrent[a][1]] in self.kinsoku2:
-                                # 開き括弧類は書き出し位置をずらす
-                                sTestCurrent.insert(adjCurrent[a][1],
-                                    u'<aozora ofset="%f">%s</aozora>' % (
-                                    (adjn * adjsgn), # 調整ピクセル値
-                                    sTestCurrent[adjCurrent[a][1]] ))
-                            else:
-                                # それ以外は送り量を増減する
-                                sTestCurrent.insert(adjCurrent[a][1],
-                                    u'<aozora adj="%f">%s</aozora>' % (
-                                    (adjn * adjsgn), # 調整ピクセル値
-                                    sTestCurrent[adjCurrent[a][1]] ))
-                            sTestCurrent.pop(adjCurrent[a][1]+1)
-                            adj -= adjn
-                            a -= 1
-
-                    except ZeroDivisionError:
-                        # 調整可能箇所なし
-                        pass
-                    #"""
-
+            except IndexError:
+                pass
+            #"""
         """ 閉じられていないタグを検出する。あれば一旦閉じて次回へ引き継ぐ。
             ルビの分かち書きもここで処理する。
         """
@@ -2905,11 +2864,10 @@ class Aozora(ReaderSetting, AozoraScale):
                 if sTest[0:2] == u'</':
                     # 閉じられたので抜去
                     substack.pop()
-                elif sTest[0] == u'<':
-                    if sTest[1:].find(u'</') == -1:
-                        # タグを検出したのでサブスタックに積む
-                        # 但し同一要素内でタグが完了 <hoge></hoge> していれば追加しない
-                        substack.append((currpos, sTest))
+                elif sTest[0] == u'<' and not u'</' in sTest[1:]:
+                    # タグを検出したのでサブスタックに積む
+                    # 但し同一要素内でタグが完了 <hoge></hoge> していれば追加しない
+                    substack.append((currpos, sTest))
             except IndexError:
                 pass
 
@@ -2981,14 +2939,18 @@ class Aozora(ReaderSetting, AozoraScale):
             else:
                 sTestCurrent.append(u'</%s>' % taginfo[0].strip(u'<>'))
                 self.tagstack.insert(0, currtag) # 次行へ引き継ぐ
-
-        return (u''.join(sTestCurrent), u''.join(sTestNext))
+        #       カレント行　　　　　　　　　　次行　　　　　　　　　　　カレント行のピクセル長
+        return (u''.join(sTestCurrent), u''.join(sTestNext), pixellcc)
 
     def __newpage2file(self, fd):
         """ 改ページ
         """
-        # 改行を書き出さない。__write2fileでの改ページ発生を抑止する
-        self.__write2file(fd, u'<aozora newpage="dmy"> </aozora>')
+        if self.inKeikakomi:
+            # 罫囲みの中なら、継続中のタグを挿入する
+            # 現在、描画ルーチンの都合でページをまたぐ罫囲みはできない
+            fd.write(u'<aozora keikakomi="cont" ofset="%d" length="%d"></aozora>' % (self.Keikakomidata[0],self.Keikakomidata[1]))
+
+        fd.write(u'<aozora newpage="dmy"> </aozora>\n')
         self.__newpage(fd)
 
     def __newpage(self, fd):
@@ -3000,14 +2962,32 @@ class Aozora(ReaderSetting, AozoraScale):
         self.isNewPageWrote = False
         fd.flush()
 
-    def __write2file(self, fd, s):
+    def __write2file(self, fd, s, lt=0):
         """ formater 下請け
             1行出力後、改ページしたらその位置を記録して True を返す。
             目次作成もここで行う。
             出力時の正確なページ数と行数が分かるのはここだけ。
+            lt : s の計算上のピクセル長
         """
         rv = False
+        if self.inKeikakomi:
+            if self.Keikakomidata[1] <= lt:
+                # [0]: 字下げ用の空白の数
+                _ln0 = len(s) - len(s.lstrip())
+                self.Keikakomidata[0] = min(self.Keikakomidata[0], _ln0)
+                self.Keikakomidata[1] = lt
+
+            if self.linecounter >= self.pagelines-1:
+                # 改ページ直前
+                # 罫囲みの中なら、継続中のタグを挿入する
+                _s0 = s.rstrip('\n')
+                s = u'%s<aozora keikakomi="cont" ofset="%d" length="%d"></aozora>%s' % (_s0,
+                                    self.Keikakomidata[0],self.Keikakomidata[1],
+                                     '\n' if s != _s0 else u'' )
+
+
         fd.write(s)         # 本文
+
         self.isNewPageWrote = True
 
         if self.loggingflag:
@@ -3045,11 +3025,14 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.currentText.pagecounter))
                     self.inMidashi = False
 
-            if s[-1] == '\n':
+            if s and s[-1] == '\n':
                 self.linecounter += 1
             if self.linecounter >= self.pagelines:
                 # 1頁出力し終えたらその位置を記録する
                 self.__newpage(fd)
+                if self.inKeikakomi:
+                    # 罫囲みの中なら、新規に継続タグを挿入する
+                    fd.write(u'<aozora keikakomi="cont" ofset="%d" length="%d"></aozora>' % (self.Keikakomidata[0],self.Keikakomidata[1]))
                 rv = True
         return rv
 

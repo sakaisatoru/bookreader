@@ -26,6 +26,7 @@ import unicodedata
 import math
 from contextlib import contextmanager
 from HTMLParser import HTMLParser
+import re
 
 import cairo
 import pango
@@ -78,7 +79,6 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.rubilastYpos   = [0,0] # 直前に出現したルビの末端 left, right
         self.boutenofset    = [0,0] # 傍点出現位置の補正値 left, right
         self.tatenakayoko_rubi_ofset = 0 # 縦中横時のルビ位置の補正値
-        #self.tatenakayoko_buff = [] # 処理順序入替用バッファ
 
         self.setcolour(self.convcolor(self.get_value(u'fontcolor')),
                                 self.convcolor(self.get_value(u'backcolor')))
@@ -141,12 +141,13 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 # 横書き文字ならタグを挿入する
                 # 但し
                 #   既にyokogumiタグがある あるいは 縦中横のなかである
-                #   caption の中である
+                #   caption の中である 割り注の中である
                 #   なら見送る
                 for s in localtagstack:
-                    if s.find(u'<aozora yokogumi')  != -1 or \
-                       s.find(u'tatenakayoko')      != -1 or \
-                       s.find(u'<aozora caption')   != -1:
+                    if s.find(u'yokogumi')      != -1 or \
+                       s.find(u'tatenakayoko')  != -1 or \
+                       s.find(u'caption')       != -1 or \
+                       s.find(u'warichu')       != -1:
                         break
                 else:
                     localtagstack.append( u'<aozora yokogumi2' )
@@ -333,7 +334,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                             pc.set_gravity_hint('strong')
                             layout.set_markup(u'国')
                             length,y0 = layout.get_pixel_size()
-                            length += 1
+                            #length += 1
                             pc.set_base_gravity('south')
                             pc.set_gravity_hint('natural')
                             layout.set_markup(self.tatenakadata)
@@ -392,6 +393,66 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
     def handle_data(self, data):
         """ 挟まれたテキスト部分が得られる
         """
+
+        def __removetag_warichu(sTmp):
+            """ 割り注下請（暫定）
+                フォーマッタがごみを混ぜるのでそれを取り除くフィルタ
+                <sub></sub><sup></sup>以外のタグを抜去する。
+            """
+
+            def ___searchtag(_s, _pos=0):
+                """ タグを見つけてその最初と終わりを返す
+                    見つからない場合は -1, -1
+                    タグが閉じていない場合は start, -1
+                    ネスティングに対応する
+                """
+                _end = -1
+                _start = _s.find(u'<',_pos)
+                while _start != -1:
+                    _pos = _s.find(u'<',_start+1)
+                    if _pos == -1:
+                        _end = _s.find(u'>',_start+1)
+                        if _end != -1:
+                            _end += 1
+                        break
+                    else:
+                        _start = _pos
+                return _start, _end
+
+
+            __s = []
+            __c = 0
+            __f = False
+            # <>
+            __s0, __e0 = ___searchtag(sTmp)
+            while __s0 != -1:
+                __s.append(sTmp[:__s0])
+                if sTmp[__s0:__e0] in [u'<sup>',u'</sup>',u'<sub>',u'</sub>']:
+                    #__s.append(sTmp[:__s0])
+                    __s.append(sTmp[__s0:__e0])
+                    __c += len(sTmp[__s0:__e0])
+                sTmp = sTmp[__e0:]
+                __s0, __e0 = ___searchtag(sTmp)
+            __s.append(sTmp)
+            sTmp = u''.join(__s)
+
+            """
+            if sTmp.find(u'［＃改行］') != -1:
+                # 改行されているので、長い方の文字数を返す
+                __l = 0
+                for __s0 in sTmp.split(u'［＃改行］'):
+                    if len(__s0) > __l:
+                        __l = len(self.__removetag(__s0))
+            else:
+                __l = int(math.ceil((len(sTmp) - __c)/2.))
+            """
+            return sTmp#, __l
+
+
+
+
+
+
         def __bouten_common(key, sideband):
             """ 傍点表示
             """
@@ -494,10 +555,10 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     continue
                 elif s == u'sup':
                     self.xpos_sideofset = int(math.ceil(self.fontwidth / 3.))
-                    sTest = [u'<sup>', sTmp, u'</sup>']
+                    sTest = (u'<sup>', sTmp, u'</sup>')
                 elif s == u'sub':
                     self.xpos_sideofset = -int(math.ceil(self.fontwidth / 3.))
-                    sTest = [u'<sub>', sTmp, u'</sub>']
+                    sTest = (u'<sub>', sTmp, u'</sub>')
                 else:
                     # 引数復元
                     sTest = []
@@ -615,10 +676,14 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 割り注
                     layout.set_markup(data)
                     length,y = layout.get_pixel_size()
-                    sTmp = dicArg[u'warichu'].split(u'［＃改行］')
+                    #sTmp = dicArg[u'warichu'].split(u'［＃改行］')
+                    sTmp = __removetag_warichu(dicArg[u'warichu']).split(u'［＃改行］')
                     if len(sTmp) < 2:
-                        l = int(dicArg[u'height'])
-                        sTmp = [ dicArg[u'warichu'][:l],dicArg[u'warichu'][l:] ]
+                        try:
+                            l = int(dicArg[u'height'])
+                            sTmp = [ dicArg[u'warichu'][:l],dicArg[u'warichu'][l:] ]
+                        except KeyError:
+                            print "割り注デバッグ ",sTmp[0]
                     sTmp.insert(1,u'\n')
                     pc = layout.get_context()
                     pc.set_base_gravity('east')
@@ -735,6 +800,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 class CairoCanvas(ReaderSetting):
     """ cairo / pangocairo を使って文面を縦書きする
     """
+    reKeikakomi = re.compile(ur'<aozora keikakomi="(?P<name>.+?)" ofset="(?P<ofset>\d+?)" length="(?P<length>\d+?)"></aozora>')
     def __init__(self):
         ReaderSetting.__init__(self)
 
@@ -742,18 +808,62 @@ class CairoCanvas(ReaderSetting):
         """ 指定したページを描画する
             pageposition : 表示ページのフォーマット済ファイル上での絶対位置
         """
+
+        def __kakomi_sub(mx, oy, wt, mode=0):
+            """ 囲み罫線下請け
+                mode 罫線の描画位置を指定
+                    bit 0  : 右辺
+                    bit 1  : 上下辺
+                    bit 2  : 左辺
+                mode 0..無し  1..右辺       2..上下辺      3..右辺+上下辺
+                　　　4..左辺  5..左辺+右辺   6..左辺+上下辺  7..全部
+                使うのは2,3,6,7のみ
+            """
+            if not mode:
+                return
+            oy = oy * self.canvas_fontheight
+            mx += self.canvas_fontheight
+            mx0 = self.canvas_height - self.canvas_topmargin - self.canvas_bottommargin - mx
+            if mx0 < 0:
+                mx -= mx0
+            mx -= oy - min(self.canvas_fontheight,self.canvas_topmargin//2)
+            oy += self.canvas_topmargin - min(self.canvas_fontheight,self.canvas_topmargin//2)
+            with cairocontext(self.sf) as ctx:
+                ctx.set_antialias(cairo.ANTIALIAS_NONE)
+                ctx.set_source_rgb(foreR, foreG, foreB) # 描画色
+                ctx.new_path()
+                ctx.set_line_width(1)
+
+                if mode & 1:
+                    # 右辺
+                    ctx.move_to( xpos + wt, oy )
+                    ctx.rel_line_to(0, mx)
+                    ctx.stroke()
+                if mode & 2:
+                    # 上下辺
+                    ctx.move_to( xpos, oy )
+                    ctx.rel_line_to(wt, 0)
+                    ctx.stroke()
+                    ctx.move_to( xpos, oy + mx )
+                    ctx.rel_line_to(wt, 0)
+                    ctx.stroke()
+                if mode & 4:
+                    # 左辺
+                    ctx.move_to( xpos, oy )
+                    ctx.rel_line_to(0, mx)
+                    ctx.stroke()
+
         if not buffname:
             buffname = self.destfile
 
-        inKeikakomi = False # 罫囲み
-        maxchars = 0            # 囲み内に出現する文字列の最大長
+        keimode = 0             # 罫囲みモード
+        keiheight = 0           # 囲み内に出現する文字列の最大長
         offset_y = 0            # 文字列の書き出し位置
         tmpwidth = 0
         tmpheight = 0
 
         xpos = self.canvas_width - self.canvas_rightmargin - int(math.ceil(self.canvas_linewidth/2.))
         KeikakomiXendpos = xpos
-        KeikakomiYendpos = self.canvas_height - self.canvas_topmargin - int(self.get_value(u'bottommargin'))
 
         # キャンバスの確保
         self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
@@ -779,6 +889,14 @@ class CairoCanvas(ReaderSetting):
             ctx.set_antialias(cairo.ANTIALIAS_NONE)
             ctx.new_path()
             ctx.set_line_width(1)
+            ctx.move_to(0,self.canvas_topmargin)
+            ctx.rel_line_to(self.canvas_width,0)
+            ctx.stroke()
+            ctx.move_to(0,self.canvas_height - self.canvas_bottommargin)
+            ctx.rel_line_to(self.canvas_width,0)
+            ctx.stroke()
+
+
             ctx.move_to(0,
                     self.canvas_topmargin + self.chars * self.canvas_fontheight)
             ctx.rel_line_to(self.canvas_width,0)
@@ -793,56 +911,37 @@ class CairoCanvas(ReaderSetting):
             i = self.pagelines #+ 1
             while i:
                 s0 = f0.readline().rstrip('\n')
-                if s0.find( u'<aozora newpage="dmy">' ) != -1:
-                    break
 
-                tmpxpos = s0.find(u'<aozora keikakomi="start"> </aozora>')
-                if tmpxpos != -1:
-                    # 罫囲み開始
-                    inKeikakomi = True
-                    offset_y = self.chars
-                    maxchars = 0
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+36:] # tagを抜去
+                reTmp = self.reKeikakomi.search(s0)
+                if reTmp and reTmp.group(u'name') == u'start':
+                    s0 = s0[:reTmp.start()] + s0[reTmp.end():]
                     KeikakomiXendpos = xpos
-
-                tmpxpos = s0.find(u'<aozora keikakomi="end"> </aozora>')
-                if tmpxpos != -1:
-                    # 罫囲み終わり
-                    inKeikakomi = False
-                    s0 = s0[:tmpxpos] + s0[tmpxpos+34:] # tagを抜去
-                    if offset_y > 0:
-                        offset_y -= 1
-                    maxchars -= offset_y
-                    if maxchars < self.chars:
-                        maxchars += 1
-                    tmpwidth = KeikakomiXendpos - xpos
-                    with cairocontext(self.sf) as ctx:
-                        ctx.set_antialias(cairo.ANTIALIAS_NONE)
-                        ctx.set_source_rgb(foreR, foreG, foreB) # 描画色
-                        ctx.new_path()
-                        ctx.set_line_width(1)
-                        ctx.move_to(xpos,
-                                self.canvas_topmargin + offset_y * self.canvas_fontheight)
-                        ctx.rel_line_to(tmpwidth,0)
-                        ctx.rel_line_to(0, maxchars * self.canvas_fontheight)
-                        ctx.rel_line_to(-tmpwidth,0)
-                        ctx.close_path()
-                        ctx.stroke()
-
-                if inKeikakomi:
-                    # 罫囲み時の最大高さを得る
-                    tmpheight = self.drawstring.linelengthcount(s0)
-                    if  tmpheight > maxchars:
-                        maxchars = tmpheight
-                    # 文字列の最低書き出し位置を求める
-                    sTmp = s0.strip()
-                    if sTmp:
-                        tmpheight = s0.find(sTmp)
-                        if tmpheight < offset_y:
-                            offset_y = tmpheight
+                    keimode = 1 # 右辺
 
                 if s0:
                     self.drawstring.settext(s0, xpos)
+
+                reTmp = self.reKeikakomi.search(s0)
+                if reTmp and reTmp.group(u'name') == u'cont':
+                    # 罫囲み中
+                    s0 = s0[:reTmp.start()] + s0[reTmp.end():]
+                    __kakomi_sub(int(reTmp.group(u'length')),
+                                    int(reTmp.group(u'ofset')),
+                                        KeikakomiXendpos - xpos, keimode|2)
+                    KeikakomiXendpos = xpos
+
+                reTmp = self.reKeikakomi.search(s0)
+                if reTmp and reTmp.group(u'name') == u'end':
+                    # 罫囲み終わり
+                    s0 = s0[:reTmp.start()] + s0[reTmp.end():]
+                    __kakomi_sub(int(reTmp.group(u'length')),
+                                    int(reTmp.group(u'ofset')),
+                                        KeikakomiXendpos - xpos, keimode|6)
+
+                if s0.find( u'<aozora newpage="dmy">' ) != -1:
+                    break
+
+                if s0:
                     # 行末が CR の場合は改行しないで終わる
                     if s0[-1] != '\r':
                         xpos -= self.canvas_linewidth
@@ -851,6 +950,8 @@ class CairoCanvas(ReaderSetting):
                     # 文字列が空なら改行のみで終わる
                     xpos -= self.canvas_linewidth
                     i -= 1
+
+
 
         # ノンブル(ページ番号)
         if currentpage:
@@ -885,3 +986,5 @@ class CairoCanvas(ReaderSetting):
         self.sf.finish()
         del self.drawstring
         del self.sf
+
+

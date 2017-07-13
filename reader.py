@@ -61,8 +61,6 @@ class BookMarkInfo(ReaderSetting):
         """ しおりファイルを読み込んでリストに格納する。
         """
         ReaderSetting.__init__(self)
-        self.shiorifile = os.path.join(self.get_value(u'workingdir'),
-                                                                u'shiori.txt')
         if os.path.isfile(self.shiorifile):
             self.rewind()
         else:
@@ -317,7 +315,7 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         self.sizelabel = gtk.Label( u'画面サイズ' )
         self.vbuttonbox = gtk.VButtonBox()
         self.radiobtn = []
-        for s in [u'SVGA', u'WSVGA', u'XGA', u'WXGA']:
+        for s in (u'SVGA', u'WSVGA', u'XGA', u'WXGA'):
             self.radiobtn.append( gtk.RadioButton(label=s) )
         for t in self.radiobtn:
             if t.get_label() == a:
@@ -373,7 +371,7 @@ class ScreenSetting(aozoradialog.ao_dialog, ReaderSetting):
         # ルビ表示位置補正値
         self.rubiadjlabel = gtk.Label( u'ルビ位置調整' )
         rubiadj = gtk.Adjustment(value=float(self.get_value(u'rubioffset')),
-                                lower=0.1,upper=1.0,step_incr=0.1,page_incr=0.1)
+                                lower=0.1,upper=1.5,step_incr=0.1,page_incr=0.1)
         self.rubiadjspin = gtk.SpinButton(adjustment = rubiadj,
                                             climb_rate = 0.1, digits = 1)
         self.hbox41 = gtk.HBox()
@@ -818,8 +816,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         n = self.cc.get_booktitle()
         s = u'%s,%s,%d,%s,%s,%s,%s\n' % (n[0], n[1], self.currentpage,
-                datetime.date.today(), self.cc.sourcefile,
-                self.cc.zipfilename, self.cc.worksid)
+                datetime.date.today(),
+                os.path.basename(self.cc.sourcefile),
+                os.path.basename(self.cc.zipfilename),
+                self.cc.worksid)
         bm = BookMarkInfo()
         bm.append(s)
 
@@ -903,7 +903,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         dlg = gtk.AboutDialog()
         dlg.set_program_name(u'青空文庫リーダー')
         dlg.set_version(u'nightly build \n(setting file version %s)' % self.currentversion)
-        dlg.set_copyright(u'by sakai satoru 2016')
+        dlg.set_copyright(u'by sakai satoru 2017')
         dlg.run()
         dlg.destroy()
 
@@ -969,6 +969,10 @@ class ReaderUI(gtk.Window, ReaderSetting):
         if self.isNowFormatting:
             return # フォーマット中の読み込みを抑止
 
+        # ディレクトリを付す
+        fn = os.path.join(self.get_value(u'aozoracurrent'), fn)
+        zipname = os.path.join(self.aozoradir, zipname)
+
         # 同じファイルなら開かない
         if self.cc.sourcefile != fn or self.cc.zipfilename != zipname:
             self.savecurrenttexthistory() # 履歴に保存
@@ -983,7 +987,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 aozoradialog.msgerrinfo(u'ファイルが見当たりません。' )
                 self.isNowFormatting = False
                 return
-
 
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
@@ -1080,8 +1083,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
         bookname,author = self.cc.get_booktitle()
         if bookname and self.cc.zipfilename:
             self.bookhistory.update( '%s,%d,%s,%s,%s' %
-                        (bookname, self.currentpage, self.cc.sourcefile,
-                         self.cc.zipfilename, self.cc.worksid))
+                (bookname, self.currentpage,
+                 os.path.basename(self.cc.sourcefile),
+                 os.path.basename(self.cc.zipfilename), self.cc.worksid))
             self.isBookopened = True # テキストを開いていた、というフラグ
         self.bookhistory.save()
 
@@ -1093,7 +1097,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
             for s in os.listdir(self.aozoratextdir):
                 os.remove(os.path.join(self.aozoratextdir,s))
         except:
-            print u'一時ファイルの削除中にエラーが発生しました。'
+            print( u'一時ファイルの削除中にエラーが発生しました。ファイル名:%s' % s)
 
         self.hide_all()
         gtk.main_quit()
@@ -1113,7 +1117,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年6［＃「6」は縦中横］月26［＃「26」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年7［＃「7」は縦中横］月14［＃「14」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
@@ -1125,20 +1129,23 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'仕様［＃「仕様」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
                 u'・注記には〔〕を付すことでルビと区別しています。\n'+
-                u'・以下は括弧類［＃「以下は括弧類」の左に二重傍線］の送り量の調整の例です。「」・「『』」「ほげ。」\n'+
+                u'・「収録ファイルへの記載事項」における年月日は漢数字に置換して表示します。\n'+
                 u'［＃字下げ終わり］\n'+
-                u'\n'+
                 u' 既知の問題点 ［＃「 既知の問題点 」は罫囲み］［＃「既知の問題点」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
-                u'・デスクトップ環境《かんきょう》が設定《せってい》したDPI値《ち》を斟酌しません。このため同じフォントサイズを指定《してい》しても、UI［＃「UI」は縦中横］と本文表示とで大きさが異なる場合があります。\n'+
+                u'・デスクトップ環境《かんきょう》が設定《せってい》したDPI［＃「DPI」は縦中横］値《ち》を斟酌しません。このため同じフォントサイズを指定《してい》しても、UI［＃「UI」は縦中横］と本文表示とで大きさが異なる場合があります。\n'+
                 u'・縦中横でのルビの表示位置を補正しません。例［＃縦中横］12日《にち》［＃縦中横終わり］\n'+
                 u'・窓見出しの修飾は無視されます。また、段落中に出現した場合は同行見出しとして扱います。\n'+
                 u'・使用するフォントによっては傍点の位置が若干ずれることがあります。\n'+
-                u'・割り注の処理が不完全です。また、他の修飾が出現すると割り注そのものがエラーになります。\n'+
-                u'・文字サイズを極端に大きくする（例えば１行に数文字程度）と、'+
-                u'英文ワードラップに失敗し無限ループに陥る場合があります。'+
-                u'［＃太字］この場合、本プログラムのみで通常動作に復帰する方法はありません。［＃太字終わり］'+
-                u'申し訳ございませんがシステム側にてプロセスを落としてください。\n'+
+                u'・割り注の処理が不完全なため、途中に他の修飾が出現すると表示がおかしくなります。\n'+
+                u'・行頭禁則文字が１行に収まる文字数を超えて出現すると、追い出しや追い込みに失敗してプログラムがエラー終了します。\n'+
+                u'・行末禁則文字が１行に収まる文字数を超えて出現すると、無限ループ（後述）に陥ります。\n'+
+                u'・文字サイズを極端に大きくする（例えば１行に数文字程度）と、英文ワードラップに失敗し無限ループに陥る場合があります。\n'+
+                u'［＃字下げ終わり］\n'+
+                u'\n'+
+                u'無限ループについて［＃「無限ループについて」は中見出し］\n'+
+                u'［＃ここから１字下げ］'+
+                u'現在、プログラムの不備により、特定の条件で無限ループ（処理が進まない状態）が生じる場合があります。このような状況に陥った場合、本プログラムの操作のみで正常な状態に戻ることができません。申し訳ございませんがシステム側にて本プログラムを落として下さい。\n'+
                 u'［＃字下げ終わり］\n'+
                 u'［＃改ページ］\n'+
                 u'\nライセンス［＃「ライセンス」は大見出し］\n'+

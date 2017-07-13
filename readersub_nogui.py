@@ -234,8 +234,6 @@ class AozoraScale(object):
                 # 画面上における全長を計算
                 l += self.charwidth(s) * self.fontsizefactor[fontsizename] * adj
         return int(math.ceil(l))
-        #return int(math.floor(l))
-        #return int(round(l))
 
     def charwidth(self, lsc):
         """ 文字の幅を返す
@@ -363,19 +361,22 @@ class ReaderSetting(object):
         """ 設定の初期化
             設定情報が既存であれば読み込み、なければ初期化する。
         """
-        #   スクリーンサイズ
-        #             XGA   WXGA    WSVGA   SVGA
-        screendata = [(996 , 672) , (1240 , 752) , (996 , 560) , (740 , 460)]
-        self.currentversion = u'0.35' # 設定ファイルのバージョン
+        self.currentversion = u'0.36' # 設定ファイルのバージョン
         self.dicScreen = {}
-        for k in (u'SVGA', u'WSVGA', u'WXGA', u'XGA'):
-            self.dicScreen[k] = screendata.pop()
+        #   スクリーンサイズ
+        for k,x,y in [(u'XGA', 996 , 672) , (u'WXGA', 1240 , 752) ,
+                            (u'WSVGA', 996 , 560) , (u'SVGA', 740 , 460)]:
+            self.dicScreen[k] = (x,y)
 
         #   参照及び作業ディレクトリ
         homedir = os.getenv('HOME')
         if not homedir:
             homedir = os.getcwd()
-        cachedir = os.path.join(homedir, u'.cache', u'aozora')
+        cachedir = os.getenv('XDG_RUNTIME_DIR')
+        if cachedir:
+            cachedir = os.path.join(cachedir, u'aozora')
+        else:
+            cachedir = os.path.join(homedir, u'.cache', u'aozora')
         configdir = os.path.join(homedir, u'.config', u'aozora')
         aozoracurrent = os.path.join(cachedir, u'text')
         aozoradir = os.path.join(homedir, name)
@@ -443,7 +444,8 @@ class ReaderSetting(object):
         # 各種ファイル名の設定
         self.destfile = os.path.join(self.get_value(u'workingdir'), u'view.txt')
         self.mokujifile = os.path.join(self.get_value(u'workingdir'),u'mokuji.txt')
-
+        self.shiorifile = os.path.join(self.get_value(u'settingdir'),
+                                                                u'shiori.txt')
         # 各種設定値の取り出し
         self.aozoradir          = self.get_value(u'aozoradir')
         self.aozoratextdir      = self.get_value(u'aozoracurrent')
@@ -452,6 +454,7 @@ class ReaderSetting(object):
         self.canvas_width       = int(self.get_value(u'scrnwidth'))
         self.canvas_height      = int(self.get_value(u'scrnheight'))
         self.canvas_topmargin   = int(self.get_value(u'topmargin'))
+        self.canvas_bottommargin= int(self.get_value(u'bottommargin'))
         self.canvas_rightmargin = int(self.get_value(u'rightmargin'))
         self.canvas_fontsize    = float(self.get_value( u'fontsize'))
         self.canvas_fontheight  = float(self.get_value(u'fontheight'))

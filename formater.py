@@ -1717,6 +1717,11 @@ class Aozora(ReaderSetting, AozoraScale):
                             tmp = self.reCTRL2.search(lnbuf)
                             continue
 
+                        # 直前に出現した挿図の行送りが終わっていなければ、ここで完了する
+                        while self.imgwidth_lines > 0:
+                            self.__write2file(dfile, '\n')
+                            self.imgwidth_lines -= 1
+
                         tmpH = self.canvas_height - self.canvas_topmargin - \
                                 float(self.currentText.canvas_bottommargin)
 
@@ -1724,13 +1729,13 @@ class Aozora(ReaderSetting, AozoraScale):
                                 float(self.currentText.get_value(u'leftmargin'))
 
                         # 表示領域に収まるような倍率を求める
-                        # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
-                        # 考慮して0.9程度の定数を乗じている。
                         if not u'キャプション付' in tmp.group() and \
                             tmpH / figheight >= 1.0 and tmpX / figwidth >= 1.0:
                             # キャプションが続かない場合、表示域最大まで
                             tmpRasio = 1.0
                         else:
+                            # 高さはキャプション表示領域分を考慮して0.8, 幅はあふれた場合を
+                            # 考慮して0.9程度の定数を乗じている。
                             tmpRasio = min( 1.0,
                                             min( tmpH / figheight * 0.8,
                                                  tmpW / figwidth  * 0.9) )
@@ -1749,22 +1754,12 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 挿図の高さが表示域の３分の２を超えるようならまわりこまない。
                         self.imgheight_chars = 0 if figheight > tmpH * 2/3. else int(math.ceil(
                                         figheight/float(self.fontheight))) +1
-                        matchFig2 = self.reFig2.match(tmp.group())
-                        if matchFig2 and matchFig2.group(u'caption') == u'＃＃＃＃＃':
-                            # キャプションを調べて、キャプションなし画像（キャプションが＃＃＃＃＃）で
-                            # あれば、回り込み処理を指定する。
-                            figstack.append((u'<aozora %%s="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>%%s' % (
-                                        fname, figwidth, figheight, tmpRasio),
-                                        self.imgwidth_lines,
-                                        True if self.imgheight_chars == 0 else False, self.imgheight_chars ))
-                            self.imgwidth_lines = 0
-                        else:
-                            # ここで改行しないことに注意。改行はキャプションで行う。
-                            figstack.append((u'<aozora %%s="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>%%s' % (
-                                        fname, figwidth, figheight, tmpRasio),
-                                        self.imgwidth_lines,
-                                        True, self.imgheight_chars) )
-                            self.imgwidth_lines = 0
+                        figstack.append(
+                            (u'<aozora %%s="%s" width="%s" height="%s" rasio="%0.2f"> </aozora>%%s' % (
+                                                    fname, figwidth, figheight, tmpRasio),
+                            self.imgwidth_lines,
+                            self.imgheight_chars ))
+                        self.imgwidth_lines = 0
                         lnbuf = lnbuf[:tmp.start()]+lnbuf[tmp.end():]
                         tmp = self.reCTRL2.search(lnbuf)
                         continue
@@ -1802,19 +1797,14 @@ class Aozora(ReaderSetting, AozoraScale):
                     """
                     if tmp.group() == u'［＃キャプション］':
                         __checkfig()
-
                         tmp = self.reCaption2.search(lnbuf,tmp.start())
                         if tmp:
                             # [＃キャプション終わり]で閉じていれば、キャプションとして出力する
-
                             self.countpage = False
                             self.__write2file(dfile,
                                 u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
                                     __caption_sub_1(self.reAozoraTagRemove.sub(u'',tmp.group(u'name')), figwidth))
                             figwidth = -1
-                            # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
-                            #if figflag:
-                            #    self.__write2file(dfile,'\n')
                             self.__write2file(dfile,'\n')
                             self.countpage = True
 
@@ -1831,7 +1821,6 @@ class Aozora(ReaderSetting, AozoraScale):
                     if tmp.group() == u'［＃ここからキャプション］':
                         # キャプションの完成を待たないで取り敢えず挿図を行う
                         __checkfig()
-
                         # カレントハンドルを退避して、一時ファイルを作成して出力先を切り替える。
                         workfilestack.append(dfile)
                         dfile = tempfile.NamedTemporaryFile(mode='w+',delete=True)
@@ -1866,9 +1855,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             u'<aozora caption="dmy"><span size="smaller">%s</span></aozora>\r' %
                             __caption_sub_1(self.reAozoraTagRemove.sub(u'',sTmp),figwidth))
                         figwidth = -1
-                        # 画像とキャプション分で2行送る。表示処理の都合で別行にすること。
-                        #if figflag:
-                        #    self.__write2file(dfile,'\n')
                         self.__write2file(dfile,'\n')
                         self.countpage = True       # ページカウントを再開
 
@@ -2220,10 +2206,8 @@ class Aozora(ReaderSetting, AozoraScale):
                     """ 行の折り返し・分割処理を無視してファイルに出力する
                     """
                     # 未出力の挿図があれば出力する
-                    if figstack:
-                        a = figstack.pop()
-                        __insertfig(a[0]+'\n', a[1])
-
+                    if __checkfig():
+                        self.__write2file( dfile, '\n' ) #回りこまないので改行する
                     self.__write2file(dfile, "%s\n" % lnbuf)
                     continue
 
@@ -2233,10 +2217,10 @@ class Aozora(ReaderSetting, AozoraScale):
                 """
                 if lnbuf != '' and figstack:
                     a = figstack.pop()
-                    __insertfig(a[0], a[1], a[3])
-                    if not a[3]:
+                    __insertfig(a[0], a[1], a[2])
+                    if not a[2]:
                         self.__write2file( dfile, '\n' ) #回りこまないので改行する
-                    self.imgheight_chars = a[3] # 回り込みインデント
+                    self.imgheight_chars = a[2] # 回り込みインデント
                     self.imgwidth_lines = a[1]
 
 

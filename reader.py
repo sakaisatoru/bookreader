@@ -1145,7 +1145,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'無限ループについて［＃「無限ループについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
-                u'現在、プログラムの不備により、特定の条件で無限ループ（処理が進まない状態）が生じる場合があります。このような状況に陥った場合、本プログラムの操作のみで正常な状態に戻ることができません。申し訳ございませんがシステム側にて本プログラムを落として下さい。［＃地から２字上げ］ほげほげ\n'+
+                u'現在、プログラムの不備により、特定の条件で無限ループ（処理が進まない状態）が生じる場合があります。このような状況に陥った場合、本プログラムの操作のみで正常な状態に戻ることができません。申し訳ございませんがシステム側にて本プログラムを落として下さい。\n'+
                 u'［＃字下げ終わり］\n'+
 
                 u'［＃改ページ］\n'+
@@ -1158,7 +1158,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'the Free Software Foundation; either version 2 of the License, or '+
                 u'(at your option) any later version.'+
                 u'\n'+
-                u'This program is distributed in the hope that it will be useful,'+
+                u'This program is distributed in the hope that it will be useful, '+
                 u'but WITHOUT ANY WARRANTY; without even the implied warranty of '+
                 u'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the '+
                 u'GNU General Public License for more details.'+

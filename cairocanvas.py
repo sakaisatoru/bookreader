@@ -708,8 +708,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     sTmp = sTmp.replace('\a','\n') # 改行コードの復元
                     if u'mado' in dicArg:
                         # 窓見出し
-                        sTmp = u'<span face="%s" size="smaller">%s</span>' % (
-                                    dicArg[u'face'], sTmp )
+                        sTmp = u'<span font_desc="%s" size="small">%s</span>' % (
+                                    dicArg[u'font_desc'], sTmp )
                     pc = layout.get_context() # Pango を得る
                     # 正しいlengthを得るため、予め文字の向きを決める
                     if u'yokogumi' in dicArg or u'yokogumi2' in dicArg:
@@ -822,8 +822,8 @@ class CairoCanvas(ReaderSetting):
             if not mode:
                 return
             oy = oy * self.canvas_fontheight
-            mx += self.canvas_fontheight
-            mx += min(self.canvas_fontheight,self.canvas_topmargin//2)
+            mx -= oy
+            mx += self.canvas_fontheight + min(self.canvas_fontheight,self.canvas_topmargin//2)
             oy += self.canvas_topmargin - min(self.canvas_fontheight,self.canvas_topmargin//2)
             with cairocontext(self.sf) as ctx:
                 ctx.set_antialias(cairo.ANTIALIAS_NONE)

@@ -31,7 +31,6 @@
                 http://www.aozora.gr.jp/annotation/
 """
 
-
 import jis3
 from readersub_nogui import ReaderSetting, AozoraScale
 import aozoraaccent
@@ -1240,10 +1239,10 @@ class Aozora(ReaderSetting, AozoraScale):
                             self.midashi = tmp2.group(u'midashi')
                             tmpStart,tmpEnd = self.__honbunsearch(
                                     lnbuf[:tmp.start()],self.midashi)
-                            lnbuf = u'%s<span face="%s"%s>%s</span>%s%s' % (
+                            lnbuf = u'%s<span font_desc="%s"%s>%s</span>%s%s' % (
                                 lnbuf[:tmpStart],
                                 self.get_value("boldfontname"),
-                                u' size="larger"' if self.sMidashiSize == u'大' else u'',
+                                u' size="large"' if self.sMidashiSize == u'大' else u'',
                                 lnbuf[tmpStart:tmpEnd],
                                 lnbuf[tmpEnd:tmp.start()],
                                 lnbuf[tmp.end():] )
@@ -1273,10 +1272,10 @@ class Aozora(ReaderSetting, AozoraScale):
                             #   目次用にタグを外す
                             self.midashi = self.__removetag(lnbuf[pos_end:tmp.start()])
                             self.sMidashiSize = tmp2.group('midashisize')
-                            lnbuf = u'%s<span face="%s"%s>%s</span>%s' % (
+                            lnbuf = u'%s<span font_desc="%s"%s>%s</span>%s' % (
                                 lnbuf[:pos_start],
                                 self.get_value("boldfontname"),
-                                u' size="larger"' if self.sMidashiSize == u'大' else u'',
+                                u' size="large"' if self.sMidashiSize == u'大' else u'',
                                 lnbuf[pos_end:tmp.start()],
                                 lnbuf[tmp.end():] )
                             tmp = self.reCTRL2.search(lnbuf)
@@ -1948,7 +1947,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 文字の折り返し処理（仮）キャプションの簡易ルーチンを流用
                             sTmp = __caption_sub_1(sTmp2,10*self.canvas_fontheight * self.fontmagnification( u'size="smaller"' ))
                             self.__write2file(dfile,
-                                u'<aozora mado="dmy" face="%s" lines="%d">%s</aozora>\r' % (
+                                u'<aozora mado="dmy" font_desc="%s" lines="%d">%s</aozora>\r' % (
                                         self.get_value("boldfontname"),
                                         self.imgwidth_lines,
                                         sTmp) )
@@ -1956,7 +1955,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                     lnbuf[tmp.end():] )
 
                         else:
-                            lnbuf = u'%s<span face="%s" size="smaller">%s</span>%s%s' % (
+                            lnbuf = u'%s<span font_desc="%s" size="small">%s</span>%s%s' % (
                                 lnbuf[:tmpStart],
                                 self.get_value("boldfontname"),
                                 lnbuf[tmpStart:tmpEnd],
@@ -2016,14 +2015,14 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 文字の折り返し処理（仮）キャプションの簡易ルーチンを流用
                             sTmp = __caption_sub_1(sTmp2,10*self.canvas_fontheight * self.fontmagnification( u'size="smaller"' ))
                             self.__write2file(dfile,
-                                u'<aozora mado="dmy" face="%s" lines="%d">%s</aozora>\r' % (
+                                u'<aozora mado="dmy" font_desc="%s" lines="%d">%s</aozora>\r' % (
                                         self.get_value("boldfontname"),
                                         self.imgwidth_lines,
                                         sTmp) )
                             lnbuf = lnbuf[tmp.end():]
 
                         else:
-                            lnbuf = u'<span face="%s" size="smaller">%s</span>%s' % (
+                            lnbuf = u'<span font_desc="%s" size="small">%s</span>%s' % (
                                 self.get_value("boldfontname"),
                                 sTmp2.replace('\a',''),
                                 lnbuf[tmp.end():] )
@@ -2044,10 +2043,10 @@ class Aozora(ReaderSetting, AozoraScale):
                         self.inFukusuMidashi = True
                         self.midashi = u''
 
-                        lnbuf = u'%s<span face="%s"%s>%s' % (
+                        lnbuf = u'%s<span font_desc="%s"%s>%s' % (
                             lnbuf[:tmp.start()],
                             self.get_value("boldfontname"),
-                            u' size="larger"' if self.sMidashiSize == u'大' else u'',
+                            u' size="large"' if self.sMidashiSize == u'大' else u'',
                             lnbuf[tmp.end():] )
 
                         tmp = self.reCTRL2.search(lnbuf)
@@ -2291,7 +2290,8 @@ class Aozora(ReaderSetting, AozoraScale):
                     if jiage and self.charsmax > self.linelengthcount(self.ls) + nIndentImg+nIndent + jiage00:
                         nIndent = self.charsmax - self.linelengthcount(self.ls) - nIndentImg - jiage00
                     # インデント分を付けてファイルへ出力する
-                    self.__write2file(dfile, "%s%s\n" % (u'　'*(nIndentImg+nIndent),self.ls), tmppixcellcc)
+                    self.__write2file(dfile, "%s%s\n" % (u'　'*(nIndentImg+nIndent),self.ls),
+                                            (nIndentImg+nIndent) * self.fontheight + tmppixcellcc)
 
                     #   折り返しインデント
                     if lnbuf != '':
@@ -2372,8 +2372,7 @@ class Aozora(ReaderSetting, AozoraScale):
         """ 行の分割
             文字列の長さと実際の画面上における長さが一致しないことに注意
             ・<>, </> はカウントしない
-            ・<aozora yokogumi="">hoge</aozora> は常に１文字分の高さしか
-            　持たない
+            ・<aozora tatenakayoko="">hoge</aozora> は常に１文字分の高さしか持たない
             ・<sub>, <sup> では文字の大きさが変わる
             ・連続して出現する括弧類及び漢数字内の読点は送り量が調整される
         """
@@ -2385,225 +2384,8 @@ class Aozora(ReaderSetting, AozoraScale):
         pixellcc = 0.0                          # 描画時の全長（ピクセル値）
         substack = []
 
-        while pos < slinelen:
-            if pixellcc >= pixelsmax:
-                """ 文字列の長さ（描画時ピクセル数）が所定を越えたら
-                    禁則処理及び行末合わせ調整を行って終了する。
-                """
-                if sline[pos] in u'…—‥―':
-                    """ 分離禁止処理（仮）
-                    """
-                    if sline[pos] == sTestCurrent[-1][0]:
-                        if len(adjCurrent) > 1 and pixellcc == pixelsmax:
-                            # 行末へぶら下げ
-                            pixellcc += fLenCurrent[-1]
-                            fLenCurrent.append(fLenCurrent[-1])
-                            sTestCurrent.append(sline[pos])
-                            pos += 1
-                        else:
-                            # 調整余裕が無ければ次行先頭へ
-                            sTestNext.insert(0,sTestCurrent.pop())
-                            pixellcc -= fLenCurrent.pop()
-
-                sTestTmp = []
-                fLenTmp = []
-                try:
-                    """ ワードラップ
-                    """
-                    # URL を検出した場合はラップしない
-                    sTest0 = u''.join(sTestCurrent)
-                    for a in (u'http:', u'https:', u'mailto:'):
-                        if a in sTest0:
-                            raise IndexError
-
-                    # 前方参照してワードの区切りを探す
-                    while sTestCurrent[-1][0] in self.charwidth_serif and \
-                                                sTestCurrent[-1][0].isalnum():
-                        sTestTmp.insert(0, sTestCurrent.pop())
-                        fLenTmp.insert(0,fLenCurrent.pop())
-
-                    for a in sTestCurrent:
-                        # 無限ループを回避するため、ラップしたワードが1行の長さを上回るよう
-                        # ならキャンセルする。本来ならそれだけでよいのだが、この後インデント
-                        # で行頭に空白が付され１行の長さを上回ると無限ループとなる。
-                        # その為、長さに関わらずラップしたワードが（空白以外）の行先頭要素で
-                        # あればキャンセルする。
-                        if not a[0] in [u' ', u'　']:#0x20,全角空白
-                            # 正常終了
-                            sTestNext = sTestTmp + sTestNext
-                            pixellcc -= sum(fLenTmp)
-                            break
-                    else:
-                        # キャンセル
-                        sTestCurrent += sTestTmp
-                        fLenCurrent += fLenTmp
-                except IndexError:
-                    # 行末から行頭まで連綿と英数字が続く場合はエラーになる
-                    # ラップ不可能としてキャンセルする
-                    sTestCurrent += sTestTmp
-                    fLenCurrent += fLenTmp
-
-                """ 行末禁則処理
-                    禁則文字が続く場合は全て次行先頭へ追い出す
-                """
-                try:
-                    t_count = -1
-                    # 行末にタグがあればスキップ
-                    while fLenCurrent[t_count] == 0:
-                        t_count -= 1
-
-                    while sTestCurrent[t_count][0] in self.kinsoku2:
-                        while t_count < 0:
-                            # スキップしたタグも含めて次行へ送る
-                            sTestNext.insert(0, sTestCurrent.pop())
-                            pixellcc -= fLenCurrent.pop()
-                            t_count += 1
-
-                        t_count = -1
-                        while fLenCurrent[t_count] == 0:
-                            t_count -= 1
-
-                except IndexError:
-                    pass
-
-
-                if not sTestNext: # 次行先頭への送り込みがなければ
-                    """ 行頭禁則処理
-                        調整可能な範囲で前行末へ追い出す。
-                        追い出しきれない場合は、前行末から行頭へ移す。
-                    """
-                    sTestTmp = []
-                    fLenTmp = []
-
-                    if pixellcc == pixelsmax and sline[pos] in u'、。．，':
-                        # 句読点のぶら下げ
-                        sTestCurrent.append(sline[pos])
-                        fLenCurrent.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
-                        # 調整余地があれば後段で詰込処理するよう全長を調整する
-                        if adjCurrent:
-                            pixellcc += fLenCurrent[-1]
-                        pos += 1
-                    else:
-                        try:
-                            while sline[pos] in u'<>' + self.kinsoku:
-                                # 行頭禁則文字を一時リストへ取り出す
-                                if sline[pos:pos+2] == u'</':
-                                    # 閉じタグ
-                                    tagnamestart = pos
-                                    pos = sline.find(u'>',pos+2) + 1
-                                    substack.pop()
-                                    sTestTmp.append(sline[tagnamestart:pos])
-                                    fLenTmp.append(0.0)
-                                elif sline[pos] == u'<':
-                                    # タグ
-                                    tagnamestart = pos
-                                    pos = sline.find(u'>',pos+2) + 1
-                                    substack.append(sline[tagnamestart:pos])
-                                    sTestTmp.append(sline[tagnamestart:pos])
-                                    fLenTmp.append(0.0)
-                                else:
-                                    # 禁則文字
-                                    sTestTmp.append(sline[pos])
-                                    fLenTmp.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
-                                    pos += 1
-                        except IndexError:
-                            pass
-
-                        # 行末の空き長さを求める
-                        # 調整可能文字での調整量は１文字高の半分が目安
-                        n = charheight * len(adjCurrent) * 0.5 - pixellcc + pixelsmax
-                        # 禁則文字が閉じ括弧類で終わっていたなら、行末の空き長さを調整（延長）する
-                        # これにより、行末に置けるのに次行に送られるのを回避する。
-                        if len(sTestTmp):
-                            n += charheight * self.charwidth(sTestTmp[-1][-1]) * (0.5 if (sTestTmp[-1][-1] in u'）］｝〕〉》」』】〙〗〟｠') else 0.)
-                        if n >= sum(fLenTmp):
-                            # ピクセル値で調整可能範囲と比較
-                            # 行末に収容できるなら接続
-                            sTestCurrent += sTestTmp
-                            fLenCurrent += fLenTmp
-                            pixellcc += sum(fLenTmp)
-                        else:
-                            # 収容できなければ、行末から次行先頭に移動
-                            while True:
-                                if sTestCurrent[-1][0] == u'<' or sTestCurrent[-1][0] in self.kinsoku:
-                                    # タグあるいは行頭禁則文字なら移動して継続
-                                    sTestTmp.insert(0, sTestCurrent.pop())
-                                    fLenTmp.insert(0, fLenCurrent.pop())
-                                    pixellcc -= fLenTmp[0]
-                                else:
-                                    # 移動
-                                    sTestTmp.insert(0, sTestCurrent.pop())
-                                    fLenTmp.insert(0, fLenCurrent.pop())
-                                    pixellcc -= fLenTmp[0]
-                                    if sTestTmp[0][0] in u'…—‥―' and \
-                                        sTestTmp[0][0] == sTestCurrent[-1][0]:
-                                        # 分離禁止文字の例外処理
-                                        sTestTmp.insert(0, sTestCurrent.pop())
-                                        fLenTmp.insert(0, fLenCurrent.pop())
-                                        pixellcc -= fLenTmp[0]
-
-                                    #終了
-                                    break
-
-                            sTestNext = sTestTmp + sTestNext
-
-                """ 行末における送り量の調整
-                        JIS X 4051 による
-                        (但し参照元はhttp://www.w3.org/TR/jlreq/ja/#characters_not_starting_a_line)
-                            終わり括弧、句点はベタ組
-                            読点は二分空き
-                            中点は前四分後ろベタ
-                """
-                currpos = -1
-                if pixellcc > pixelsmax:
-                    while sTestCurrent[currpos][0] == u'<':
-                        currpos -= 1
-                    if not u'<aozora half' in sTestCurrent[currpos-1]:
-                        pixellcc -= fLenCurrent[currpos]
-                        # 送り量調整がかかっていなければ調整する
-                        if sTestCurrent[currpos][0] in self.kinsoku5+u'。．':
-                            fLenCurrent[currpos] *= 0.5
-                        elif sTestCurrent[currpos][0] == u'・':
-                            fLenCurrent[currpos] *= 0.75
-                        pixellcc += fLenCurrent[currpos]
-
-                if adjCurrent and \
-                        (pixellcc > pixelsmax or  \
-                            (pixellcc <= pixelsmax and not(     \
-                                sTestCurrent[currpos][0] in u'、。，．'))):
-                    """ 行末合わせ
-                            調整箇所文字の表示開始位置をずらす
-                            調整箇所文字の送り量を増減する
-                        ことで、行末を揃える。
-                        溢れる場合は詰め、そうでない場合は延ばす。
-                        不足する場合、行末が句読点ならばそのまま。
-                    """
-                    # 拾い出された調整箇所全てで文字間調整を行う
-                    # 但し行末の句読点は除外する
-
-                    currpos = -1
-                    while sTestCurrent[currpos][0] == u'<':
-                        currpos -= 1
-                    if sTestCurrent[currpos][0] in u'、。，．':#self.kinsoku4:
-                        currpos = len(sTestCurrent) + currpos #相対位置を絶対位置に変換
-                        if adjCurrent[-1][1] == currpos:
-                            adjCurrent.pop()
-
-                    # 禁則処理で移動した要素を参照していれば抜去する
-                    i = len(adjCurrent) -1
-                    while i >= 0:
-                        try:
-                            b = sTestCurrent[adjCurrent[i][1]]
-                        except IndexError:
-                            adjCurrent.pop(i)
-                        i -= 1
-                    pixellcc = ___adjcommon(pixellcc)
-
-
-                # End of Loop
-                sTestNext.append(sline[pos:])
-                break
-
+        # sline を表示行の長さに合わせて sTestCurrentとsTestNextに分割する
+        while pixellcc < pixelsmax and pos < slinelen:
             if inTag != 0:
                 # <> タグの処理
                 if sline[pos] == u'<':
@@ -2786,37 +2568,222 @@ class Aozora(ReaderSetting, AozoraScale):
 
                 pos += 1
 
-        else:
-            """ 行の分割が発生しなかった際の行末調整
-                行末が終わり括弧や読点で、且つ最終桁にかかる場合に限り調整する。
-            """
-            #"""
-            try:
-                currpos = -1
-                while sTestCurrent[currpos][0] == u'<':
-                    currpos -= 1
-                if sTestCurrent[currpos][0] in self.kinsoku5 + u'・':
-                    # 末尾が読点以外なら送り量調整の上、行全長も調整する
-                    if not u'<aozora half' in sTestCurrent[currpos-1]:
-                        pixellcc -= fLenCurrent[currpos]
-                        if sTestCurrent[currpos][0] in self.kinsoku5:
-                            fLenCurrent[currpos] *= 0.5
-                        elif sTestCurrent[currpos][0] == u'・':
-                            fLenCurrent[currpos] *= 0.75
-                        pixellcc += fLenCurrent[currpos]
+        """ 分離禁止処理（仮）
+        """
+        if sTestCurrent[-1][0] in u'…—‥―':
+            if pos < slinelen:
+                if sline[pos] == sTestCurrent[-1][0]:
+                    if len(adjCurrent) > 1 and pixellcc <= pixelsmax:
+                        # 行末へぶら下げ
+                        pixellcc += fLenCurrent[-1]
+                        fLenCurrent.append(fLenCurrent[-1])
+                        sTestCurrent.append(sline[pos])
+                        pos += 1
+                    else:
+                        # 調整余裕が無ければ次行先頭へ
+                        sTestNext.insert(0,sTestCurrent.pop())
+                        pixellcc -= fLenCurrent.pop()
 
-                    if adjCurrent and pixellcc > pixelsmax:# - charheight:
-                        # 拾い出された調整箇所全てで文字間調整を行う
-                        # 但し行末の句読点は除外する
-                        if sTestCurrent[currpos][0] in u'、。，．':#self.kinsoku4
-                            currpos = len(sTestCurrent) + currpos # 相対位置を絶対位置に変換
-                            if adjCurrent[-1][1] == currpos:
-                                adjCurrent.pop()
-                        pixellcc = ___adjcommon(pixellcc)
+        """ ワードラップ
+        """
+        sTestTmp = []
+        fLenTmp = []
+        # 全て空白あるいは１行に収まる、またはURLを検出した場合はラップしない
+        sTest0 = u''.join(sTestCurrent)
+        if not sTest0.isspace() and \
+           self.linelengthcount(sTest0)*charheight >= pixelsmax and \
+           not [a for a in (u'http:', u'https:', u'mailto:', u'ftp:') if sTest0.find(a) != -1]:
+            try:
+                # 前方参照してワードの区切りを探す
+                # 行末から行頭まで連綿と英数字が続く場合はエラーになる
+                while sTestCurrent[-1][0] in self.charwidth_serif and \
+                                        not sTestCurrent[-1][0].isspace():
+                    sTestTmp.insert(0, sTestCurrent.pop())
+                    fLenTmp.insert(0,fLenCurrent.pop())
+
+                # ラップしたワードが1行の長さを上回るようならキャンセルする。
+                if self.linelengthcount(u''.join(sTestTmp))*charheight >= pixelsmax:
+                    raise IndexError
+
+                sTestNext = sTestTmp + sTestNext
+                pixellcc -= sum(fLenTmp)
 
             except IndexError:
+                # ラップ不可能としてキャンセルする
+                sTestCurrent += sTestTmp
+                fLenCurrent += fLenTmp
+
+        """ 行末禁則処理 禁則文字が続く場合は全て次行先頭へ追い出す
+        """
+        try:
+            t_count = -1
+            # 行末にタグがあればスキップ
+            while fLenCurrent[t_count] == 0:
+                t_count -= 1
+            while sTestCurrent[t_count][-1] in self.kinsoku2:
+                while t_count < 0:
+                    # スキップしたタグも含めて次行へ送る
+                    sTestNext.insert(0, sTestCurrent.pop())
+                    pixellcc -= fLenCurrent.pop()
+                    t_count += 1
+
+                t_count = -1
+                while fLenCurrent[t_count] == 0:
+                    t_count -= 1
+        except IndexError:
+            pass
+
+        if not sTestNext: # 次行先頭への送り込みがなければ
+            """ 行頭禁則処理
+                次の行を調べて調整可能な範囲で行末へ追い出す。
+                追い出しきれない場合は、行末から次行頭へ移す。
+            """
+            try:
+                #sline[pos]でエラーの可能性
+                sTestTmp = []
+                fLenTmp = []
+
+                if pixellcc == pixelsmax and sline[pos] in u'、。．，':
+                    # 句読点のぶら下げ
+                    sTestCurrent.append(sline[pos])
+                    fLenCurrent.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                    # 調整余地があれば後段で詰込処理するよう全長を調整する
+                    if adjCurrent:
+                        pixellcc += fLenCurrent[-1]
+                    pos += 1
+                else:
+                    try:
+                        while sline[pos] in u'<>' + self.kinsoku:
+                            # 行頭禁則文字を一時リストへ取り出す
+                            if sline[pos:pos+2] == u'</':
+                                # 閉じタグ
+                                tagnamestart = pos
+                                pos = sline.find(u'>',pos+2) + 1
+                                substack.pop()
+                                sTestTmp.append(sline[tagnamestart:pos])
+                                fLenTmp.append(0.0)
+                            elif sline[pos] == u'<':
+                                # タグ
+                                tagnamestart = pos
+                                pos = sline.find(u'>',pos+2) + 1
+                                substack.append(sline[tagnamestart:pos])
+                                sTestTmp.append(sline[tagnamestart:pos])
+                                fLenTmp.append(0.0)
+                            else:
+                                # 禁則文字
+                                sTestTmp.append(sline[pos])
+                                fLenTmp.append(charheight * self.charwidth(sline[pos]) * self.fontsizefactor[fontsizename])
+                                pos += 1
+                    except IndexError:
+                        pass
+
+                    # 行末の空き長さを求める
+                    # 調整可能文字での調整量は１文字高の半分が目安
+                    n = charheight * len(adjCurrent) * 0.5 - pixellcc + pixelsmax
+                    # 禁則文字が閉じ括弧類で終わっていたなら、行末の空き長さを調整（延長）する
+                    # これにより、行末に置けるのに次行に送られるのを回避する。
+                    if len(sTestTmp):
+                        n += charheight * self.charwidth(sTestTmp[-1][-1]) * (0.5 if (sTestTmp[-1][-1] in u'）］｝〕〉》」』】〙〗〟｠') else 0.)
+                    if n >= sum(fLenTmp):
+                        # ピクセル値で調整可能範囲と比較
+                        # 行末に収容できるなら接続
+                        sTestCurrent += sTestTmp
+                        fLenCurrent += fLenTmp
+                        pixellcc += sum(fLenTmp)
+                    else:
+                        # 収容できなければ、行末から次行先頭に移動
+                        while True:
+                            if sTestCurrent[-1][0] == u'<' or sTestCurrent[-1][0] in self.kinsoku:
+                                # タグあるいは行頭禁則文字なら移動して継続
+                                sTestTmp.insert(0, sTestCurrent.pop())
+                                fLenTmp.insert(0, fLenCurrent.pop())
+                                pixellcc -= fLenTmp[0]
+                            else:
+                                # 移動
+                                sTestTmp.insert(0, sTestCurrent.pop())
+                                fLenTmp.insert(0, fLenCurrent.pop())
+                                pixellcc -= fLenTmp[0]
+                                if sTestTmp[0][0] in u'…—‥―' and \
+                                    sTestTmp[0][0] == sTestCurrent[-1][0]:
+                                    # 分離禁止文字の例外処理
+                                    sTestTmp.insert(0, sTestCurrent.pop())
+                                    fLenTmp.insert(0, fLenCurrent.pop())
+                                    pixellcc -= fLenTmp[0]
+
+                                try:
+                                    # 行末禁則やりなおし
+                                    t_count = -1
+                                    # 行末にタグがあればスキップ
+                                    while fLenCurrent[t_count] == 0:
+                                        t_count -= 1
+                                    while sTestCurrent[t_count][-1] in self.kinsoku2:
+                                        while t_count < 0:
+                                            # スキップしたタグも含めて次行へ送る
+                                            sTestTmp.insert(0, sTestCurrent.pop())
+                                            pixellcc -= fLenCurrent.pop()
+                                            t_count += 1
+
+                                        t_count = -1
+                                        while fLenCurrent[t_count] == 0:
+                                            t_count -= 1
+                                except IndexError:
+                                    pass
+                                #終了
+                                break
+
+                        sTestNext = sTestTmp + sTestNext
+            except IndexError:
                 pass
-            #"""
+
+        """ 行末における送り量の調整
+                JIS X 4051 による
+                (但し参照元はhttp://www.w3.org/TR/jlreq/ja/#characters_not_starting_a_line)
+                    終わり括弧・句点はベタ組、読点は二分空き、中点は前四分後ろベタ
+        """
+        currpos = -1
+        if pixellcc > pixelsmax:
+            while sTestCurrent[currpos][0] == u'<':
+                currpos -= 1
+            if not u'<aozora half' in sTestCurrent[currpos-1]:
+                pixellcc -= fLenCurrent[currpos]
+                # 送り量調整がかかっていなければ調整する
+                if sTestCurrent[currpos][0] in self.kinsoku5+u'。．':
+                    fLenCurrent[currpos] *= 0.5
+                elif sTestCurrent[currpos][0] == u'・':
+                    fLenCurrent[currpos] *= 0.75
+                pixellcc += fLenCurrent[currpos]
+
+        if adjCurrent and (pixellcc > pixelsmax or sTestNext):
+            """ 行末合わせ
+                    調整箇所文字の表示開始位置をずらす
+                    調整箇所文字の送り量を増減する
+                ことで、行末を揃える。
+                溢れる場合は詰め、そうでない場合は延ばす。
+                不足する場合、行末が句読点ならばそのまま。
+            """
+            # sTestNextを見て行分割が行われたか否かを判定。行われていなければ、拡大方向の
+            # 調整は行わない。
+            # 拾い出された調整箇所全てで文字間調整を行う。但し行末の句読点は除外する
+            currpos = -1
+            while sTestCurrent[currpos][0] == u'<':
+                currpos -= 1
+            if sTestCurrent[currpos][0] in u'、。，．':#self.kinsoku4:
+                currpos = len(sTestCurrent) + currpos #相対位置を絶対位置に変換
+                if adjCurrent[-1][1] == currpos:
+                    adjCurrent.pop()
+
+            # 禁則処理で移動した要素を参照していれば抜去する
+            i = len(adjCurrent) -1
+            while i >= 0:
+                try:
+                    b = sTestCurrent[adjCurrent[i][1]]
+                except IndexError:
+                    adjCurrent.pop(i)
+                i -= 1
+            pixellcc = ___adjcommon(pixellcc)
+
+        sTestNext.append(sline[pos:])
+
         """ 閉じられていないタグを検出する。あれば一旦閉じて次回へ引き継ぐ。
             ルビの分かち書きもここで処理する。
         """

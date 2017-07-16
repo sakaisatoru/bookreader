@@ -823,10 +823,7 @@ class CairoCanvas(ReaderSetting):
                 return
             oy = oy * self.canvas_fontheight
             mx += self.canvas_fontheight
-            mx0 = self.canvas_height - self.canvas_topmargin - self.canvas_bottommargin - mx
-            if mx0 < 0:
-                mx -= mx0
-            mx -= oy - min(self.canvas_fontheight,self.canvas_topmargin//2)
+            mx += min(self.canvas_fontheight,self.canvas_topmargin//2)
             oy += self.canvas_topmargin - min(self.canvas_fontheight,self.canvas_topmargin//2)
             with cairocontext(self.sf) as ctx:
                 ctx.set_antialias(cairo.ANTIALIAS_NONE)
@@ -887,6 +884,7 @@ class CairoCanvas(ReaderSetting):
         """
         with cairocontext(self.sf) as ctx:
             ctx.set_antialias(cairo.ANTIALIAS_NONE)
+            ctx.set_source_rgb(foreR, foreG, foreB) # 描画色
             ctx.new_path()
             ctx.set_line_width(1)
             ctx.move_to(0,self.canvas_topmargin)

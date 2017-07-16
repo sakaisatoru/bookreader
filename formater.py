@@ -2223,7 +2223,6 @@ class Aozora(ReaderSetting, AozoraScale):
                     self.imgheight_chars = a[2] # 回り込みインデント
                     self.imgwidth_lines = a[1]
 
-
                 """ インデント一式 (字下げ、字詰、字上げ、地付き)
                             |<---------- self.chars ------------>|
                           行|<--------- self.charsmax --------->||行
@@ -2235,84 +2234,64 @@ class Aozora(ReaderSetting, AozoraScale):
                 """
                 jisage3 = jisage
                 while lnbuf != '':
-                    #   画像回り込みの処理
-                    #
+                    nIndent = jisage
+                    nIndentImg = 0
+                    # 画像回り込みの処理
                     if self.imgwidth_lines > 0:
-                        lnbuf = u'　' * self.imgheight_chars + lnbuf
+                        nIndentImg = self.imgheight_chars
                         self.imgwidth_lines -= 1
 
-                    #   1行の表示桁数の調整
-                    #   優先順位
-                    #       jiage > jisage > jizume
-                    currchars = self.charsmax - jiage
-                    if inJiage:
-                        # ブロック地付き及びブロック字上げ
-                        # 字下げはキャンセルされる
-                        lenN = self.linelengthcount(lnbuf)
-                        if jizume > 0 and lenN > jizume:
-                            lenN = jizume
-                        if lenN < currchars:
-                            sIndent = u'　' * (currchars - lenN)
-                            lnbuf = sIndent + lnbuf
-                    else:
-                        # インデントの挿入
-                        if jisage + jizume > currchars:
-                            currjisage = 1 if currchars - jisage < 0 else jisage
+                    # 地付きあるいは字上げ(同一行中を含む)
+                    tmp2 = self.reJiage.match(lnbuf)
+                    if tmp2:
+                        jiage01 = jiage # 現在の字上げ値を保存
+                        try:
+                            # 字上げ n
+                            jiage = self.zentoi(tmp2.group('number'))
+                        except TypeError, IndexError:
+                            # 地付き
+                            jiage = 0
+                        s00 = tmp2.group('name2')
+                        if not s00:
+                            # 行頭に出現した場合はタグを抜去、インデント調整して終わる
+                            lnbuf = tmp2.group('name')
+                            nIndent += self.charsmax - nIndentImg - nIndent - self.linelengthcount(lnbuf) - jiage
                         else:
-                            if jizume > 0:
-                                currchars = jisage + jizume
-                            currjisage = jisage
-
-                        if currjisage > 0:
-                            sIndent = u'　' * currjisage
-                            lnbuf = sIndent + lnbuf
-
-                        # 地付きあるいは字上げ(同一行中を含む)
-                        # 出現した場合、字詰はキャンセルされる
-                        #  name2 [tag] name
-                        tmp2 = self.reJiage.match(lnbuf)
-                        if tmp2:
-                            sP = u'' if not tmp2.group('name2') else tmp2.group('name2')
-                            lenP = self.linelengthcount(sP)
-                            sN = u'' if not tmp2.group('name') else tmp2.group('name')
-                            lenN = self.linelengthcount(sN)
-                            try:
-                                # 字上げ n
-                                n = self.zentoi(tmp2.group('number'))
-                            except TypeError, IndexError:
-                                # 地付き
-                                n = 0
-                            currchars = self.charsmax - n
-                            if lenP >= self.charsmax:
-                                # 地付きする文字列の前に１行以上の長さが残って
-                                # いる場合はそのまま分割処理に送る。
-                                currchars = self.charsmax
-                                pass
-                            elif lenN >= currchars:
-                                # 地付きする文字列が1行の長さを越えている場合、
-                                # 通常の行として終わる。
-                                # 地付きはこれで良いが、字上げの場合はタグの
-                                # 次行繰越処理を追加したい
-                                #（ここで処理できないのでlinesplitで）
-                                lnbuf = sP + sN
-                                currchars = self.charsmax
-                            elif lenP + lenN <= currchars:
-                                # 表示が1行分に収まる場合は処理する。
-                                sPad = u'　' * (currchars -lenP -lenN)
-                                lnbuf = sP + sPad + sN
-                                # ルビ表示 地付きタグ分を取り除くこと
+                            if self.charsmax < nIndentImg + nIndent + self.linelengthcount(lnbuf) + jiage:
+                                # 調整範囲が不足していれば次回再度処理する為に空白を挿入する
+                                # 文字列が１行よりはみ出す場合はタグを抜去するのみ
+                                nTmp = self.charsmax - self.linelengthcount(tmp2.group('name2'))
+                                lnbuf = u'%s%s%s%s' % (s00,
+                                    u'' if nTmp < 1 else u'　' * nTmp,
+                                    tmp2.group('tag'),
+                                    tmp2.group('name'))
+                                jiage = jiage01 # 破壊された字上を復元
                             else:
-                                # 収まらない場合、空白で次行にはみ出させて分割
-                                # 処理に送る。
-                                sPad = u'　' * (currchars - lenP)
-                                lnbuf = sP + sPad + lnbuf[tmp2.start('tag'):]
+                                lnbuf = u'%s%s%s' % (s00,
+                                    u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage),
+                                    tmp2.group('name'))
 
-                    #   画面上の1行で収まらなければ分割して次行を得る
+                    jiage00 = jiage
+                    currchars = self.charsmax - nIndentImg - nIndent - jiage00
+                    # 表示域が不足したら
+                    if currchars < 1:
+                        jiage00 = 0 # 字上げをやめる
+                        currchars = self.charsmax - nIndentImg - nIndent
+                        if currchars < 1:
+                            nIndent = 0 # インデントをやめる
+                            currchars = self.charsmax - nIndentImg
+                    # 字詰めが指定されていれば調整する
+                    if jizume and currchars > jizume:
+                        jiage00 += currchars - jizume
+                        currchars = jizume
+
                     self.ls, lnbuf, tmppixcellcc = self.__linesplit(lnbuf, currchars)
 
-                    """ 行をバッファ(中間ファイル)へ掃き出す
-                    """
-                    self.__write2file(dfile, "%s\n" % self.ls, tmppixcellcc)
+                    # 字上げの指定があって表示域から溢れる場合はインデントを調整する
+                    if jiage and self.charsmax > self.linelengthcount(self.ls) + nIndentImg+nIndent + jiage00:
+                        nIndent = self.charsmax - self.linelengthcount(self.ls) - nIndentImg - jiage00
+                    # インデント分を付けてファイルへ出力する
+                    self.__write2file(dfile, "%s%s\n" % (u'　'*(nIndentImg+nIndent),self.ls), tmppixcellcc)
 
                     #   折り返しインデント
                     if lnbuf != '':

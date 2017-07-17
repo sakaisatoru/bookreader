@@ -2285,10 +2285,14 @@ class Aozora(ReaderSetting, AozoraScale):
                         currchars = jizume
 
                     self.ls, lnbuf, tmppixcellcc = self.__linesplit(lnbuf, currchars)
-
+                    tmpLen = self.linelengthcount(self.ls)
+                    # 字詰めに満たない場合のパディング
+                    if jizume and tmpLen < jizume:
+                        tmppixcellcc += self.fontheight*(jizume - tmpLen)
+                        self.ls += u'　'*(jizume - tmpLen)
                     # 字上げの指定があって表示域から溢れる場合はインデントを調整する
-                    if jiage and self.charsmax > self.linelengthcount(self.ls) + nIndentImg+nIndent + jiage00:
-                        nIndent = self.charsmax - self.linelengthcount(self.ls) - nIndentImg - jiage00
+                    if jiage and self.charsmax > tmpLen + nIndentImg+nIndent + jiage00:
+                        nIndent = self.charsmax - tmpLen - nIndentImg - jiage00
                     # インデント分を付けてファイルへ出力する
                     self.__write2file(dfile, "%s%s\n" % (u'　'*(nIndentImg+nIndent),self.ls),
                                             (nIndentImg+nIndent) * self.fontheight + tmppixcellcc)
@@ -2316,34 +2320,6 @@ class Aozora(ReaderSetting, AozoraScale):
             sline   : 本文
             smax    : 1行における文字数（全角文字を1文字とした換算数）
         """
-
-        def ___adjcommon(_lcc=0.0):
-            """ 行長さ調整量の設定
-               調整箇所(adjCurrent)がなければ何もしない
-               adjCurrent[0][0] 0...全角スペース 1...半角スペース
-               各記号や空白に割り当てる調整量は一定（均等）。JISと異なる点に注意。割当量算出
-               時の計算誤差は無視する。
-               _lcc : 計算上の行ピクセル長
-            """
-            if adjCurrent:
-                adj = pixelsmax - pixellcc   # 調整量
-                adjsgn = cmp(adj, 0)
-                adj = abs(adj)
-                adjn = adj / float(len(adjCurrent))
-                adjCurrent.sort()
-
-                if adjn != 0.:
-                    for _a in adjCurrent:
-                        sTestCurrent[_a[1]] = u'<aozora %s="%f">%s</aozora>' % (
-                            # 開き括弧類は書き出し位置をずらし、それ以外は送り量を増減する
-                            u'ofset' if sTestCurrent[_a[1]] in self.kinsoku2 else u'adj',
-                            (adjn * adjsgn), # 調整ピクセル値
-                            sTestCurrent[_a[1]] )
-                        _lcc += (adjn * adjsgn)
-                        adj -= adjn
-                        if adj < 0.:
-                            break
-            return _lcc
 
         inTag = 0           # <tag>処理のフラグ
         sTestCurrent = []   # sline を分割しながら格納
@@ -2758,11 +2734,10 @@ class Aozora(ReaderSetting, AozoraScale):
                     調整箇所文字の表示開始位置をずらす
                     調整箇所文字の送り量を増減する
                 ことで、行末を揃える。
-                溢れる場合は詰め、そうでない場合は延ばす。
-                不足する場合、行末が句読点ならばそのまま。
+                溢れる場合は詰め、そうでない場合は延ばす。不足する場合、行末が句読点ならばその
+                まま。sTestNextを見て行分割が行われたか否かを判定。行われていなければ、拡大
+                方向の調整は行わない。
             """
-            # sTestNextを見て行分割が行われたか否かを判定。行われていなければ、拡大方向の
-            # 調整は行わない。
             # 拾い出された調整箇所全てで文字間調整を行う。但し行末の句読点は除外する
             currpos = -1
             while sTestCurrent[currpos][0] == u'<':
@@ -2780,7 +2755,31 @@ class Aozora(ReaderSetting, AozoraScale):
                 except IndexError:
                     adjCurrent.pop(i)
                 i -= 1
-            pixellcc = ___adjcommon(pixellcc)
+
+            """ 行長さ調整量の設定
+               調整箇所(adjCurrent)がなければ何もしない
+               adjCurrent[0][0] 0...全角スペース 1...半角スペース
+               各記号や空白に割り当てる調整量は一定（均等）。JISと異なる点に注意。割当量算出
+               時の計算誤差は無視する。
+            """
+            if adjCurrent:
+                adj = pixelsmax - pixellcc   # 調整量
+                adjsgn = cmp(adj, 0)
+                adj = abs(adj)
+                adjn = adj / float(len(adjCurrent))
+                adjCurrent.sort()
+
+                if adjn != 0.:
+                    for _a in adjCurrent:
+                        sTestCurrent[_a[1]] = u'<aozora %s="%f">%s</aozora>' % (
+                            # 開き括弧類は書き出し位置をずらし、それ以外は送り量を増減する
+                            u'ofset' if sTestCurrent[_a[1]] in self.kinsoku2 else u'adj',
+                            (adjn * adjsgn), # 調整ピクセル値
+                            sTestCurrent[_a[1]] )
+                        pixellcc += (adjn * adjsgn)
+                        adj -= adjn
+                        if adj < 0.:
+                            break
 
         sTestNext.append(sline[pos:])
 

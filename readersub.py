@@ -61,7 +61,6 @@ class Download(object):
         lastselectfile = u''
 
         sTmpfile = os.path.join(self.get_value(u'workingdir'), u'a.html')
-        #print url, sTmpfile
         try:
             urllib.urlretrieve(url, sTmpfile)
         except IOError:

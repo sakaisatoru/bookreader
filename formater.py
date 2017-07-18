@@ -286,6 +286,13 @@ class Aozora(ReaderSetting, AozoraScale):
     reAozoraTagRemove = re.compile( ur'<aozora.+?>|</aozora>' )
     reAozoraTagRemove2 = re.compile( ur'^<aozora(^\>\<)+?>$' )
 
+    # __linesplit
+    reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
+    reIsAscii00 = re.compile(ur"^[!-%'-;=?-~]+") # < > & を除く
+    # 行末合わせ調整対象文字　優先順位兼用
+    adjchars = u'　 、，．。）］｝〕〉》」』】〙〗〟（［｛〔〈《「『【〘〖｟〝,.'
+
+
     def __init__( self, chars=40, lines=25 ):
         ReaderSetting.__init__(self)
         AozoraScale.__init__(self)
@@ -514,10 +521,11 @@ class Aozora(ReaderSetting, AozoraScale):
 
         if __f:
             # 改行されているので、長い方の文字数を返す
-            __l = 0
-            for __s0 in sTmp.split(u'［＃改行］'):
-                if len(self.__removetag(__s0)) > __l:
-                    __l = len(self.__removetag(__s0))
+            __l = max(len(self.__removetag(__s0)) for __s0 in sTmp.split(u'［＃改行］'))
+            #__l = 0
+            #for __s0 in sTmp.split(u'［＃改行］'):
+            #    if len(self.__removetag(__s0)) > __l:
+            #        __l = len(self.__removetag(__s0))
         else:
             __l = int(math.ceil((len(sTmp) - __c)/2.))
 
@@ -1833,8 +1841,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 一時ファイルに掃き出されたキャプションを結合
                         sTmp = u''
                         dfile.seek(0)
-                        for sCenter in dfile:
-                            sTmp += sCenter.rstrip(u'\n')+'\a'# 改行の代替
+                        sTmp = u''.join([sCenter.rstrip(u'\n')+'\a' for sCenter in dfile])
 
                         if tmp.start() > 0:
                             # 青空文庫の揺らぎへの対策
@@ -1893,9 +1900,9 @@ class Aozora(ReaderSetting, AozoraScale):
                             # 一時ファイルに掃き出された行数を数えて
                             # ページ中央にくるようにパディングする
                             dfile.seek(0)
-                            iCenter = self.pagelines
-                            for sCenter in dfile:
-                                iCenter -= 1
+                            iCenter = self.pagelines - sum(1 for sCenter in dfile)
+                            #for sCenter in dfile:
+                            #    iCenter -= 1
                             while iCenter > 1:
                                 self.__write2file(workfilestack[-1], '\n')
                                 iCenter -= 2
@@ -1988,10 +1995,8 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 現在の行を掃きだす
                         self.__write2file(dfile, lnbuf[:tmp.start()] )
                         # 一時ファイルに掃き出された見出しを結合
-                        sTmp2 = u''
                         dfile.seek(0)
-                        for sCenter in dfile:
-                            sTmp2 += sCenter
+                        sTmp2 = u''.join([sCenter for sCenter in dfile])
 
                         sTmp2 = sTmp2.replace('\n','\a' )# 改行の代替
                         dfile.close()
@@ -2328,13 +2333,8 @@ class Aozora(ReaderSetting, AozoraScale):
         adjCurrent = []     # 文字間隔調整可能文字位置を保持する
 
         fontsizename = u'normal'
-        reAozoraWarichu = re.compile(ur'<aozora warichu="(?P<name>.+?)" height="(?P<height>\d+)">')
-        reAozoraTatenakayoko = re.compile(ur'<aozora tatenakayoko="(?P<target>.+?)">')
         kakkochosei = 1.    # 連続して出現する括弧類の送り量の調整
         charheight = self.fontheight
-
-        # 行末合わせ調整対象文字　優先順位兼用
-        adjchars = u'　 、，．。）］｝〕〉》」』】〙〗〟（［｛〔〈《「『【〘〖｟〝,.'
 
         """ 前回の呼び出しから引き継がれたタグがあれば付加する
         """
@@ -2361,6 +2361,8 @@ class Aozora(ReaderSetting, AozoraScale):
         substack = []
 
         # sline を表示行の長さに合わせて sTestCurrentとsTestNextに分割する
+        nLap = 0 # ワードラップ用補助ポインタ
+        nLen = 0
         while pixellcc < pixelsmax and pos < slinelen:
             if inTag != 0:
                 # <> タグの処理
@@ -2414,7 +2416,7 @@ class Aozora(ReaderSetting, AozoraScale):
                                 continue
 
                             # 割り注
-                            tmp = reAozoraWarichu.search(sline[tagnamestart:pos])
+                            tmp = self.reAozoraWarichu.search(sline[tagnamestart:pos])
                             if tmp:
                                 wariheight = int(tmp.group('height'))
                                 if pixellcc + charheight * wariheight * self.fontsizefactor['size="x-small"'] > pixelsmax:
@@ -2508,7 +2510,6 @@ class Aozora(ReaderSetting, AozoraScale):
                             # tag をスタックへ保存
                             substack.append(sline[tagnamestart:pos])
 
-
                 else:
                     pos += 1
             else:
@@ -2517,6 +2518,20 @@ class Aozora(ReaderSetting, AozoraScale):
                     inTag += 1
                     tagnamestart = pos
                 else:
+                    # 文字列を先読みしてワードラップするかチェック
+                    if pos >= nLap:
+                        ascTmp = self.reIsAscii00.search(sline[pos:])
+                        if ascTmp:
+                            nLen = self.linelengthcount(ascTmp.group()) * charheight
+                            if pixellcc + nLen >= pixelsmax and pixelsmax > nLen and \
+                               not u'://' in ascTmp.group():
+                                # 但しURL及び１行の長さより長いワードはラップしない
+                                sTestNext.append(ascTmp.group())
+                                pos += ascTmp.end()
+                                break
+                            else:
+                                nLap = pos + ascTmp.end() + 1
+
                     sTestCurrent.append(sline[pos])
                     fLenCurrent.append(charheight * self.charwidth(sline[pos]) * \
                                 self.fontsizefactor[fontsizename] * kakkochosei)
@@ -2529,7 +2544,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         # 行頭の空白や括弧が途切れたらフラグオフ
                         skipspc = False
 
-                    i = adjchars.find(sline[pos]) # 調整時の優先順を兼ねる
+                    i = self.adjchars.find(sline[pos]) # 調整時の優先順を兼ねる
                     if i != -1 and not skipspc:
                         if substack and substack[-1].find(u'<aozora') != -1:
                             # 直前のタグを調べて、調整対象にするか判断する
@@ -2560,34 +2575,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         sTestNext.insert(0,sTestCurrent.pop())
                         pixellcc -= fLenCurrent.pop()
 
-        """ ワードラップ
-        """
-        sTestTmp = []
-        fLenTmp = []
-        # 全て空白あるいは１行に収まる、またはURLを検出した場合はラップしない
-        sTest0 = u''.join(sTestCurrent)
-        if not sTest0.isspace() and \
-           self.linelengthcount(sTest0)*charheight >= pixelsmax and \
-           not [a for a in (u'http:', u'https:', u'mailto:', u'ftp:') if sTest0.find(a) != -1]:
-            try:
-                # 前方参照してワードの区切りを探す
-                # 行末から行頭まで連綿と英数字が続く場合はエラーになる
-                while sTestCurrent[-1][0] in self.charwidth_serif and \
-                                        not sTestCurrent[-1][0].isspace():
-                    sTestTmp.insert(0, sTestCurrent.pop())
-                    fLenTmp.insert(0,fLenCurrent.pop())
-
-                # ラップしたワードが1行の長さを上回るようならキャンセルする。
-                if self.linelengthcount(u''.join(sTestTmp))*charheight >= pixelsmax:
-                    raise IndexError
-
-                sTestNext = sTestTmp + sTestNext
-                pixellcc -= sum(fLenTmp)
-
-            except IndexError:
-                # ラップ不可能としてキャンセルする
-                sTestCurrent += sTestTmp
-                fLenCurrent += fLenTmp
 
         """ 行末禁則処理 禁則文字が続く場合は全て次行先頭へ追い出す
         """

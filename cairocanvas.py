@@ -646,8 +646,11 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
 
                 elif u'img3' in dicArg:
                     # 回りこみを伴う画像
+                    xposadj = math.ceil(int(dicArg[u'width'])/float(self.canvas_linewidth))
+                    xposadj = (xposadj*self.canvas_linewidth - int(dicArg[u'width']))/2
+                    xposadj = self.xpos + self.canvas_linewidth/2 - int(dicArg[u'width']) - xposadj
                     pangoctx.translate(
-                        self.xpos - int(dicArg[u'width']),
+                        xposadj,
                         self.ypos + self.fontheight/2)
                     pangoctx.rotate(0)
                     img = cairo.ImageSurface.create_from_png(
@@ -662,7 +665,7 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     length = int(dicArg[u'height'])
                     # キャプション描画位置を退避 ただし、キャプションが続かない場合、スタックに取り残される。
                     self.figstack.append( (
-                        self.xpos - int(dicArg[u'width']),
+                        xposadj,
                         self.ypos + self.fontheight + length,
                         int(dicArg[u'width']) ) )
                     del img

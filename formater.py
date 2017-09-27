@@ -406,8 +406,10 @@ class Aozora(ReaderSetting, AozoraScale):
         if sBookTranslator:
             sBookAuthor = u'%s / %s' % (sBookAuthor ,sBookTranslator)
 
-        sBookTitle = u'%s %s %s %s' % (sBookTitle, sSubTitle,
-                                            sOriginalTitle, sOriginalsubTitle)
+        sBookAuthor = self.reCTRLGaiji.sub(self.__gaiji_replace, sBookAuthor)
+        sBookTitle = self.reCTRLGaiji.sub(self.__gaiji_replace, u'%s %s %s %s' % (
+                                            sBookTitle, sSubTitle,
+                                            sOriginalTitle, sOriginalsubTitle) )
 
         return (sBookTitle.rstrip(), sBookAuthor)
 
@@ -530,7 +532,6 @@ class Aozora(ReaderSetting, AozoraScale):
             __l = int(math.ceil((len(sTmp) - __c)/2.))
 
         return sTmp, __l
-
 
     def __gaiji_replace(self, a):
         """ Shift-jis 未収録文字の置換

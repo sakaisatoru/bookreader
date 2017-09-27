@@ -690,9 +690,6 @@ class ReaderUI(gtk.Window, ReaderSetting):
             ])
         self.uimanager.insert_action_group(actiongroup0, 0)
 
-        actiongroup = gtk.ActionGroup('UIMergeExampleBase')
-        self.actiongroup = actiongroup
-
         merge_id = self.uimanager.add_ui_from_string(
                                     self.menutmp.format(self.menupagemove))
         self.menubar = self.uimanager.get_widget("/MenuBar")
@@ -1054,6 +1051,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 n = 0
             if n >= 0:
                 self.currentpage = n
+
             # pango周辺にメモリリークの疑いの為、サブプロセスへ移行
             subprocess.call(['python', self.drawingsubprocess,
                     u'%ld %d %d %s' % (self.cc.currentpage[self.currentpage],
@@ -1063,7 +1061,8 @@ class ReaderUI(gtk.Window, ReaderSetting):
             self.imagebuf.set_from_file(os.path.join(
                             self.get_value(u'workingdir'), 'thisistest.png'))
             self.set_title(u'【%s】 %s - 青空文庫リーダー' % (
-                                        self.cc.booktitle, self.cc.bookauthor))
+                                        self.cc.booktitle,
+                                        self.cc.bookauthor))
 
     def size_allocate_event_cb(self, widget, event, data=None):
         pass

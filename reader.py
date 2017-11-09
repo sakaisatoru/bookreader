@@ -710,10 +710,15 @@ class ReaderUI(gtk.Window, ReaderSetting):
         self.cc = AozoraCurrentTextinfo()
 
         #   文章表示領域
+        #   ウィンドウ内全面に(テキストを書き出した)画像を表示しているだけなので、イベントは
+        #   ウィンドウで受けても良いのだが、ここでは画像で受けている。
+        #   imagebuf はそのままではイベントを見ないので、eventboxを使う
         self.imagebuf = gtk.Image()
         self.ebox = gtk.EventBox()
-        self.ebox.add(self.imagebuf) # image がイベントを見ないのでeventboxを使う
+        self.ebox.add(self.imagebuf)
         self.ebox.connect('button-press-event', self.button_press_event_cb)
+        #   マウスホイールによるページ送り
+        self.ebox.connect('scroll-event', self.button_scroll_event_cb)
 
         #   ビルド
         self.vbox = gtk.VBox()
@@ -1010,7 +1015,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
         """
         return u'_%d:%s' % (count, item.split(',')[0])
 
-    def button_press_event_cb( self, widget, event ):
+    def button_press_event_cb(self, widget, event):
         """ マウスクリック
             左ボタン    ページ送り・戻し
                         何も開かれていなければファイル選択ダイアログ
@@ -1029,6 +1034,15 @@ class ReaderUI(gtk.Window, ReaderSetting):
             if self.cc.sourcefile != u'':
                 self.popupmenu_bookmark.popup(
                                 None, None, None, event.button, event.time)
+        return False
+
+    def button_scroll_event_cb(self, widget, event):
+        """ マウスホイールによるページ送り
+        """
+        if event.direction == gtk.gdk.SCROLL_UP:
+            self.prior_page()
+        elif event.direction == gtk.gdk.SCROLL_DOWN:
+            self.next_page()
         return False
 
     def prior_page(self):
@@ -1116,7 +1130,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年9［＃「9」は縦中横］月27［＃「27」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2017［＃「2017」は縦中横］年11［＃「11」は縦中横］月9［＃「9」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+

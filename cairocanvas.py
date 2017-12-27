@@ -32,6 +32,8 @@ import cairo
 import pango
 import pangocairo
 
+import gc
+
 @contextmanager
 def cairocontext(surface):
     try:
@@ -987,5 +989,7 @@ class CairoCanvas(ReaderSetting):
         self.sf.finish()
         del self.drawstring
         del self.sf
+
+
 
 

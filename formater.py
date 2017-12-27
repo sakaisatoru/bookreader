@@ -130,7 +130,8 @@ class Aozora(ReaderSetting, AozoraScale):
     # このプログラムで特に予約された文字
     dicReserveChar = {
         u'感嘆符三つ':u'<aozora tatenakayoko="!!!">!!!</aozora>', # 例）河童、芥川龍之介
-        u'「IIII」':u'<aozora tatenakayoko="IIII">IIII</aozora>'   # 例）ランボオ詩集、中原中也訳
+        u'「IIII」':u'<aozora tatenakayoko="IIII">IIII</aozora>',   # 例）ランボオ詩集、中原中也訳
+        u'「卍」を左右反転したもの':u'卐'        # 例）日本精神史研究、和辻哲郎
         }
     # 役物置換
     reNonokagi = re.compile(ur'((“)(?P<name>.+?)(”))')

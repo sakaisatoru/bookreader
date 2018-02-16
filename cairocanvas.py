@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from HTMLParser import HTMLParser
 import re
 
+import gtk
 import cairo
 import pango
 import pangocairo
@@ -38,6 +39,7 @@ import gc
 def cairocontext(surface):
     try:
         context = cairo.Context(surface)
+        # ~ context = surface.cairo_create()
         yield context
     finally:
         del context
@@ -82,8 +84,8 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.boutenofset    = [0,0] # 傍点出現位置の補正値 left, right
         self.tatenakayoko_rubi_ofset = 0 # 縦中横時のルビ位置の補正値
 
-        self.setcolour(self.convcolor(self.get_value(u'fontcolor')),
-                                self.convcolor(self.get_value(u'backcolor')))
+        self.forecolor = gtk.gdk.color_parse(self.get_value(u'fontcolor'))
+        self.backcolor = gtk.gdk.color_parse(self.get_value(u'backcolor'))
         self.setfont(self.canvas_fontname, self.canvas_fontsize,
                                                     self.canvas_rubifontsize )
 
@@ -167,25 +169,18 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         self.feed(u''.join(sTmp))
         self.close()
 
-    def setcolour(self, fore, back):
-        """ 描画色・背景色を得る
-        """
-        (self.foreR,self.foreG,self.foreB) = fore
-        (self.backR,self.backG,self.backB) = back
-
     def setfont(self, font, size, rubisize):
         """ フォント
         """
         self.font           = pango.FontDescription(u'%s %f' % (font,size))
         self.font_rubi      = pango.FontDescription(u'%s %f' % (font,rubisize))
-
         self.update_charwidth(self.font)
 
     def getforegroundcolour(self):
-        return (self.foreR,self.foreG,self.foreB)
+        return self.forecolor
 
     def getbackgroundcolour(self):
-        return (self.backR,self.backG,self.backB)
+        return self.backcolor
 
     def isYokoChar(self, c):
         """ 横組みがデフォルトなキャラクタであれば True を返す
@@ -231,7 +226,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         # 実行時間を稼ぐためifを先行させる。andで連結しているので式の評価順序に注意
         if self.tagstack != [] and self.tagstack[-1] == tag:
             with cairocontext(self.sf) as ctx:
-                ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
+                ctx.set_source_rgb(self.forecolor.red_float,
+                                    self.forecolor.green_float,
+                                    self.forecolor.blue_float) # 描画色
                 try:
                     if self.attrstack[-1][0][0].find(u'rubi') != -1:
                         """ ルビ・左ルビ
@@ -516,7 +513,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                 tmpy = self.ypos + d + r
                 ctx00.new_path()
                 ctx00.set_antialias(cairo.ANTIALIAS_DEFAULT) # cairo.ANTIALIAS_NONE
-                ctx00.set_source_rgb(self.foreR, self.foreG, self.foreB)
+                ctx00.set_source_rgb(self.forecolor.red_float,
+                                            self.forecolor.green_float,
+                                            self.forecolor.blue_float)
                 ctx00.set_line_width(d/5.7)     # フォントサイズに連動する
                 # 傍点を描く。修飾対象文字が縦中横で修飾される場合は１文字扱い。
                 for s in data if not u'tatenakayoko' in dicArg else u' ':
@@ -584,7 +583,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
         # 表示
         with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
             ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-            ctx.set_source_rgb(self.foreR,self.foreG,self.foreB) # 描画色
+            ctx.set_source_rgb(self.forecolor.red_float,
+                                            self.forecolor.green_float,
+                                            self.forecolor.blue_float) # 描画色
             layout = pangoctx.create_layout()
             layout.set_font_description(self.font)
 
@@ -775,7 +776,9 @@ class expango(HTMLParser, AozoraScale, ReaderSetting):
                     # 下側罫線はタグの終端検出時に描画する
                     with cairocontext(self.sf) as ctx00:
                         ctx00.set_antialias(cairo.ANTIALIAS_NONE)
-                        ctx00.set_source_rgb(self.foreR,self.foreG,self.foreB)
+                        ctx00.set_source_rgb(self.forecolor.red_float,
+                                            self.forecolor.green_float,
+                                            self.forecolor.blue_float)
                         ctx00.set_line_width(1)
                         self.keisenxpos = self.__honbunxpos
                         # 右
@@ -806,8 +809,9 @@ class CairoCanvas(ReaderSetting):
     """ cairo / pangocairo を使って文面を縦書きする
     """
     reKeikakomi = re.compile(ur'<aozora keikakomi="(?P<name>.+?)" ofset="(?P<ofset>\d+?)" length="(?P<length>\d+?)"></aozora>')
-    def __init__(self):
+    def __init__(self, gdkwin=None):
         ReaderSetting.__init__(self)
+        self.gdkwin = gdkwin
 
     def writepage(self, pageposition, buffname=u'', currentpage=0, maxpage=0, title=u''):
         """ 指定したページを描画する
@@ -832,7 +836,9 @@ class CairoCanvas(ReaderSetting):
             oy += self.canvas_topmargin - min(self.canvas_fontheight,self.canvas_topmargin//2)
             with cairocontext(self.sf) as ctx:
                 ctx.set_antialias(cairo.ANTIALIAS_NONE)
-                ctx.set_source_rgb(foreR, foreG, foreB) # 描画色
+                ctx.set_source_rgb(self.forecolor.red_float,
+                                    self.forecolor.green_float,
+                                    self.forecolor.blue_float) # 描画色
                 ctx.new_path()
                 ctx.set_line_width(1)
 
@@ -868,8 +874,12 @@ class CairoCanvas(ReaderSetting):
         KeikakomiXendpos = xpos
 
         # キャンバスの確保
+        # ~ if self.gdkwin != None:
+            # ~ self.sf = self.gdkwin
+        # ~ else:
         self.sf = cairo.ImageSurface(cairo.FORMAT_ARGB32,
                                         self.canvas_width, self.canvas_height)
+
         #self.sf = cairo.PDFSurface('tmp.pdf',
         #                self.canvas_width*1.0, self.canvas_height*1.0)
 
@@ -877,19 +887,23 @@ class CairoCanvas(ReaderSetting):
         self.drawstring = expango(self.sf, self.canvas_topmargin)
 
         # 描画色の準備
-        foreR, foreG, foreB = self.drawstring.getforegroundcolour()
+        self.forecolor = self.drawstring.getforegroundcolour()
         # 画面クリア
         with cairocontext(self.sf) as ctx:
             ctx.rectangle(0, 0, self.canvas_width, self.canvas_height)
-            r,g,b = self.drawstring.getbackgroundcolour()
-            ctx.set_source_rgb(r, g, b)
+            self.backcolor = self.drawstring.getbackgroundcolour()
+            ctx.set_source_rgb(self.backcolor.red_float,
+                                self.backcolor.green_float,
+                                self.backcolor.blue_float)
             ctx.fill()
 
         # 行末揃え確認用
         """
         with cairocontext(self.sf) as ctx:
             ctx.set_antialias(cairo.ANTIALIAS_NONE)
-            ctx.set_source_rgb(foreR, foreG, foreB) # 描画色
+            ctx.set_source_rgb(self.forecolor.red_float,
+                                self.forecolor.green_float,
+                                self.forecolor.blue_float) # 描画色
             ctx.new_path()
             ctx.set_line_width(1)
             ctx.move_to(0,self.canvas_topmargin)
@@ -960,7 +974,9 @@ class CairoCanvas(ReaderSetting):
         if currentpage:
             with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                 ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                ctx.set_source_rgb(foreR, foreG, foreB)
+                ctx.set_source_rgb(self.forecolor.red_float,
+                                    self.forecolor.green_float,
+                                    self.forecolor.blue_float)
                 layout = pangoctx.create_layout()
                 layout.set_font_description(self.drawstring.font)
                 layout.set_markup( u'<span size="x-small">%d (全%d頁)</span>' % (currentpage, maxpage))
@@ -975,7 +991,9 @@ class CairoCanvas(ReaderSetting):
             if title:
                 with cairocontext(self.sf) as ctx, pangocairocontext(ctx) as pangoctx:
                     ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
-                    ctx.set_source_rgb(foreR, foreG, foreB)
+                    ctx.set_source_rgb(self.forecolor.red_float,
+                                        self.forecolor.green_float,
+                                        self.forecolor.blue_float)
                     layout = pangoctx.create_layout()
                     layout.set_font_description(self.drawstring.font)
                     layout.set_markup( u'<span size="x-small">%s</span>' % title.strip(u' ').strip(u'　'))
@@ -986,6 +1004,7 @@ class CairoCanvas(ReaderSetting):
 
         self.sf.write_to_png(os.path.join(self.get_value(u'workingdir'),
                                     'thisistest.png'))
+        # ~ self.sf.show()
         self.sf.finish()
         del self.drawstring
         del self.sf

@@ -258,11 +258,17 @@ class Aozora(ReaderSetting, AozoraScale):
 
     # フッターにおける年月日刷を漢数字に変換
     reNenGetsuNichi = re.compile(
-        ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>(\d+?)|(元))）)??年)|'+
+        # ~ ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>(\d+?)|(元))）)??年)|'+
+        ur'((?P<year>\d+?)(（((.+?))??(?P<gengo>(\d+?)|(元))）)??年)|'+
         ur'((?P<month>\d+?)月)|'+
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<ban>\d+?)版)|' +
         ur'((?P<suri>\d+?)刷)')
+
+    # フッターにおける半角数値を組み文字縦中横に変換
+    reKumiSuuji = re.compile(
+        ur'((「[^<]*?)(?P<kumisuuji>\d+)([^>]*?」))'
+    )
 
     # 描画対策
     reDash = re.compile( ur'(―{2,})' ) # 2文字以上のDASHの連結
@@ -1370,7 +1376,9 @@ class Aozora(ReaderSetting, AozoraScale):
                 lnbuf = u''.join(retline)
 
                 if footerflag:
-                    """ フッタにおける年月日を漢数字に置換
+                    """ フッタ
+                    """
+                    """ 年月日を漢数字に置換
                     """
                     ln = []
                     priortail = 0
@@ -1382,8 +1390,24 @@ class Aozora(ReaderSetting, AozoraScale):
                                 ln.append(u'〇一二三四五六七八九'[eval(s)])
                             except:
                                 ln.append(s)
-                    ln.append(lnbuf[priortail:])
-                    lnbuf = u''.join(ln)
+                    if priortail:
+                        ln.append(lnbuf[priortail:])
+                        lnbuf = u''.join(ln)
+
+                    """ 「」内に出現する数字を組み文字に変換
+                    """
+                    ln = []
+                    priortail = 0
+                    for tmp in self.reKumiSuuji.finditer(lnbuf):
+                        ln.append(lnbuf[:tmp.start()])
+                        ln.append(tmp.group(2))
+                        ln.append(u'<aozora tatenakayoko="%s">%s</aozora>' % (
+                            tmp.group(u'kumisuuji'), tmp.group(u'kumisuuji')))
+                        ln.append(tmp.group(4))
+                        priortail = tmp.end()
+                    if priortail:
+                        ln.append(lnbuf[priortail:])
+                        lnbuf =  u''.join(ln)
 
                 """ ダブルクォーテーションのノノカギへの置換
                     クォーテーションで括られた内容を調べて

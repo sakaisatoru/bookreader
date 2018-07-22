@@ -267,9 +267,11 @@ class Aozora(ReaderSetting, AozoraScale):
 
     # フッターにおける半角数値を組み文字縦中横に変換
     reKumiSuuji = re.compile(
-        ur'((「[^<]*?)(?P<kumisuuji>\d+)([^>]*?」))'
+        ur'(「(?P<internal>([^<]*?)(\d+)([^>]*?))」)'
     )
-
+    reKumiSuuji2 = re.compile(
+        ur'(\d+?)'
+    )
     # 描画対策
     reDash = re.compile( ur'(―{2,})' ) # 2文字以上のDASHの連結
 
@@ -1400,10 +1402,16 @@ class Aozora(ReaderSetting, AozoraScale):
                     priortail = 0
                     for tmp in self.reKumiSuuji.finditer(lnbuf):
                         ln.append(lnbuf[:tmp.start()])
-                        ln.append(tmp.group(2))
-                        ln.append(u'<aozora tatenakayoko="%s">%s</aozora>' % (
-                            tmp.group(u'kumisuuji'), tmp.group(u'kumisuuji')))
-                        ln.append(tmp.group(4))
+                        ln.append(u'「')
+                        tmp2pos = 0
+                        for tmp2 in self.reKumiSuuji2.finditer(tmp.group(u'internal')):
+                            ln.append(tmp.group(u'internal')[tmp2pos:tmp2.start()])
+                            ln.append(u'<aozora tatenakayoko="%s">%s</aozora>' % (
+                                tmp2.group(), tmp2.group()))
+                            tmp2pos = tmp2.end()
+                        ln.append(tmp.group(u'internal')[tmp2pos:])
+                        ln.append(u'」')
+
                         priortail = tmp.end()
                     if priortail:
                         ln.append(lnbuf[priortail:])

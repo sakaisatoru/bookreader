@@ -258,8 +258,7 @@ class Aozora(ReaderSetting, AozoraScale):
 
     # フッターにおける年月日刷を漢数字に変換
     reNenGetsuNichi = re.compile(
-        # ~ ur'((?P<year>\d+?)(（((明治)|(大正)|(昭和)|(平成))??(?P<gengo>(\d+?)|(元))）)??年)|'+
-        ur'((?P<year>\d+?)(（((.+?))??(?P<gengo>(\d+?)|(元))）)??年)|'+
+        ur'((?P<year>\d+?(年)?)(（((.+?))??(?P<gengo>(\d+?)|(元))）)??年)|'+
         ur'((?P<month>\d+?)月)|'+
         ur'((?P<day>\d+?)日)|' +
         ur'((?P<ban>\d+?)版)|' +

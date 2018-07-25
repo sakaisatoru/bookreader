@@ -31,6 +31,7 @@ import zipfile
 import logging
 import math
 import errno
+import subprocess
 
 import gtk
 import gobject
@@ -94,27 +95,14 @@ class Download(object):
                         continue
                     try:
                         if isDownload == gtk.RESPONSE_YES:
-                            urllib.urlretrieve( sTargetURL, sLocalfilename)
+                            urllib.urlretrieve(sTargetURL, sLocalfilename)
                     except IOError:
                         return (False, u'ダウンロードできません。' + \
                             u'ネットワークへの接続状況を確認してください。','' )
 
                     try:
-                        a = zipfile.ZipFile( sLocalfilename, u'r' )
-                        #a.extractall( self.get_value(u'aozoracurrent'))
-                        for b in a.namelist():
-                            if os.path.split(b)[1][-4:] == '.txt':
-                                a.extractall( self.get_value(u'aozoracurrent'))
-                                lastselectfile = os.path.join(
-                                    self.get_value(u'aozoracurrent'), b )
-                                raise StopIteration
-                                #break
-                        else:
-                            return (False, u'アーカイブを' + \
-                                            u'展開しましたがテキスト' + \
-                                            u'ファイルが含まれていません。','')
-                    except StopIteration:
-                        break
+                        a, lastselectfile = uni_extractall(sLocalfilename,
+                                            self.get_value(u'aozoracurrent'))
 
                     except RuntimeError:
                         return (False, u'ファイルの展開時にエラーが発生' + \
@@ -225,4 +213,39 @@ class DownloadUI(aozoradialog.ao_dialog, ReaderSetting):
             n = 1.0
         self.pb.set_fraction(n)
         return True
+
+
+""" 雑関数
+"""
+def uni_extractall(zipname, outdir):
+    """ zipに含まれるファイル名をunicodeに変換して出力する
+        zipfile と 含まれるtxtファイル名を返す
+    """
+
+    def __ZipFile(fn, outdir):
+        """ zipfile.ZipFile の差し替え
+            zipfile 以外のファイルが指定された場合は間に合わせのzipfileを
+            作成して返す
+        """
+        try:
+            a = zipfile.ZipFile(fn, u'r')
+        except zipfile.BadZipfile:
+            # 間に合わせのzipfile を作成する
+            n = os.path.basename(fn).split('.')[0]
+            tmpzipname = os.path.join(outdir,
+                            u'%s%X.zip' % (n, hash(n)) )
+            a = zipfile.ZipFile(tmpzipname, u'a')
+            a.write(fn, os.path.basename(fn))
+            a.close()
+            a = zipfile.ZipFile(tmpzipname, u'r')
+        return a
+
+    txtfilename = ''
+    a = __ZipFile(zipname, outdir)
+    for b in a.infolist():
+        b.filename = b.filename.decode('shift-jis').encode('utf-8')
+        a.extract(b, outdir)
+        if os.path.basename(b.filename).split('.')[-1].lower() == 'txt':
+            txtfilename = b.filename
+    return a, txtfilename
 

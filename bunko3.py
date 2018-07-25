@@ -22,6 +22,7 @@
 
 from readersub_nogui  import ReaderSetting
 from readersub  import DownloadUI
+import readersub
 import aozoradialog
 import ndc
 
@@ -678,8 +679,7 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
                 if not rv:
                     aozoradialog.msgerrinfo(u'ダウンロードに失敗しました。ネットワークの接続を確認してください。',self)
                     return None
-            a = self.__ZipFile( localfile, u'r' )
-            a.extractall(self.aozoradir)
+            a, a0 = readersub.uni_extractall(localfile, self.aozoradir)
             self.set_value(u'idxfile', a.namelist()[0])
         return os.path.join(self.aozoradir,self.get_value(u'idxfile'))
 
@@ -705,12 +705,10 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
         dlg.destroy()
         if f:
             if self.selectzip != u'':
-                a = self.__ZipFile(localfile, u'r' )
-                a.extractall(self.aozoratextdir)
-                for b in a.namelist():
-                    if os.path.basename(b)[-4:].lower() == '.txt':
-                        self.selectfile = os.path.join(self.aozoratextdir, b)
-                        self.selectzip = a.filename
+                a, b = readersub.uni_extractall(localfile, self.aozoratextdir)
+                if b != '':
+                    self.selectfile = os.path.join(self.aozoratextdir, b)
+                    self.selectzip = localfile
             else:
                 rv = aozoradialog.msgyesno(u'このテキストはxhtml形式(ファイルは %s)です。 \n閲覧するにはブラウザが必要です。続けますか？' % localfile, self )
                 if rv == gtk.RESPONSE_YES:
@@ -735,24 +733,4 @@ class BunkoUI(aozoradialog.ao_dialog, ReaderSetting):
                 # 空白を%20に置換してから検索する。
                 subprocess.Popen(['xdg-open',
                     'https://www.google.co.jp/search?q="%s"' % self.db.author[i].split('|')[1].replace(u' ', u'%20').replace(u'　', u'%20')])
-
-    def __ZipFile(self, fn, mode):
-        """ zipfile.ZipFile の差し替え
-            zipfile 以外のファイルが指定された場合は間に合わせのzipfileを
-            作成して返す
-        """
-        try:
-            a = zipfile.ZipFile(fn, u'r')
-        except zipfile.BadZipfile:
-            # 間に合わせのzipfile を作成する
-            n = os.path.basename(fn).split('.')[0]
-            tmpzipname = os.path.join(self.aozoradir,
-                            u'%s%X.zip' % (n, hash(n)) )
-            a = zipfile.ZipFile(tmpzipname, u'a')
-            a.write(fn, os.path.basename(fn))
-            a.close()
-            a = zipfile.ZipFile(tmpzipname, u'r')
-        return a
-
-
 

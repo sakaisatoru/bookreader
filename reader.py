@@ -24,6 +24,7 @@
 """
 
 import aozoradialog
+import readersub
 from readersub_nogui import ReaderSetting, History, interface_is_active
 from formater       import Aozora, AozoraCurrentTextinfo
 from whatsnew       import WhatsNewUI
@@ -983,8 +984,9 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
             try:
                 # 新規読み込み
-                a = zipfile.ZipFile(zipname, u'r' )
-                a.extractall(self.aozoratextdir)
+                # ~ a = zipfile.ZipFile(zipname, u'r' )
+                # ~ a.extractall(self.aozoratextdir)
+                a, a0 = readersub.uni_extractall(zipname, self.aozoratextdir)
             except IOError:
                 aozoradialog.msgerrinfo(u'ファイルが見当たりません。' )
                 self.isNowFormatting = False
@@ -992,7 +994,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
 
             pb = formaterUI(parent=self, flags=gtk.DIALOG_DESTROY_WITH_PARENT,
                     buttons=(   gtk.STOCK_CANCEL,   gtk.RESPONSE_CANCEL))
-            zipname = a.filename
+            zipname = a.filename # zipfile以外を指定した場合は仮zipを作成しているので。
             pb.touchup(fn, zipname, works)
             c = pb.run()
             if c != gtk.RESPONSE_CANCEL:
@@ -1130,7 +1132,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'\n'+
                 u'［＃本文終わり］\n'+
                 u'――バージョン――［＃「――バージョン――」は中見出し］\n'+
-                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2018［＃「2018」は縦中横］年7［＃「7」は縦中横］月22［＃「22」は縦中横］日\n'+
+                u'［＃１字下げ］夜間構築版《やかんこうちくばん》　2018［＃「2018」は縦中横］年7［＃「7」は縦中横］月25［＃「25」は縦中横］日\n'+
                 u'\n'+
                 u'このプログラムについて［＃「このプログラムについて」は中見出し］\n'+
                 u'［＃ここから１字下げ］'+
@@ -1141,6 +1143,7 @@ class ReaderUI(gtk.Window, ReaderSetting):
                 u'［＃字下げ終わり］\n'+
                 u'仕様［＃「仕様」は中見出し］\n'+
                 u'［＃ここから１字下げ、折り返して２字下げ］'+
+                u'・テキストファイル以外は表示できません。xhtmlファイルがあればブラウザを呼び出しますが、実行環境によっては失敗する事があります。\n'+
                 u'・注記には〔〕を付すことでルビと区別しています。\n'+
                 u'・「収録ファイルへの記載事項」における年月日は漢数字に置換して表示します。\n'+
                 u'・ワードラップはいわゆるASCII文字列のみに対して行います。ギリシャ文字等はそのまま表示されます。\n'+

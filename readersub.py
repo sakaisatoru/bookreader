@@ -97,7 +97,7 @@ class Download(object):
                         if isDownload == gtk.RESPONSE_YES:
                             urllib.urlretrieve(sTargetURL, sLocalfilename)
                     except IOError:
-                        return (False, u'ダウンロードできません。' + \
+                        return (False, u'タイムアウトしました。' + \
                             u'ネットワークへの接続状況を確認してください。','' )
 
                     try:

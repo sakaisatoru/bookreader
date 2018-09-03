@@ -269,7 +269,7 @@ class Aozora(ReaderSetting, AozoraScale):
         ur'(「(?P<internal>([^<]*?)(\d+)([^>]*?))」)'
     )
     reKumiSuuji2 = re.compile(
-        ur'(\d+?)'
+        ur'(\d+)'
     )
     # 描画対策
     reDash = re.compile( ur'(―{2,})' ) # 2文字以上のDASHの連結
@@ -1403,7 +1403,9 @@ class Aozora(ReaderSetting, AozoraScale):
                         ln.append(lnbuf[:tmp.start()])
                         ln.append(u'「')
                         tmp2pos = 0
+                        print tmp.group(u'internal')
                         for tmp2 in self.reKumiSuuji2.finditer(tmp.group(u'internal')):
+                            print tmp2.group()
                             ln.append(tmp.group(u'internal')[tmp2pos:tmp2.start()])
                             ln.append(u'<aozora tatenakayoko="%s">%s</aozora>' % (
                                 tmp2.group(), tmp2.group()))

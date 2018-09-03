@@ -1405,7 +1405,6 @@ class Aozora(ReaderSetting, AozoraScale):
                         tmp2pos = 0
                         print tmp.group(u'internal')
                         for tmp2 in self.reKumiSuuji2.finditer(tmp.group(u'internal')):
-                            print tmp2.group()
                             ln.append(tmp.group(u'internal')[tmp2pos:tmp2.start()])
                             ln.append(u'<aozora tatenakayoko="%s">%s</aozora>' % (
                                 tmp2.group(), tmp2.group()))

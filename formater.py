@@ -659,7 +659,8 @@ class Aozora(ReaderSetting, AozoraScale):
                 """ ヘッダ【テキスト中に現れる記号について】の処理
                     とりあえずばっさりと削除する
                 """
-                if self.sHeader == lnbuf:
+                # ~ if self.sHeader == lnbuf:
+                if u'--------------------' in lnbuf:
                     headerflag = False if headerflag else True
                     continue
                 if headerflag:

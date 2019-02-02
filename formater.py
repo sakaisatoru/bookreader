@@ -1404,7 +1404,7 @@ class Aozora(ReaderSetting, AozoraScale):
                         ln.append(lnbuf[:tmp.start()])
                         ln.append(u'「')
                         tmp2pos = 0
-                        print tmp.group(u'internal')
+                        # ~ print tmp.group(u'internal')
                         for tmp2 in self.reKumiSuuji2.finditer(tmp.group(u'internal')):
                             ln.append(tmp.group(u'internal')[tmp2pos:tmp2.start()])
                             ln.append(u'<aozora tatenakayoko="%s">%s</aozora>' % (
@@ -2307,7 +2307,8 @@ class Aozora(ReaderSetting, AozoraScale):
                                 jiage = jiage01 # 破壊された字上を復元
                             else:
                                 lnbuf = u'%s%s%s' % (s00,
-                                    u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage),
+                                    # ~ u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage),
+                                    u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage + 1),
                                     tmp2.group('name'))
 
                     jiage00 = jiage

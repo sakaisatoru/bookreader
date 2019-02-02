@@ -202,10 +202,14 @@ class AozoraScale(object):
                             if tmp:
                                 if tmp.group('name') in self.fontsizefactor:
                                     fontsizename = u'normal' # 文字サイズの復旧
-                            elif u'tatenakayoko' in tagname:
-                                inTatenakayoko = False
-                            elif self.reAozoraHalf.search(tagstack.pop()):
+
+                            elif u'aozora tatenakayoko' in tagstack[-1]:
+                                    inTatenakayoko = False
+
+                            elif self.reAozoraHalf.search(tagstack[-1]):
                                 adj = 1.0 # 送り量の復旧
+
+                            tagstack.pop()
                     else:
                         tmp = self.reFontsizefactor.search(tagname)
                         if tmp:

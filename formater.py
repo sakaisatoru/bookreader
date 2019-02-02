@@ -2299,7 +2299,7 @@ class Aozora(ReaderSetting, AozoraScale):
                             if self.charsmax < nIndentImg + nIndent + self.linelengthcount(lnbuf) + jiage:
                                 # 調整範囲が不足していれば次回再度処理する為に空白を挿入する
                                 # 文字列が１行よりはみ出す場合はタグを抜去するのみ
-                                nTmp = self.charsmax - self.linelengthcount(tmp2.group('name2'))
+                                nTmp = self.charsmax - self.linelengthcount(tmp2.group('name2')) + 1
                                 lnbuf = u'%s%s%s%s' % (s00,
                                     u'' if nTmp < 1 else u'　' * nTmp,
                                     tmp2.group('tag'),
@@ -2307,7 +2307,6 @@ class Aozora(ReaderSetting, AozoraScale):
                                 jiage = jiage01 # 破壊された字上を復元
                             else:
                                 lnbuf = u'%s%s%s' % (s00,
-                                    # ~ u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage),
                                     u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage + 1),
                                     tmp2.group('name'))
 

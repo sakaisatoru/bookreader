@@ -131,7 +131,7 @@ class AozoraScale(object):
     reImgtag = re.compile( ur'<aozora img="(?P<name>.+?)" width="(?P<width>.+?)" height="(?P<height>.+?)">' )
     reAozoraHalf = re.compile(ur'<aozora half="(?P<name>.+?)">')
 
-
+    reCTRL3 = re.compile(ur'(［＃(?P<name>.*?)］)')
 
     def __init__(self):
         self.font_description = None
@@ -178,7 +178,7 @@ class AozoraScale(object):
     def linelengthcount(self, sline):
         """ 文字列の長さを数える
             文字の大きさ変更等に対応
-            <tag></tag> はカウントしない。
+            <tag></tag>, ［＃］ はカウントしない。
         """
         l = 0.0
         inTag = False
@@ -187,6 +187,9 @@ class AozoraScale(object):
         tagstack = []
         fontsizename = u'normal'
         adj = 1.0
+
+        if self.reCTRL3.search(sline):
+            sline = self.reCTRL3.sub(u'',sline)
 
         for s in sline:
             if inTag:

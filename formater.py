@@ -2307,7 +2307,8 @@ class Aozora(ReaderSetting, AozoraScale):
                                 jiage = jiage01 # 破壊された字上を復元
                             else:
                                 lnbuf = u'%s%s%s' % (s00,
-                                    u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage + 1),
+                                    # ~ u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage + 1),
+                                    u'　' * (self.charsmax - nIndentImg - nIndent - self.linelengthcount(s00) - self.linelengthcount(tmp2.group('name')) - jiage ),
                                     tmp2.group('name'))
 
                     jiage00 = jiage
